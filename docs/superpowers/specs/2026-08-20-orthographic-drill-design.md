@@ -44,19 +44,35 @@ Not in v1, deliberately:
 - Mobile / touch-optimised input
 - Any language other than English
 - Freehand drawing, or assessment of draughtsmanship quality
+- Blind holes, fillets, chamfers, or any feature not parallel to a principal axis
+- A general boolean/CSG geometry engine (see section 5 for why)
 - A database
 
 ## 4. Core model and scoring
 
-### 4.1 Snap-to-grid typed segments
+### 4.1 Snap-to-grid typed primitives
 
-The canvas accepts only **line segments with endpoints on integer grid coordinates**, each carrying a type:
+The canvas accepts only primitives whose defining points lie on integer grid
+coordinates. Two kinds:
+
+**Line segments**, each carrying a type:
 
 - `visible` — solid line, a visible edge
 - `hidden` — dashed line, an edge obscured by material
 - `centre` — chain line, an axis of symmetry
 
-A drawing is therefore a **set of typed segments**. So is the answer key.
+**Circles**, defined by a grid centre and an integer radius, carrying the same
+type set. `visible` for a bore seen down its axis; `hidden` where obscured.
+
+A drawing is therefore a **set of typed primitives**. So is the answer key.
+Scoring compares primitives structurally — two circles match when centre and
+radius match; two segments match when their endpoints match — so the set-diff
+model in 4.2 is unchanged by the addition.
+
+**Constrained radii are accepted.** A snapped grid means radii are integers.
+Real drawings have arbitrary ones. This is the same trade as snapping segment
+endpoints: the drill tests whether the student knows a bore projects as a circle
+here and two lines there, not whether they can strike an exact radius.
 
 **Rejected alternative:** comparing rendered images. That is a computer-vision problem — fuzzy, hard to test, and it can only produce feedback like "72% similar", which teaches nothing.
 
@@ -106,25 +122,47 @@ This is the transplanted insight from Pathway Navigator, whose one durable findi
 
 ### Decision: generate both from a solid model
 
-A part is defined as **axis-aligned rectangular prisms composed on a grid** — a block with steps, notches, slots and rectangular through-openings. From that model, compute:
+A part is defined as a **base block plus an ordered list of typed features** — step, notch, slot, rectangular opening, cylindrical through-hole — all axis-aligned on a grid. Each feature type knows how it projects into each of the three views. From that model, compute:
 
 - the three orthographic views — visible edges, hidden edges, centre lines
 - the isometric prompt image
 
 Authoring a drill becomes defining a small solid. The answer key is **derived, never hand-made**.
 
-**Why the axis-aligned restriction:** general 3D projection with hidden-line removal is hard. Axis-aligned box composition reduces it to interval arithmetic per axis, which is tractable and testable.
+**Why feature-based and not boolean/CSG.** The obvious alternative is to model
+any solid as unions and subtractions of primitives and derive projections
+generally. **Rejected.** Robust boolean operations on solids are a known-hard
+problem — numerical robustness, coplanar faces, degenerate intersections. That
+Blender's boolean modifier is known for producing broken meshes is not a Blender
+failing; it is the difficulty of the problem showing through. It would plausibly
+consume the entire budget and produce nothing a student ever sees.
 
-**Consequence — no curved features in v1.** Rectangular prisms cannot express a
-cylindrical bore. Every "hole" in v1 is a rectangular through-opening. This is a
-real narrowing: round holes are common in real engineering drawings, and adding
-them later means arcs in projection plus circle/ellipse handling in the isometric.
+Feature-based modelling is how real parametric CAD works (SolidWorks, Fusion),
+and it is dramatically cheaper here because each feature's projection rules are
+written once and tested independently. Adding a feature type is additive work,
+not a rewrite.
 
-**Therefore `centre` line segments are defined in the model but not generated in
-v1.** Their primary use is marking the axes of circular features. The type stays
-in the segment schema so the scorer and canvas need no change when cylindrical
-features arrive, but no v1 answer key contains one, and the canvas should not
-offer the tool until it does.
+**Why the axis-aligned restriction:** it reduces rectangular features to interval
+arithmetic per axis, which is tractable and testable.
+
+**Cylindrical through-holes are in v1**, because a technical drawing tool without
+round holes would read as a toy — a hole is *the* canonical hidden-line teaching
+case. For a through-hole whose axis is parallel to a principal axis, the
+projections are trivially enumerable and need no boolean geometry at all:
+
+| View | Appearance |
+|---|---|
+| Looking down the hole axis | a circle, plus a centre-line cross |
+| The other two views | two parallel straight lines (the bore silhouette), dashed when obscured, plus a centre line along the axis |
+
+That is the entire geometry. It is also why `centre` line segments **are**
+generated in v1 — marking axes of circular features is their primary use, and
+convention requires them.
+
+**Explicitly excluded from v1**, each for a stated reason:
+- **Blind holes** — a bottom face adds further hidden-line cases and more ways for the generator to be subtly wrong.
+- **Fillets and chamfers** — arcs tangent to lines are geometrically fiddly and pedagogically secondary.
+- **Holes not parallel to a principal axis** — these require auxiliary views, which are a different topic entirely.
 
 **Three reasons this is worth the risk:**
 1. It eliminates the content grind that would otherwise kill the project.
@@ -183,7 +221,7 @@ These are requirements, not aspirations.
 
 **Drill IDs must be whitelisted against a known list, never interpolated into a file path.** `drills/${id}.json` with unvalidated input is path traversal.
 
-**Submitted segment sets must be validated before scoring:** maximum segment count, coordinate bounds, valid type enum. Otherwise a large payload exhausts CPU or times the function out.
+**Submitted primitive sets must be validated before scoring:** maximum primitive count, coordinate bounds, non-negative and bounded radii, valid type enum. Otherwise a large payload exhausts CPU or times the function out.
 
 **The scoring endpoint must be rate limited.** Free-tier invocation limits are a real ceiling.
 
@@ -197,7 +235,7 @@ These are requirements, not aspirations.
 
 **Ships:**
 - Drill type A — orthographic projection
-- The generator, restricted to axis-aligned box-composed solids
+- The generator: base block plus typed features, including cylindrical through-holes
 - The canvas with snap-to-grid typed segment input
 - Server-side scoring with structured feedback
 - Both first-angle and third-angle conventions, taught explicitly
@@ -225,6 +263,8 @@ If the generator emits a wrong key, the app confidently teaches incorrect drawin
 - a solid symmetric about an axis produces a symmetric view
 - a solid with no internal features produces no hidden lines
 - front and rear views are mirror images
+- a cylindrical through-hole yields exactly one circle, in the view down its axis, and exactly two parallel bore lines in each of the other two views
+- every circular feature carries centre lines in all three views
 
 These catch systematic errors across many generated cases.
 
@@ -253,6 +293,8 @@ Secondary: the golden set is verified by someone competent in the domain before 
 | Builder is neutral on the domain | Medium — content grind demotivates | Generator removes most authoring; v1 caps at 8–12 drills |
 | Automated scoring only measures the trivial part | Medium — undermines the premise | Success test with a real student in week three, not week nine |
 | Snapping makes it feel unlike real drafting | Low — accepted trade-off | Stated explicitly; the tool drills intent, not draughtsmanship |
+| Circle primitive touches all three units | Medium — schedule risk | Scoped to through-holes only; ~1–2 weeks of the 8–10, spent before the canvas is built so the interface is fixed once |
+| Tool dismissed as a toy without round holes | Was high — now mitigated | Cylindrical through-holes included in v1 |
 
 ## 12. Implementation sequencing
 
@@ -273,4 +315,5 @@ it would fix the interface by accident rather than by design.
 
 - **Standards sourcing.** ISO 128 and ISO 5456 are paywalled. Conventions must come from GMI coursework, textbooks or free national summaries. Confirm before authoring drills — this project's version of "read three PDFs first".
 - **Name.** "orthodrill" is a placeholder.
+- **Isometric rendering of a bore.** A cylindrical hole appears as an ellipse in isometric view. The prompt image is generated, not drawn by the student, so this is a rendering concern only and never a scoring one — but it is the one place v1 must draw a curve.
 - **Hosting.** Vercel free tier assumed, consistent with previous projects. Not yet confirmed for a route handler under load.
