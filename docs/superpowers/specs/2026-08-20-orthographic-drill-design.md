@@ -77,11 +77,24 @@ The last case matters most pedagogically: drawing a hidden edge as a solid line 
 
 Feedback is structured, never a percentage. "Your top view is missing the hidden line for the bore" — not "78%".
 
-### 4.3 View placement is scored separately from view content
+### 4.3 One canvas, three views, placed by the student
+
+**The student draws all three views on a single canvas and positions each view
+themselves.** They are not given three labelled boxes to fill in. Deciding where
+the top and side views belong *relative to the front view* is the thing first-
+and third-angle projection actually governs — pre-placing the views would remove
+the skill being drilled.
+
+A view is therefore identified by the cluster of segments it contains, not by
+which box it was drawn in. Scoring resolves the front view first (it is the
+same under both conventions), then interprets the remaining clusters' positions
+relative to it.
+
+### 4.4 View placement is scored separately from view content
 
 First- vs third-angle projection is a distinct failure mode: a student can draw all three views perfectly and place them wrong. Placement produces its own verdict so the app can say exactly that, rather than marking the whole attempt incorrect.
 
-### 4.4 Projection convention is regional, and first-class
+### 4.5 Projection convention is regional, and first-class
 
 ISO / first-angle dominates Europe and Asia. Third-angle dominates the US and Japan. **Neither is "correct".** A global resource must support both and teach the difference explicitly — the app must never imply one is the standard.
 
@@ -93,7 +106,7 @@ This is the transplanted insight from Pathway Navigator, whose one durable findi
 
 ### Decision: generate both from a solid model
 
-A part is defined as **axis-aligned boxes composed on a grid** (a block, a step, a through-hole). From that model, compute:
+A part is defined as **axis-aligned rectangular prisms composed on a grid** — a block with steps, notches, slots and rectangular through-openings. From that model, compute:
 
 - the three orthographic views — visible edges, hidden edges, centre lines
 - the isometric prompt image
@@ -101,6 +114,17 @@ A part is defined as **axis-aligned boxes composed on a grid** (a block, a step,
 Authoring a drill becomes defining a small solid. The answer key is **derived, never hand-made**.
 
 **Why the axis-aligned restriction:** general 3D projection with hidden-line removal is hard. Axis-aligned box composition reduces it to interval arithmetic per axis, which is tractable and testable.
+
+**Consequence — no curved features in v1.** Rectangular prisms cannot express a
+cylindrical bore. Every "hole" in v1 is a rectangular through-opening. This is a
+real narrowing: round holes are common in real engineering drawings, and adding
+them later means arcs in projection plus circle/ellipse handling in the isometric.
+
+**Therefore `centre` line segments are defined in the model but not generated in
+v1.** Their primary use is marking the axes of circular features. The type stays
+in the segment schema so the scorer and canvas need no change when cylindrical
+features arrive, but no v1 answer key contains one, and the canvas should not
+offer the tool until it does.
 
 **Three reasons this is worth the risk:**
 1. It eliminates the content grind that would otherwise kill the project.
@@ -204,7 +228,7 @@ If the generator emits a wrong key, the app confidently teaches incorrect drawin
 
 These catch systematic errors across many generated cases.
 
-*A hand-verified golden set* — 8–10 parts whose correct views are confirmed by someone who knows technical drawing, stored as fixtures. The builder has access to GMI students who have taken the subject. Verify the algorithm against human judgement once; the property tests then guard against regression.
+*A hand-verified golden set* — 8–10 parts whose correct views are confirmed by someone who knows technical drawing, stored as test fixtures. **These are verification fixtures, not published exercises**, and are separate from the 8–12 drills that ship to users; a fixture exists to prove the generator is correct, and may be duller than anything worth drilling. The builder has access to GMI students who have taken the subject. Verify the algorithm against human judgement once; the property tests then guard against regression.
 
 Together these mean the builder never has to trust their own unfamiliarity with the domain.
 
@@ -230,7 +254,22 @@ Secondary: the golden set is verified by someone competent in the domain before 
 | Automated scoring only measures the trivial part | Medium — undermines the premise | Success test with a real student in week three, not week nine |
 | Snapping makes it feel unlike real drafting | Low — accepted trade-off | Stated explicitly; the tool drills intent, not draughtsmanship |
 
-## 12. Open questions
+## 12. Implementation sequencing
+
+The three units must be built in dependency order so each is verifiable before
+the next depends on it:
+
+1. **Scorer first.** Pure, no browser, no content needed — write it against
+   hand-written fixtures. Proves the feedback model before anything renders.
+2. **Generator second.** Verified against the scorer's fixtures plus the golden
+   set. Until it works, hand-authored keys keep the project moving.
+3. **Canvas last.** It is the only part needing a browser, and by then both the
+   input shape and the feedback shape are already fixed by tests.
+
+Building the canvas first would be the natural temptation and the wrong order —
+it would fix the interface by accident rather than by design.
+
+## 13. Open questions
 
 - **Standards sourcing.** ISO 128 and ISO 5456 are paywalled. Conventions must come from GMI coursework, textbooks or free national summaries. Confirm before authoring drills — this project's version of "read three PDFs first".
 - **Name.** "orthodrill" is a placeholder.
