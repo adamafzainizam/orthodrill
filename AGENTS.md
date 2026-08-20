@@ -49,26 +49,25 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 3. Current status
 
-**Phase:** design approved, nothing built.
+**Phase:** scorer complete. Generator and canvas not started.
 
 **Done:**
 - [x] Candidate chosen after `pathway-navigator` was discontinued — see that repo's `docs/post-mortem.md`
 - [x] Competitor gap verified *before* designing (drawing tools ≠ scored drills; teaching is human critique)
 - [x] Design spec written, self-reviewed, revised twice, approved
 - [x] Repository initialised
+- [x] Scaffold, test harness, and the pure scoring engine — 36 tests
 
-**Not started:** everything else. No dependencies installed, no scaffold, no code.
+**Not started:** the generator, the canvas, the scoring route handler, and all drill content.
 
 ---
 
 ## 4. Next up
 
-Build order is **scorer → generator → canvas**, and it is deliberate. The canvas is the tempting starting point and the wrong one: building it first would fix the interfaces by accident rather than by design.
+Build order is **scorer → generator → canvas**, and it is deliberate. The canvas is the tempting starting point and the wrong one: building it first would fix the interfaces by accident rather than by design. The scaffold and the scorer are done; the rest follows in this order.
 
-1. **Scaffold.** `create-next-app` (TypeScript, App Router, `src/`, `@/*` alias). No database — see section 5.
-2. **The scorer.** Pure `(attempt, key, convention) -> ScoreResult`. Written against hand-written fixtures, no content and no browser required. Proves the feedback model before anything renders.
-3. **The generator.** Base block plus typed features → three views plus an isometric prompt. Verified by property tests and a human-checked golden set.
-4. **The canvas.** Snap-to-grid primitive input, then feedback rendering.
+1. **The generator.** Base block plus typed features → three views plus an isometric prompt. Verified by property tests and a human-checked golden set.
+2. **The canvas.** Snap-to-grid primitive input, then feedback rendering.
 
 **Before authoring drills:** confirm that free references agree on convention details. ISO 128 and ISO 5456 are paywalled. This is the project's cheapest premise check — if free sources contradict each other, that is much better known before twelve drills exist.
 
@@ -104,6 +103,11 @@ Empty for this repo so far. **Inherited from `pathway-navigator` and expected to
 - **`node --test` and `tsc` disagree about import extensions.** Node's native type stripping needs `./thing.ts` on relative imports in test files; `tsc` rejects that with `TS5097` unless `allowImportingTsExtensions` is set — only valid because `noEmit` is true.
 - **tsx runs `.ts` files as CommonJS** unless `package.json` sets `"type": "module"`, so top-level `await` in a standalone script fails with an esbuild `TransformError`, not a Node error. Wrap script bodies in an `async main()`.
 - Next.js **masks errors thrown out of a server action** in production builds. Return typed results; never throw for validation failures.
+
+**Found in this repo:**
+
+- **`node --test` warns `MODULE_TYPELESS_PACKAGE_JSON` on every run.** `package.json` has no `"type": "module"`, so Node parses each `.test.ts` as CommonJS, fails, and reparses as ESM. *Symptom:* a noisy warning block above the test results, plus a small startup cost. Harmless — the tests pass regardless. Not fixed by setting `"type": "module"` without checking it against the Next build first, which is why it was left alone.
+- **The npm 11 allow-scripts gotcha above is confirmed here**, and `allowScripts` in `package.json` pins `unrs-resolver@1.12.2` by exact version. Bumping that package needs a fresh `npm approve-scripts`.
 
 Add project-specific gotchas here as they are found, with enough detail that the *symptom* is searchable, not just the fix.
 
@@ -147,3 +151,4 @@ Append a short entry per working session. Newest at the bottom.
 | Date | Who | What changed |
 |---|---|---|
 | 2026-08-20 | Claude (Claude Code) | Project chosen and designed after `pathway-navigator` was discontinued. Competitor gap verified before designing. Spec written, self-reviewed (three fixes), then revised to add cylindrical through-holes via feature-based modelling. Repo initialised; no code yet. |
+| 2026-08-20 | Claude (Claude Code) | Scaffolded Next 16 + `node --test`. Built the pure scorer: primitives, clustering, translation-invariant comparison, content-based view assignment, placement against a convention table. 36 tests. **Conventions table still unverified against a reference.** |
