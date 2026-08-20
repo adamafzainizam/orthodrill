@@ -151,4 +151,4 @@ Append a short entry per working session. Newest at the bottom.
 | Date | Who | What changed |
 |---|---|---|
 | 2026-08-20 | Claude (Claude Code) | Project chosen and designed after `pathway-navigator` was discontinued. Competitor gap verified before designing. Spec written, self-reviewed (three fixes), then revised to add cylindrical through-holes via feature-based modelling. Repo initialised; no code yet. |
-| 2026-08-20 | Claude (Claude Code) | Scaffolded Next 16 + `node --test`. Built the pure scorer: primitives, clustering, translation-invariant comparison, content-based view assignment, placement against a convention table. 36 tests. **Conventions table still unverified against a reference.** |
+| 2026-08-20 | Claude (Claude Code) | Scaffolded Next 16 + `node --test`. Built the pure scorer: primitives, clustering, translation-invariant comparison, content-based view assignment, placement against a convention table. 36 tests. **Conventions table still unverified against a reference.** Created the GitHub repo (`adamafzainizam/orthodrill`, **private**) — the project had none until now; PR #1 opened. |
