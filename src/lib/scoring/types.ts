@@ -1,0 +1,19 @@
+/** Shared result shapes. PURE — types only, no logic, no I/O. */
+import type { Primitive } from "./primitives.ts";
+
+/** The right line in the right place, drawn in the wrong line style. */
+export type WrongType = { expected: Primitive; drawn: Primitive };
+
+export type ViewDiff = {
+  correct: Primitive[];
+  missing: Primitive[];
+  extra: Primitive[];
+  wrongType: WrongType[];
+};
+
+export type ViewName = "front" | "top" | "side";
+
+/** Relative direction of one view from the front view. */
+export type Direction = "above" | "below" | "left" | "right";
+
+export type Convention = "first_angle" | "third_angle";

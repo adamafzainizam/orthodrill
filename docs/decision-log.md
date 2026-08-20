@@ -39,3 +39,19 @@ Append new entries at the bottom. Never delete an entry; if a decision is revers
 **The real cost, recorded because it is easy to underestimate.** The core model generalises from typed segments to typed primitives, since a circle is not a segment. That touches the canvas, the scorer and the generator — roughly 1–2 weeks, spent before the canvas exists so the interface is fixed once rather than twice. Centre lines are consequently generated in v1 after all.
 
 **Excluded, each for a reason:** blind holes (a bottom face adds hidden-line cases and more ways to be subtly wrong), fillets and chamfers (arcs tangent to lines, geometrically fiddly and pedagogically secondary), and holes not parallel to a principal axis (these need auxiliary views, a different topic).
+
+## 2026-08-20 — the scorer
+
+**Views are identified by content, not by where they were drawn.** The scorer brute-forces all six ways of assigning three clusters to the front, top and side views and keeps the lowest-cost assignment. The alternative — infer the view from its position on the canvas — is self-defeating: position is exactly what the projection convention governs, so a position-based heuristic would silently agree with whatever layout the student chose and could never report a placement error. Six permutations is trivial to compute, and it removes any heuristic that could mis-identify a view and then blame the student for the consequences.
+
+**Content and placement get separate verdicts.** Comparison is translation-invariant: both the attempt and the key are shifted so their bounding boxes start at the origin before any diffing. A perfectly drawn view sitting ten units too far right is a *placement* problem, not a drawing problem, and conflating the two would produce feedback that is both false and useless. A student who draws all three views correctly but lays them out third-angle when asked for first-angle now gets told precisely that, via `matchesOtherConvention`.
+
+**Wrong line style is `wrongType`, not missing-plus-extra.** `positionKey` deliberately excludes a primitive's type, so a hidden edge drawn solid matches its key entry by position and is reported as one styled-wrongly line. Keying on type as well would have reported one missing primitive and one extra one — technically true, pedagogically worthless, and a description of the single most common error in the subject.
+
+**The wrong number of views is its own outcome, not a bad score.** `scoreAttempt` returns a discriminated union; drawing one view when three were asked for yields `WRONG_VIEW_COUNT`, not a diff full of missing lines. Different problem, different words.
+
+**No overall percentage, deliberately.** The scorer returns a structured diff and nothing resembling a mark. "72% correct" was rejected for image comparison for the same reason it is rejected here: a number teaches nothing. The caller renders the structure.
+
+**The conventions table is data and is still unverified.** First- versus third-angle placement lives in one exported object, not in branching logic, so correcting it against a reference touches one literal and no algorithms. It currently encodes first-angle top-below / third-angle top-above from general knowledge. **This has not yet been checked against a free reference** — that check is the premise test named in AGENTS.md §4 and it blocks publishing drills, not the scorer.
+
+**Deviation from the plan, recorded:** the plan assumed a git remote that did not exist — the project had no GitHub repository at all. Created `adamafzainizam/orthodrill` as a **private** repo at this point and pushed. Private rather than public deliberately: the conventions table is still unverified, and once drill content exists AGENTS.md §5.1 means answer keys must never sit in a world-readable repo. Flipping it to public later is a decision to take with that in mind.
