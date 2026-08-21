@@ -19,10 +19,32 @@ import { boundingBox, type BBox } from "./primitives.ts";
 import type { Assignment } from "./assign.ts";
 import type { Convention, Direction } from "./types.ts";
 
+/**
+ * `side` means THE RIGHT-SIDE VIEW — the view of the object seen from its
+ * right. Both standards also admit a left-side view, which mirrors these
+ * placements; a drill that wants one must say so, because "the side view" is
+ * ambiguous on its own and the two conventions disagree about where it goes.
+ *
+ * The conventions are mirror images on BOTH axes. First-angle puts the object
+ * between the observer and the plane, so every view lands on the far side from
+ * the direction it was seen: top view below, right-side view LEFT. Third-angle
+ * puts the plane between observer and object, so each view lands on its own
+ * side: top view above, right-side view right.
+ *
+ * VERIFIED 2026-08-21 against four free references, which agree:
+ *  - Engineering LibreTexts (Illinois Tech, Intro to Engineering Drawing §2.2):
+ *    first-angle "right-side view is projected onto a vertical plane placed to
+ *    the left of the object".
+ *  - GD&T Basics, "First vs Third Angle - Orthographic Views": "This results in
+ *    the right-side view of the object being located on the left side of the
+ *    front view."
+ *  - Xometry Pro and JLC CNC, both stating the view from the right is placed to
+ *    the left of the front view in first-angle.
+ * ISO 128 / ISO 5456 remain paywalled and were NOT consulted; if one is ever
+ * obtained and contradicts the above, this table is the only thing to change.
+ */
 export const CONVENTIONS: Record<Convention, { top: Direction; side: Direction }> = {
-  // In first-angle projection the view seen from above is projected BELOW.
-  first_angle: { top: "below", side: "right" },
-  // In third-angle projection it is projected ABOVE.
+  first_angle: { top: "below", side: "left" },
   third_angle: { top: "above", side: "right" },
 };
 

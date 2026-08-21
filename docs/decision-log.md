@@ -55,3 +55,17 @@ Append new entries at the bottom. Never delete an entry; if a decision is revers
 **The conventions table is data and is still unverified.** First- versus third-angle placement lives in one exported object, not in branching logic, so correcting it against a reference touches one literal and no algorithms. It currently encodes first-angle top-below / third-angle top-above from general knowledge. **This has not yet been checked against a free reference** — that check is the premise test named in AGENTS.md §4 and it blocks publishing drills, not the scorer.
 
 **Deviation from the plan, recorded:** the plan assumed a git remote that did not exist — the project had no GitHub repository at all. Created `adamafzainizam/orthodrill` as a **private** repo at this point and pushed. Private rather than public deliberately: the conventions table is still unverified, and once drill content exists AGENTS.md §5.1 means answer keys must never sit in a world-readable repo. Flipping it to public later is a decision to take with that in mind.
+
+## 2026-08-21 — the convention premise check, and the bug it caught
+
+**The check was run before the generator, and it paid for itself immediately.** AGENTS.md §2.4 says to find the cheapest question that could kill a piece of work and answer it first. That question here was "do free references agree on first- vs third-angle placement, given ISO 128 and ISO 5456 are paywalled?" They agree. Our code did not agree with them.
+
+**The bug: the conventions table mirrored on one axis instead of two.** It read `first_angle: { top: "below", side: "right" }` and `third_angle: { top: "above", side: "right" }`. The side view was identical under both. In reality the two systems are mirror images on *both* axes — first-angle places the object between observer and plane, so every view lands on the far side from the direction it was seen: top view below, **right-side view to the left**. Third-angle places the plane between observer and object, so each view lands on its own side. Corrected to `first_angle: { top: "below", side: "left" }`.
+
+**Consequence had it shipped.** `checkPlacement` would have told a student who laid out a correct first-angle drawing that their side view was misplaced, and `matchesOtherConvention` could never have fired correctly, because a layout can not match "the other convention" when both entries claim the same side. Exactly the §5.2 failure: the app confidently teaching an incorrect drawing.
+
+**Why the existing 36 tests missed it.** Two reasons, both worth remembering. The placement test asserted only that the conventions differ on the *top* view, never on the side. And the composed tests in `score.test.ts` derive their layout offsets *from* `CONVENTIONS`, so they exercise the plumbing and stay green for any table values whatsoever. Tests that read their expectations out of the thing under test cannot falsify it. The fix adds three tests that pin the literal values instead.
+
+**`side` now has a defined meaning: the right-side view.** It was ambiguous before, which is part of why the error survived review — "the side view" has no single placement, since the left-side view mirrors the right one. Recorded as a constraint on drill authoring: a drill wanting a left-side view must say so explicitly.
+
+**Sources are cited in the source file, not just here**, per §7. Engineering LibreTexts (Illinois Tech), GD&T Basics, Xometry Pro and JLC CNC. The paywalled ISO standards were not consulted and the code says so.

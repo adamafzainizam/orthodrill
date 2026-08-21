@@ -69,7 +69,7 @@ Build order is **scorer → generator → canvas**, and it is deliberate. The ca
 1. **The generator.** Base block plus typed features → three views plus an isometric prompt. Verified by property tests and a human-checked golden set.
 2. **The canvas.** Snap-to-grid primitive input, then feedback rendering.
 
-**Before authoring drills:** confirm that free references agree on convention details. ISO 128 and ISO 5456 are paywalled. This is the project's cheapest premise check — if free sources contradict each other, that is much better known before twelve drills exist.
+**Convention details: CHECKED 2026-08-21.** Four free references agree on first- vs third-angle view placement, and the check found a real bug — the shipped table placed the side view identically under both conventions. Corrected and pinned by test. ISO 128 and ISO 5456 remain paywalled and were not consulted; the table in `src/lib/scoring/placement.ts` carries the citations and is the single place to change if a paid standard ever contradicts them.
 
 ---
 
@@ -151,4 +151,5 @@ Append a short entry per working session. Newest at the bottom.
 | Date | Who | What changed |
 |---|---|---|
 | 2026-08-20 | Claude (Claude Code) | Project chosen and designed after `pathway-navigator` was discontinued. Competitor gap verified before designing. Spec written, self-reviewed (three fixes), then revised to add cylindrical through-holes via feature-based modelling. Repo initialised; no code yet. |
-| 2026-08-20 | Claude (Claude Code) | Scaffolded Next 16 + `node --test`. Built the pure scorer: primitives, clustering, translation-invariant comparison, content-based view assignment, placement against a convention table. 36 tests. **Conventions table still unverified against a reference.** Created the GitHub repo (`adamafzainizam/orthodrill`, **private**) — the project had none until now; PR #1 opened. |
+| 2026-08-20 | Claude (Claude Code) | Scaffolded Next 16 + `node --test`. Built the pure scorer: primitives, clustering, translation-invariant comparison, content-based view assignment, placement against a convention table. 36 tests. Created the GitHub repo (`adamafzainizam/orthodrill`, **private**) — the project had none until now; PR #1 opened. |
+| 2026-08-21 | Claude (Claude Code) | Ran the convention premise check before starting the generator. Four free references agree, and they disagreed with our code: the table placed the side view to the right under BOTH conventions, so first-angle was wrong. Fixed, cited in-source, pinned by three new tests (39 total). Pushed to PR #1. |
