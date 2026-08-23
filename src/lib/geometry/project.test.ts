@@ -80,3 +80,17 @@ test("the step's riser is visible in the top view, pinning the near-is-high dept
   assert.equal(internal.length, 4, "the riser is a visible edge spanning the full width");
   assert.equal(hidden(es).length, 0);
 });
+
+// Pins the SAME near-is-high branch against a different mutant: T - t (an
+// off-by-one that shifts sampling by one depth layer instead of dropping the
+// inversion). That mutant is a no-op on the previous riser test because the
+// probe it skips (t=0, out of bounds) never had a face anyway. This fixture's
+// only face sits at the FARTHEST layer (z=0), which the off-by-one mutant
+// never reads at all, so it discriminates where the riser test could not.
+test("a bottom recess is hidden in the top view, pinning the far-layer sample", () => {
+  const bottomRecess = subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 0, w: 4, d: 2, h: 1 });
+  const es = extractEdges(buildOccupancy(bottomRecess), VIEW_SPECS.top);
+  assert.equal(hidden(es).length, 4);
+  assert.equal(hidden(es).filter((e) => e.along === "u" && e.v === 2).length, 4);
+  assert.equal(visible(es).length, 16);
+});
