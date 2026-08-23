@@ -1315,6 +1315,12 @@ test("view extents match the block's dimensions", () => {
 
 // The orientation check property tests structurally cannot make. A notch at one
 // named corner must appear on one named side.
+// SUPERSEDED — this test as written is VACUOUS. Mutation testing during review
+// showed its predicate returns false (i.e. passes) under the correct ViewSpec
+// table AND under both the horizontal and vertical mirrors, because it demands
+// a top-edge segment lying entirely within x in [0,2], which no table produces.
+// The shipped version asserts POSITIVELY that the top edge runs exactly x=2..8.
+// See src/lib/geometry/views.test.ts for the corrected test.
 test("a notch at the left end appears on the left of the front view", () => {
   const notched = subtractBox(block(8, 4, 4), { x: 0, y: 0, z: 2, w: 2, d: 4, h: 2 });
   const v = generateViews(notched);
@@ -1407,6 +1413,15 @@ function overlaps1D(a: [number, number], b: [number, number]): boolean {
  * confident wrong key would be far worse than refusing (AGENTS.md §5.2).
  */
 export function validateSolid(s: Solid): void {
+  // SUPERSEDED — see src/lib/geometry/views.ts for the shipped implementation.
+  // This version has a CRITICAL gap: `if (a.axis !== b.axis) continue` skips
+  // perpendicular hole pairs, so two through-holes that physically intersect at
+  // the block centre are ACCEPTED and generate continuous bore lines which in
+  // reality terminate at the intersection curve. The shipped version applies the
+  // three-axis span reduction to different-axis pairs, uses `<=` so tangent
+  // holes (which emit a duplicate shared bore line) are also rejected, tests
+  // true circle-rectangle intersection rather than the circle's bounding square,
+  // and clamps box spans to the block before testing.
   const cylinders = s.ops.filter((o): o is CylinderOp => o.kind === "cylinder");
 
   for (let i = 0; i < cylinders.length; i++) {
@@ -1440,6 +1455,10 @@ export function validateSolid(s: Solid): void {
   }
 }
 
+// SUPERSEDED — see src/lib/geometry/views.ts for the shipped implementation.
+// This version calls `buildOccupancy(s)` once per view, rasterising the same
+// solid three times over. The shipped version hoists that call into
+// `generateViews` and threads the one `Occupancy` through to all three views.
 function buildView(s: Solid, spec: ViewSpec): Primitive[] {
   const occ = buildOccupancy(s);
   const lattice = mergeEdges(extractEdges(occ, spec));
