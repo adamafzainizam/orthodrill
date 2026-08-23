@@ -1,0 +1,114 @@
+/**
+ * Compose the three orthographic views from a solid.
+ *
+ * Each view is emitted AT ITS OWN ORIGIN. The generator deliberately does not
+ * lay the views out according to a projection convention: the scorer compares
+ * translation-invariantly and judges placement separately, and placing the views
+ * is the skill being tested. Laying them out would compute a fourth answer
+ * nobody consumes.
+ *
+ * PURE. No I/O. Must never be imported into a client component: it produces
+ * answer keys, which never reach the browser (AGENTS.md §5.1).
+ */
+import { buildOccupancy } from "./occupancy.ts";
+import { extractEdges } from "./project.ts";
+import { mergeEdges } from "./merge.ts";
+import { borePrimitives } from "./bore.ts";
+import { VIEW_SPECS, type ViewSpec } from "./viewspec.ts";
+import type { Axis, CylinderOp, Solid } from "./solid.ts";
+import { boundingBox, translate, type Primitive } from "../scoring/primitives.ts";
+import type { KeyViews } from "../scoring/assign.ts";
+import type { ViewName } from "../scoring/types.ts";
+
+/** Axis-aligned span of a cylinder on one of its plane axes. */
+function cylinderSpan(op: CylinderOp, axis: Axis): [number, number] | null {
+  const all: Axis[] = ["x", "y", "z"];
+  const [pu, pv] = all.filter((a) => a !== op.axis);
+  if (axis === pu) return [op.u - op.r, op.u + op.r];
+  if (axis === pv) return [op.v - op.r, op.v + op.r];
+  return null; // the hole axis: spans the whole block
+}
+
+function overlaps1D(a: [number, number], b: [number, number]): boolean {
+  return a[0] < b[1] && b[0] < a[1];
+}
+
+/**
+ * Reject solids whose features overlap.
+ *
+ * The approved spec excludes overlapping features from v1. Enforcing that here
+ * turns an implicit assumption into a loud failure: a hole partially cut away by
+ * a box has a bore silhouette this generator does not model, and emitting a
+ * confident wrong key would be far worse than refusing (AGENTS.md §5.2).
+ */
+export function validateSolid(s: Solid): void {
+  const cylinders = s.ops.filter((o): o is CylinderOp => o.kind === "cylinder");
+
+  for (let i = 0; i < cylinders.length; i++) {
+    for (let j = i + 1; j < cylinders.length; j++) {
+      const a = cylinders[i], b = cylinders[j];
+      if (a.axis !== b.axis) continue;
+      const dist = Math.hypot(a.u - b.u, a.v - b.v);
+      if (dist < a.r + b.r) {
+        throw new Error("two cylindrical holes overlap, which v1 does not model");
+      }
+    }
+  }
+
+  for (const cyl of cylinders) {
+    for (const op of s.ops) {
+      if (op.kind !== "box") continue;
+      const b = op.box;
+      const boxSpan = (axis: Axis): [number, number] =>
+        axis === "x" ? [b.x, b.x + b.w]
+        : axis === "y" ? [b.y, b.y + b.d]
+        : [b.z, b.z + b.h];
+      const all: Axis[] = ["x", "y", "z"];
+      const hit = all.every((axis) => {
+        const cs = cylinderSpan(cyl, axis);
+        return cs === null ? true : overlaps1D(cs, boxSpan(axis));
+      });
+      if (hit) {
+        throw new Error("a cylindrical hole overlaps a subtracted box, which v1 does not model");
+      }
+    }
+  }
+}
+
+function buildView(s: Solid, spec: ViewSpec): Primitive[] {
+  const occ = buildOccupancy(s);
+  const lattice = mergeEdges(extractEdges(occ, spec));
+
+  const out: Primitive[] = lattice.map((l) => ({
+    kind: "segment",
+    type: l.hidden ? "hidden" : "visible",
+    x1: spec.suSign * l.u1, y1: spec.svSign * l.v1,
+    x2: spec.suSign * l.u2, y2: spec.svSign * l.v2,
+  }));
+
+  for (const op of s.ops) {
+    if (op.kind !== "cylinder") continue;
+    for (const p of borePrimitives(op, occ, spec)) {
+      out.push(p.kind === "circle"
+        ? { ...p, cx: spec.suSign * p.cx, cy: spec.svSign * p.cy }
+        : {
+            ...p,
+            x1: spec.suSign * p.x1, y1: spec.svSign * p.y1,
+            x2: spec.suSign * p.x2, y2: spec.svSign * p.y2,
+          });
+    }
+  }
+
+  const box = boundingBox(out);
+  if (box === null) return [];
+  return out.map((p) => translate(p, -box.minX, -box.minY));
+}
+
+export function generateViews(s: Solid): KeyViews {
+  validateSolid(s);
+  const views = {} as Record<ViewName, Primitive[]>;
+  for (const name of ["front", "top", "side"] as ViewName[]) {
+    views[name] = buildView(s, VIEW_SPECS[name]);
+  }
+  return { front: views.front, top: views.top, side: views.side };
+}
