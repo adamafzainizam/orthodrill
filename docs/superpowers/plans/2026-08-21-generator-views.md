@@ -18,6 +18,7 @@
 - **Import the scorer's vocabulary**, never redeclare it: `Primitive`, `Segment`, `Circle` from `src/lib/scoring/primitives.ts`; `KeyViews` from `src/lib/scoring/assign.ts`; `ViewName` from `src/lib/scoring/types.ts`.
 - **English only.** No i18n.
 - **Git:** this plan is one branch (`feat/generator`), atomic commits per task, PR at the end.
+- **Every task runs `npm test`, `npm run lint` AND `npm run typecheck` before committing.** `npm test` strips types without checking them, so a type error survives a green suite. Run `npm run build` once first if typecheck reports a spurious `TS2304: Cannot find name 'LayoutProps'`.
 - Read the design spec `docs/superpowers/specs/2026-08-21-generator-views-design.md` before starting. Read `AGENTS.md` §5 and §6.
 
 ## Precondition
@@ -629,13 +630,13 @@ Create `src/lib/geometry/project.test.ts`:
 ```typescript
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractEdges } from "./project.ts";
+import { extractEdges, type UnitEdge } from "./project.ts";
 import { buildOccupancy } from "./occupancy.ts";
 import { VIEW_SPECS } from "./viewspec.ts";
 import { block, subtractBox } from "./solid.ts";
 
-const visible = (es: { hidden: boolean }[]) => es.filter((e) => !e.hidden);
-const hidden = (es: { hidden: boolean }[]) => es.filter((e) => e.hidden);
+const visible = (es: UnitEdge[]) => es.filter((e) => !e.hidden);
+const hidden = (es: UnitEdge[]) => es.filter((e) => e.hidden);
 
 test("a plain cube's front view is its outline and nothing else", () => {
   const es = extractEdges(buildOccupancy(block(2, 2, 2)), VIEW_SPECS.front);
@@ -1162,7 +1163,6 @@ export function borePrimitives(
   const lengthAlong = sizeAlong(o, op.axis);
 
   const depthSize = sizeAlong(o, spec.depth);
-  const acrossSize = sizeAlong(o, acrossAxis);
   const cDepth = centreOn(op, spec.depth);
 
   /**
@@ -1170,7 +1170,7 @@ export function borePrimitives(
    * Asked of the grid rather than reasoned about: a notch cut in front of a
    * bore exposes it, and no per-feature rule would know that.
    */
-  const occludedAt = (t: number, across: number): boolean => {
+  const solidInFront = (t: number, acrossCol: number): boolean => {
     for (let depthIndex = 0; depthIndex < depthSize; depthIndex++) {
       const nearerThanHole = spec.nearIsLow
         ? depthIndex < cDepth - op.r
@@ -1178,12 +1178,28 @@ export function borePrimitives(
       if (!nearerThanHole) continue;
       const coord: Record<Axis, number> = { x: 0, y: 0, z: 0 };
       coord[op.axis] = t;
-      coord[acrossAxis] = Math.max(0, Math.min(acrossSize - 1, across));
+      coord[acrossAxis] = acrossCol;
       coord[spec.depth] = depthIndex;
       if (o.isSolid(coord.x, coord.y, coord.z)) return true;
     }
     return false;
   };
+
+  /**
+   * A bore line sits at a lattice coordinate, i.e. BETWEEN two cell columns,
+   * so both must be consulted — it is buried only when material lies in front
+   * in both. Sampling the single column `across` would treat the two bore
+   * lines differently: `c - r` would sample a column inside the hole footprint
+   * and `c + r` one outside it, so a notch cut symmetrically in front of a
+   * symmetric hole would expose one bore line and bury the other.
+   *
+   * This is the same rule project.ts applies to its boundary lines, and the
+   * two modules must agree. No clamping: isSolid bounds-checks to false, which
+   * is the correct answer for a hole tangent to a face — clamping would report
+   * the block's own silhouette bore line as hidden.
+   */
+  const occludedAt = (t: number, across: number): boolean =>
+    solidInFront(t, across - 1) && solidInFront(t, across);
 
   const makeSeg = (
     a: number, b: number, acrossPos: number, isHidden: boolean,

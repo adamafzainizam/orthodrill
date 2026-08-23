@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractEdges } from "./project.ts";
+import { extractEdges, type UnitEdge } from "./project.ts";
 import { buildOccupancy } from "./occupancy.ts";
 import { VIEW_SPECS } from "./viewspec.ts";
 import { block, subtractBox } from "./solid.ts";
 
-const visible = (es: { hidden: boolean }[]) => es.filter((e) => !e.hidden);
-const hidden = (es: { hidden: boolean }[]) => es.filter((e) => e.hidden);
+const visible = (es: UnitEdge[]) => es.filter((e) => !e.hidden);
+const hidden = (es: UnitEdge[]) => es.filter((e) => e.hidden);
 
 test("a plain cube's front view is its outline and nothing else", () => {
   const es = extractEdges(buildOccupancy(block(2, 2, 2)), VIEW_SPECS.front);

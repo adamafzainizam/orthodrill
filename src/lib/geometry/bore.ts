@@ -65,13 +65,33 @@ export function borePrimitives(
   const lengthAlong = sizeAlong(o, op.axis);
 
   const depthSize = sizeAlong(o, spec.depth);
-  const acrossSize = sizeAlong(o, acrossAxis);
   const cDepth = centreOn(op, spec.depth);
+
+  /** Is the cell at across-column `acrossCol`, depth `depthIndex`, length `t` solid? */
+  const solidAt = (acrossCol: number, depthIndex: number, t: number): boolean => {
+    const coord: Record<Axis, number> = { x: 0, y: 0, z: 0 };
+    coord[op.axis] = t;
+    coord[acrossAxis] = acrossCol;
+    coord[spec.depth] = depthIndex;
+    return o.isSolid(coord.x, coord.y, coord.z);
+  };
 
   /**
    * Is there material between the viewer and the bore, `t` along its length?
    * Asked of the grid rather than reasoned about: a notch cut in front of a
    * bore exposes it, and no per-feature rule would know that.
+   *
+   * `across` is a LATTICE coordinate — the boundary between cell columns
+   * `across - 1` and `across` — so, matching the both-adjacent-columns rule
+   * `project.ts`'s `classify` uses for boundary lines, the bore line counts
+   * as buried only when BOTH adjacent columns carry material. Checking only
+   * one column (the earlier bug) treated the two bore lines of one hole
+   * asymmetrically: the low line sampled a column inside the hole footprint
+   * and the high line sampled one outside it.
+   *
+   * No clamping: `Occupancy.isSolid` already returns false out of bounds,
+   * which is exactly right for a hole tangent to a face — the silhouette
+   * line there has no material on the outside column, so it stays visible.
    */
   const occludedAt = (t: number, across: number): boolean => {
     for (let depthIndex = 0; depthIndex < depthSize; depthIndex++) {
@@ -79,11 +99,7 @@ export function borePrimitives(
         ? depthIndex < cDepth - op.r
         : depthIndex >= cDepth + op.r;
       if (!nearerThanHole) continue;
-      const coord: Record<Axis, number> = { x: 0, y: 0, z: 0 };
-      coord[op.axis] = t;
-      coord[acrossAxis] = Math.max(0, Math.min(acrossSize - 1, across));
-      coord[spec.depth] = depthIndex;
-      if (o.isSolid(coord.x, coord.y, coord.z)) return true;
+      if (solidAt(across - 1, depthIndex, t) && solidAt(across, depthIndex, t)) return true;
     }
     return false;
   };
