@@ -1170,36 +1170,43 @@ export function borePrimitives(
    * Asked of the grid rather than reasoned about: a notch cut in front of a
    * bore exposes it, and no per-feature rule would know that.
    */
-  const solidInFront = (t: number, acrossCol: number): boolean => {
+  const solidAt = (acrossCol: number, depthIndex: number, t: number): boolean => {
+    const coord: Record<Axis, number> = { x: 0, y: 0, z: 0 };
+    coord[op.axis] = t;
+    coord[acrossAxis] = acrossCol;
+    coord[spec.depth] = depthIndex;
+    return o.isSolid(coord.x, coord.y, coord.z);
+  };
+
+  /**
+   * Is there material between the viewer and the bore, `t` along its length?
+   * Asked of the grid rather than reasoned about: a notch cut in front of a
+   * bore exposes it, and no per-feature rule would know that.
+   *
+   * `across` is a LATTICE coordinate — the boundary between cell columns
+   * `across - 1` and `across` — so, matching the both-adjacent-columns rule
+   * project.ts's `classify` uses, the bore line counts as buried only when
+   * BOTH adjacent columns carry material AT THE SAME DEPTH. The same-depth
+   * part is essential: two separate "does this column have material at some
+   * near depth" passes would call a staggered obstruction occluding, which it
+   * is not. Checking only one column treats the two bore lines of one hole
+   * asymmetrically — the low line samples a column inside the hole footprint
+   * and the high line one outside it.
+   *
+   * No clamping: isSolid already returns false out of bounds, which is right
+   * for a hole tangent to a face — the silhouette line there has no material
+   * on the outside column, so it stays visible.
+   */
+  const occludedAt = (t: number, across: number): boolean => {
     for (let depthIndex = 0; depthIndex < depthSize; depthIndex++) {
       const nearerThanHole = spec.nearIsLow
         ? depthIndex < cDepth - op.r
         : depthIndex >= cDepth + op.r;
       if (!nearerThanHole) continue;
-      const coord: Record<Axis, number> = { x: 0, y: 0, z: 0 };
-      coord[op.axis] = t;
-      coord[acrossAxis] = acrossCol;
-      coord[spec.depth] = depthIndex;
-      if (o.isSolid(coord.x, coord.y, coord.z)) return true;
+      if (solidAt(across - 1, depthIndex, t) && solidAt(across, depthIndex, t)) return true;
     }
     return false;
   };
-
-  /**
-   * A bore line sits at a lattice coordinate, i.e. BETWEEN two cell columns,
-   * so both must be consulted — it is buried only when material lies in front
-   * in both. Sampling the single column `across` would treat the two bore
-   * lines differently: `c - r` would sample a column inside the hole footprint
-   * and `c + r` one outside it, so a notch cut symmetrically in front of a
-   * symmetric hole would expose one bore line and bury the other.
-   *
-   * This is the same rule project.ts applies to its boundary lines, and the
-   * two modules must agree. No clamping: isSolid bounds-checks to false, which
-   * is the correct answer for a hole tangent to a face — clamping would report
-   * the block's own silhouette bore line as hidden.
-   */
-  const occludedAt = (t: number, across: number): boolean =>
-    solidInFront(t, across - 1) && solidInFront(t, across);
 
   const makeSeg = (
     a: number, b: number, acrossPos: number, isHidden: boolean,
