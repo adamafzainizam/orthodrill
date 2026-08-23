@@ -21,6 +21,21 @@ test("the two conventions differ on where the top view goes", () => {
   assert.notEqual(CONVENTIONS.first_angle.top, CONVENTIONS.third_angle.top);
 });
 
+// The conventions are mirror images of each other on BOTH axes, not just the
+// vertical one. Asserting only the top view is what let the side view stay
+// wrong. See the citations in placement.ts.
+test("the two conventions differ on where the side view goes", () => {
+  assert.notEqual(CONVENTIONS.first_angle.side, CONVENTIONS.third_angle.side);
+});
+
+test("first-angle places the right-side view left and the top view below", () => {
+  assert.deepEqual(CONVENTIONS.first_angle, { top: "below", side: "left" });
+});
+
+test("third-angle places the right-side view right and the top view above", () => {
+  assert.deepEqual(CONVENTIONS.third_angle, { top: "above", side: "right" });
+});
+
 test("directionFrom reports the dominant axis of separation", () => {
   const front = { minX: 0, minY: 0, maxX: 4, maxY: 4 };
   assert.equal(directionFrom(front, { minX: 0, minY: 20, maxX: 4, maxY: 24 }), "below");
