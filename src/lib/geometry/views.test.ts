@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateViews, validateSolid } from "./views.ts";
 import { block, subtractBox, subtractCylinder } from "./solid.ts";
-import { boundingBox } from "../scoring/primitives.ts";
+import { boundingBox, type Primitive } from "../scoring/primitives.ts";
 
 test("a plain block gives three rectangular outlines", () => {
   const v = generateViews(block(6, 4, 2));
@@ -32,14 +32,26 @@ test("view extents match the block's dimensions", () => {
 
 // The orientation check property tests structurally cannot make. A notch at one
 // named corner must appear on one named side.
+//
+// This test exists specifically to catch a mirrored ViewSpec sign table. A
+// bounding-box symmetry check cannot do that job: mirroring a view preserves
+// its bounding box, so any assertion phrased only in terms of the box passes
+// under every sign combination. Asserting the exact endpoints of a named edge
+// is what makes a wrong sign fail.
 test("a notch at the left end appears on the left of the front view", () => {
   const notched = subtractBox(block(8, 4, 4), { x: 0, y: 0, z: 2, w: 2, d: 4, h: 2 });
   const v = generateViews(notched);
   const b = boundingBox(v.front)!;
-  // The removed corner is top-left: no primitive should occupy that corner.
-  const topLeftOccupied = v.front.some((p) =>
-    p.kind === "segment" && p.x1 < 2 && p.x2 <= 2 && p.y1 === b.minY && p.y2 === b.minY);
-  assert.equal(topLeftOccupied, false, "the top-left corner was cut away");
+  // The notch removes the top-left corner, so the top edge should run only
+  // from the notch's right edge (x=2) to the block's right edge (x=8) — not
+  // the full width, and not starting anywhere else.
+  const topEdge = v.front.find(
+    (p): p is Extract<Primitive, { kind: "segment" }> =>
+      p.kind === "segment" && p.type === "visible" && p.y1 === b.minY && p.y2 === b.minY,
+  );
+  assert.ok(topEdge, "expected a visible horizontal segment on the view's top edge");
+  assert.equal(Math.min(topEdge.x1, topEdge.x2), 2);
+  assert.equal(Math.max(topEdge.x1, topEdge.x2), 8);
 });
 
 test("a through-hole yields exactly one circle, in the view down its axis", () => {
@@ -61,6 +73,49 @@ test("two overlapping holes are rejected", () => {
   const bad = subtractCylinder(
     subtractCylinder(block(8, 8, 4), "z", 3, 4, 2), "z", 4, 4, 2);
   assert.throws(() => validateSolid(bad), /overlap/i);
+});
+
+test("two holes on different axes that physically intersect are rejected", () => {
+  const bad = subtractCylinder(
+    subtractCylinder(block(8, 8, 8), "z", 4, 4, 2), "x", 4, 4, 2);
+  assert.throws(() => validateSolid(bad), /overlap/i);
+});
+
+test("two holes on different axes that do not intersect are accepted", () => {
+  const ok = subtractCylinder(
+    subtractCylinder(block(20, 20, 20), "z", 4, 4, 2), "x", 16, 10, 2);
+  assert.doesNotThrow(() => validateSolid(ok));
+});
+
+test("tangent holes on the same axis are rejected, not silently duplicated", () => {
+  // Centres 4 apart, radii 2 each: the bores touch at a single shared line,
+  // which this generator cannot draw once instead of twice.
+  const bad = subtractCylinder(
+    subtractCylinder(block(12, 8, 4), "z", 3, 4, 2), "z", 7, 4, 2);
+  assert.throws(() => validateSolid(bad), /overlap/i);
+});
+
+test("a box inside a hole's bounding square but outside its circle is accepted", () => {
+  // The circle is centred at (10,10) with r=4, so its bounding square is
+  // [6,14]x[6,14]. This 1x1 box sits in that square's corner, at [6,7]x[6,7]:
+  // its nearest point to the centre is (7,7), distance sqrt(18) ≈ 4.24 > 4,
+  // so it never touches the circle even though it is inside the square.
+  const ok = subtractBox(
+    subtractCylinder(block(20, 20, 5), "z", 10, 10, 4),
+    { x: 6, y: 6, z: 0, w: 1, d: 1, h: 5 },
+  );
+  assert.doesNotThrow(() => validateSolid(ok));
+});
+
+test("a box entirely outside the block is accepted even if it would overlap unclipped", () => {
+  // buildOccupancy clips a box reaching outside the block, so a box that
+  // starts past the top face (z=10 on an h=4 block) is a no-op, not a
+  // feature, even though its unclipped footprint would sit over the hole.
+  const ok = subtractBox(
+    subtractCylinder(block(8, 8, 4), "z", 4, 4, 2),
+    { x: 2, y: 2, z: 10, w: 4, d: 4, h: 2 },
+  );
+  assert.doesNotThrow(() => validateSolid(ok));
 });
 
 test("generateViews validates before generating", () => {
