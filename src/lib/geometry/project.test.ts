@@ -67,3 +67,16 @@ test("an empty solid produces no edges", () => {
   const gone = subtractBox(block(2, 2, 2), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 2 });
   assert.deepEqual(extractEdges(buildOccupancy(gone), VIEW_SPECS.front), []);
 });
+
+// Pins the nearIsLow: false branch of the depth inversion in cellAt. Every
+// other fixture is symmetric or uniform along the top/side depth axis, so a
+// mutant that breaks near-is-high inversion (e.g. T - t, or dropping the
+// inversion entirely) still passes all of them. The step is NOT uniform along
+// z, the top view's depth axis, so this one discriminates.
+test("the step's riser is visible in the top view, pinning the near-is-high depth direction", () => {
+  const stepped = subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 2, w: 4, d: 2, h: 2 });
+  const es = extractEdges(buildOccupancy(stepped), VIEW_SPECS.top);
+  const internal = visible(es).filter((e) => e.along === "u" && e.v === 2);
+  assert.equal(internal.length, 4, "the riser is a visible edge spanning the full width");
+  assert.equal(hidden(es).length, 0);
+});
