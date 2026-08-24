@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types src/lib/**/*.test.ts"
+    "test": "node --test --experimental-strip-types 'src/lib/**/*.test.ts'",
+    "verify:sheet": "node --experimental-strip-types scripts/verification-sheet.ts"
   },
   "dependencies": {
     "next": "16.3.1",
