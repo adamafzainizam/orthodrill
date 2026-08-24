@@ -68,3 +68,28 @@ test("an empty attempt against a real key is all missing", () => {
   assert.equal(d.missing.length, 4);
   assert.equal(d.correct.length, 0);
 });
+
+// A centre line legitimately extends past the object it marks, so it sits in
+// the view's bounding box. Anchoring the translation on it would mean a student
+// who draws the part perfectly but picks a different centre-line length shifts
+// the whole view, and EVERY primitive is reported wrong. Normalisation is
+// therefore anchored on the object's own primitives.
+test("a longer centre line does not shift the rest of the view", () => {
+  const key: Primitive[] = [
+    seg(0, 0, 8, 0), seg(8, 0, 8, 8), seg(8, 8, 0, 8), seg(0, 8, 0, 0),
+    seg(0, 4, 8, 4, "centre"),
+  ];
+  const drawn: Primitive[] = [
+    seg(0, 0, 8, 0), seg(8, 0, 8, 8), seg(8, 8, 0, 8), seg(0, 8, 0, 0),
+    seg(-2, 4, 10, 4, "centre"), // same part, centre line drawn longer
+  ];
+  const d = compareView(drawn, key);
+  assert.equal(d.correct.length, 4, "all four outline edges must still match");
+  assert.equal(d.missing.length, 1, "only the centre line differs");
+  assert.equal(d.extra.length, 1);
+});
+
+test("a view of nothing but centre lines still normalises", () => {
+  const only: Primitive[] = [seg(0, 4, 8, 4, "centre")];
+  assert.equal(isPerfect(compareView(only, only)), true);
+});
