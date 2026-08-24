@@ -13,8 +13,26 @@ import {
 } from "./primitives.ts";
 import type { ViewDiff, WrongType } from "./types.ts";
 
+/**
+ * Shift a view so it starts at the origin, ANCHORED ON THE OBJECT rather than
+ * on everything drawn.
+ *
+ * Centre lines legitimately extend past the feature they mark, and by how much
+ * is a presentation choice, not part of the answer. If they were allowed into
+ * the anchor, a student who drew the part perfectly but ran their centre lines
+ * a unit longer would shift the entire view relative to the key, and every
+ * primitive would come back wrong — a total failure caused by a cosmetic
+ * difference. Anchoring on the object makes the cost of that mistake one
+ * primitive, which is what it is worth.
+ *
+ * Every primitive, centre lines included, is still translated by the same
+ * offset; only the choice of anchor changes.
+ */
 function toOrigin(ps: Primitive[]): Primitive[] {
-  const box = boundingBox(ps);
+  const object = ps.filter((p) => p.type !== "centre");
+  // A view of nothing but centre lines has no object to anchor on; fall back
+  // to anchoring on itself so it still normalises rather than vanishing.
+  const box = boundingBox(object.length > 0 ? object : ps);
   if (box === null) return [];
   return ps.map((p) => translate(p, -box.minX, -box.minY));
 }
