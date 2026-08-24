@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateViews, validateSolid } from "./views.ts";
 import { block, subtractBox, subtractCylinder } from "./solid.ts";
-import { boundingBox, type Primitive } from "../scoring/primitives.ts";
+import { boundingBox, positionKey, type Primitive } from "../scoring/primitives.ts";
 
 test("a plain block gives three rectangular outlines", () => {
   const v = generateViews(block(6, 4, 2));
@@ -122,4 +122,77 @@ test("generateViews validates before generating", () => {
   const bad = subtractCylinder(
     subtractCylinder(block(8, 8, 4), "z", 3, 4, 2), "z", 4, 4, 2);
   assert.throws(() => generateViews(bad), /overlap/i);
+});
+
+// FINDING 1 (BLOCKER): a lattice edge (the step's face edge) and a bore
+// silhouette (the hole's outer bore line) land on the exact same screen
+// segment in the top view. Both are real 3D edges; drafting precedence says
+// the visible one wins. Before the fix, both were emitted and compare.ts's
+// last-write-wins Map let the hidden bore entry decide the type, so a
+// student who correctly drew a solid line there was marked wrongType.
+test("a lattice edge coincident with a bore silhouette keeps its visible type", () => {
+  const s = subtractCylinder(
+    subtractBox(block(5, 4, 4), { x: 0, y: 0, z: 3, w: 2, d: 4, h: 1 }),
+    "y", 1, 1, 1,
+  );
+  const v = generateViews(s);
+
+  const atConflictPosition = v.top.filter(
+    (p): p is Extract<Primitive, { kind: "segment" }> =>
+      p.kind === "segment" &&
+      Math.min(p.x1, p.x2) === 2 && Math.max(p.x1, p.x2) === 2 &&
+      Math.min(p.y1, p.y2) === 2 && Math.max(p.y1, p.y2) === 6,
+  );
+  assert.equal(atConflictPosition.length, 1,
+    "exactly one primitive should remain at the coincident position");
+  assert.equal(atConflictPosition[0].type, "visible",
+    "a visible edge must win over a coincident hidden bore line");
+});
+
+test("no view of a solid with a coincident lattice edge and bore line has duplicate positions", () => {
+  const s = subtractCylinder(
+    subtractBox(block(5, 4, 4), { x: 0, y: 0, z: 3, w: 2, d: 4, h: 1 }),
+    "y", 1, 1, 1,
+  );
+  const v = generateViews(s);
+  for (const viewName of ["front", "top", "side"] as const) {
+    const seen = new Set<string>();
+    for (const p of v[viewName]) {
+      const key = positionKey(p);
+      assert.ok(!seen.has(key), `${viewName} view has a duplicate primitive at ${key}`);
+      seen.add(key);
+    }
+  }
+});
+
+// FINDING 2 (BLOCKER): validateSolid checked cylinder-vs-cylinder and
+// cylinder-vs-box, but never cylinder-vs-BASE-BLOCK. A hole whose circle
+// pokes past a face is really a semicircular slot open on that face — a
+// shape this generator cannot draw — so it must be rejected, not silently
+// accepted with a full circle sitting outside the block outline.
+test("a hole overhanging a face is rejected", () => {
+  // u=1, r=3 -> u-r=-2 < 0: the circle extends past the x=0 face.
+  const bad = subtractCylinder(block(8, 8, 4), "z", 1, 4, 3);
+  assert.throws(() => validateSolid(bad), /outside/i);
+});
+
+test("a hole entirely outside the block is rejected", () => {
+  const bad = subtractCylinder(block(4, 4, 4), "z", 40, 40, 1);
+  assert.throws(() => validateSolid(bad), /outside/i);
+});
+
+test("a hole exactly tangent to a face is still accepted", () => {
+  // u=2, r=2 -> u-r=0 exactly: tangent, not overhanging. Must stay legal —
+  // bore.ts deliberately relies on a tangent hole keeping its outer bore
+  // line visible.
+  const ok = subtractCylinder(block(8, 8, 4), "z", 2, 4, 2);
+  assert.doesNotThrow(() => validateSolid(ok));
+});
+
+// FINDING 3: an entirely-removed solid must not silently produce three
+// empty views, which the scorer would mark as a perfect attempt no matter
+// what the student drew.
+test("a solid with no remaining material is rejected", () => {
+  const bad = subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 0, w: 4, d: 4, h: 4 });
+  assert.throws(() => validateSolid(bad), /material/i);
 });

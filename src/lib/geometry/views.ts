@@ -16,7 +16,7 @@ import { mergeEdges } from "./merge.ts";
 import { borePrimitives } from "./bore.ts";
 import { VIEW_SPECS, type ViewSpec } from "./viewspec.ts";
 import type { Axis, Box, CylinderOp, Solid } from "./solid.ts";
-import { boundingBox, translate, type Primitive } from "../scoring/primitives.ts";
+import { boundingBox, positionKey, translate, type Primitive } from "../scoring/primitives.ts";
 import type { KeyViews } from "../scoring/assign.ts";
 import type { ViewName } from "../scoring/types.ts";
 
@@ -38,6 +38,11 @@ function boxSpan(box: Box, axis: Axis): [number, number] {
   return axis === "x" ? [box.x, box.x + box.w]
     : axis === "y" ? [box.y, box.y + box.d]
     : [box.z, box.z + box.h];
+}
+
+/** Axis-aligned span of the base block itself on one axis: always [0, size]. */
+function baseSpan(base: { w: number; d: number; h: number }, axis: Axis): [number, number] {
+  return axis === "x" ? [0, base.w] : axis === "y" ? [0, base.d] : [0, base.h];
 }
 
 /**
@@ -135,6 +140,74 @@ export function validateSolid(s: Solid): void {
       }
     }
   }
+
+  // Every cylinder must fit within the base block's footprint on its two
+  // plane axes. Nothing checked cylinder-vs-BASE-BLOCK before this: a hole
+  // whose circle poked past a face was silently accepted and emitted a full
+  // circle sitting outside the block outline, when the real feature is a
+  // semicircular slot open on that face — a shape this generator cannot
+  // draw. Tangency (u - r === 0 or u + r === size) stays legal: bore.ts
+  // deliberately relies on a hole tangent to a face keeping its outer bore
+  // line visible, so this must use >= / <=, not strict inequalities.
+  for (const cyl of cylinders) {
+    const all: Axis[] = ["x", "y", "z"];
+    const [pu, pv] = all.filter((a) => a !== cyl.axis);
+    for (const axis of [pu, pv]) {
+      const [lo, hi] = baseSpan(s.base, axis);
+      const [spanLo, spanHi] = cylinderSpan(cyl, axis)!; // non-null: axis is a plane axis
+      if (spanLo < lo || spanHi > hi) {
+        throw new Error(
+          `a cylindrical hole extends outside the block on axis ${axis} ` +
+          `(span [${spanLo}, ${spanHi}], block [${lo}, ${hi}])`,
+        );
+      }
+    }
+  }
+
+  // A solid with no material left is not a part: every view would come back
+  // empty, and the scorer would mark any three empty attempts as perfect.
+  const occ = buildOccupancy(s);
+  let hasMaterial = false;
+  for (let k = 0; k < occ.h && !hasMaterial; k++) {
+    for (let j = 0; j < occ.d && !hasMaterial; j++) {
+      for (let i = 0; i < occ.w && !hasMaterial; i++) {
+        if (occ.isSolid(i, j, k)) hasMaterial = true;
+      }
+    }
+  }
+  if (!hasMaterial) {
+    throw new Error("solid has no remaining material after subtraction");
+  }
+}
+
+/** Drafting precedence when two primitives land at the same position. */
+const TYPE_PRECEDENCE: Record<Primitive["type"], number> = { visible: 0, hidden: 1, centre: 2 };
+
+/**
+ * Resolve coincident primitives before they reach the key.
+ *
+ * A lattice edge (from the merged occupancy silhouette) and a bore
+ * silhouette (from bore.ts) are computed independently and can land on the
+ * exact same screen segment or circle — e.g. a step's face edge sitting
+ * where a hole's bore line would also be drawn. Both are real 3D edges, but
+ * drafting convention says a visible edge wins over a hidden one at the same
+ * position, and a centre line never outranks either. Without this, the
+ * scorer's position-keyed Map (last write wins) decides the type by
+ * insertion order instead of by drafting rule, and a student who correctly
+ * draws the visible edge gets marked `wrongType`.
+ *
+ * Ties (same precedence) keep the first-encountered primitive.
+ */
+function dedupeByPosition(ps: Primitive[]): Primitive[] {
+  const best = new Map<string, Primitive>();
+  for (const p of ps) {
+    const key = positionKey(p);
+    const existing = best.get(key);
+    if (existing === undefined || TYPE_PRECEDENCE[p.type] < TYPE_PRECEDENCE[existing.type]) {
+      best.set(key, p);
+    }
+  }
+  return [...best.values()];
 }
 
 function buildView(s: Solid, occ: Occupancy, spec: ViewSpec): Primitive[] {
@@ -160,9 +233,11 @@ function buildView(s: Solid, occ: Occupancy, spec: ViewSpec): Primitive[] {
     }
   }
 
-  const box = boundingBox(out);
+  const deduped = dedupeByPosition(out);
+
+  const box = boundingBox(deduped);
   if (box === null) return [];
-  return out.map((p) => translate(p, -box.minX, -box.minY));
+  return deduped.map((p) => translate(p, -box.minX, -box.minY));
 }
 
 export function generateViews(s: Solid): KeyViews {

@@ -113,3 +113,25 @@ test("a notch in front of a bore exposes it in the side view too", () => {
   assert.ok(bore.some((s) => s.type === "visible"),
     "removing material in front of the bore, as seen from the side, must expose it");
 });
+
+// Coverage gap identified during the review that let FINDING 1 through: the
+// exposure behaviour was proven for front (nearIsLow: true) and side
+// (nearIsLow: false), but never for the TOP view specifically. A hole on the
+// z axis is the wrong fixture for this — looking straight down its own axis
+// it emits a circle, not bore lines — so this uses a hole on the y axis,
+// whose top view (depth: z, nearIsLow: false) does emit bore lines.
+test("a notch above a bore exposes it in the top view, under nearIsLow: false", () => {
+  const yHoled = subtractCylinder(block(8, 8, 8), "y", 4, 4, 2);
+  const yOp = yHoled.ops[0] as CylinderOp;
+
+  const buried = borePrimitives(yOp, buildOccupancy(yHoled), VIEW_SPECS.top);
+  const buriedBore = segments(buried).filter((s) => (s as Segment).type !== "centre") as Segment[];
+  assert.ok(buriedBore.every((s) => s.type === "hidden"),
+    "the bore must start out buried, or a notch cannot prove it exposes anything");
+
+  const notched = subtractBox(yHoled, { x: 0, y: 0, z: 6, w: 8, d: 8, h: 2 }, "notch");
+  const ps = borePrimitives(yOp, buildOccupancy(notched), VIEW_SPECS.top);
+  const bore = segments(ps).filter((s) => (s as Segment).type !== "centre") as Segment[];
+  assert.ok(bore.some((s) => s.type === "visible"),
+    "removing material above the bore, as seen from the top, must expose it");
+});

@@ -29,7 +29,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GOLDEN_PARTS } from "./golden.ts";
 import { generateViews } from "../views.ts";
-import { boundingBox, normalise, type Primitive } from "../../scoring/primitives.ts";
+import { boundingBox, normalise, positionKey, type Primitive } from "../../scoring/primitives.ts";
 import type { KeyViews } from "../../scoring/assign.ts";
 
 /**
@@ -133,6 +133,30 @@ test("every golden part generates without throwing", () => {
 test("golden output is stable across runs", () => {
   for (const part of GOLDEN_PARTS) {
     assert.deepEqual(generateViews(part.solid), generateViews(part.solid));
+  }
+});
+
+// FINDING 1 (BLOCKER): buildView appended bore primitives after the merged
+// lattice segments with no coincidence resolution, so a lattice edge and a
+// bore silhouette landing on the same screen position were both emitted.
+// compare.ts keys by position with last-write-wins, so whichever primitive
+// was pushed last silently decided the type. `stepped-plate-with-hole`
+// reproduces it: its side view carried segment s:2,4,8,4 twice before the
+// dedupe fix in views.ts.
+test("no golden fixture view contains two primitives at the same position", () => {
+  for (const part of GOLDEN_PARTS) {
+    const views: KeyViews = generateViews(part.solid);
+    for (const viewName of VIEW_NAMES) {
+      const seen = new Set<string>();
+      for (const p of views[viewName]) {
+        const key = positionKey(p);
+        assert.ok(
+          !seen.has(key),
+          `${part.id} ${viewName} view has two primitives at the same position (${key})`,
+        );
+        seen.add(key);
+      }
+    }
   }
 });
 
