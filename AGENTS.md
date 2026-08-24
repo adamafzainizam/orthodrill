@@ -49,7 +49,7 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 3. Current status
 
-**Phase:** scorer complete. Generator and canvas not started.
+**Phase:** scorer and views generator complete. Isometric prompt and canvas not started.
 
 **Done:**
 - [x] Candidate chosen after `pathway-navigator` was discontinued — see that repo's `docs/post-mortem.md`
@@ -57,17 +57,20 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 - [x] Design spec written, self-reviewed, revised twice, approved
 - [x] Repository initialised
 - [x] Scaffold, test harness, and the pure scoring engine — 36 tests
+- [x] The views generator — solid model, occupancy grid, projection, holes, golden fixtures
 
-**Not started:** the generator, the canvas, the scoring route handler, and all drill content.
+**Not started:** the isometric prompt image, the canvas, the scoring route handler, and all drill content.
 
 ---
 
 ## 4. Next up
 
-Build order is **scorer → generator → canvas**, and it is deliberate. The canvas is the tempting starting point and the wrong one: building it first would fix the interfaces by accident rather than by design. The scaffold and the scorer are done; the rest follows in this order.
+Build order is **scorer → generator → canvas**, and it is deliberate. The canvas is the tempting starting point and the wrong one: building it first would fix the interfaces by accident rather than by design. The scaffold, the scorer and the views generator are done; the rest follows in this order.
 
-1. **The generator.** Base block plus typed features → three views plus an isometric prompt. Verified by property tests and a human-checked golden set.
+1. **The isometric prompt image.** Solid → the isometric view a student is shown. Rendering only; never scored.
 2. **The canvas.** Snap-to-grid primitive input, then feedback rendering.
+
+**Views generator: DONE 2026-08-24, golden set UNVERIFIED.** `src/lib/geometry/` turns a base block plus ordered subtractive operations into front/top/side views with correct hidden-line classification and analytic circular bores — see the decision log entry of the same date for what the adversarial review found. The four golden fixtures in `src/lib/geometry/fixtures/golden.ts` are asymmetric and pinned by hand-derived coordinates, but no human or cited source has signed off on them yet. `npm run verify:sheet` renders them for that review. Shipping drills is gated on that sign-off; merging the generator code was not.
 
 **Convention details: CHECKED 2026-08-21.** Four free references agree on first- vs third-angle view placement, and the check found a real bug — the shipped table placed the side view identically under both conventions. Corrected and pinned by test. ISO 128 and ISO 5456 remain paywalled and were not consulted; the table in `src/lib/scoring/placement.ts` carries the citations and is the single place to change if a paid standard ever contradicts them.
 
@@ -109,6 +112,8 @@ Empty for this repo so far. **Inherited from `pathway-navigator` and expected to
 - **`node --test` warns `MODULE_TYPELESS_PACKAGE_JSON` on every run.** `package.json` has no `"type": "module"`, so Node parses each `.test.ts` as CommonJS, fails, and reparses as ESM. *Symptom:* a noisy warning block above the test results, plus a small startup cost. Harmless — the tests pass regardless. Not fixed by setting `"type": "module"` without checking it against the Next build first, which is why it was left alone.
 - **The npm 11 allow-scripts gotcha above is confirmed here**, and `allowScripts` in `package.json` pins `unrs-resolver@1.12.2` by exact version. Bumping that package needs a fresh `npm approve-scripts`.
 - **An unquoted `**` glob in an npm script is expanded by the shell, not by Node, and silently drops nested test directories.** `"test": "node --test --experimental-strip-types src/lib/**/*.test.ts"` looks recursive but isn't: without `shopt -s globstar` (off by default), bash treats `**` as an ordinary `*`, which does not cross `/`. The pattern only ever reached one directory level under `src/lib` (`src/lib/<dir>/*.test.ts`). *Symptom:* a `.test.ts` file placed in a nested subdirectory (e.g. `src/lib/geometry/fixtures/golden.test.ts`) is never picked up — `npm test` keeps reporting the old test count and stays green, with no error, warning, or hint that a whole file was skipped. This is exactly how the golden fixtures (`src/lib/geometry/fixtures/golden.test.ts`) — the project's only backstop against a mirrored generator, per §5.2 — went unexecuted for a full round despite being correct and passing when invoked directly. *Fix:* single-quote the glob so the shell passes it through literally and Node's own glob support expands it recursively instead: `"test": "node --test --experimental-strip-types 'src/lib/**/*.test.ts'"`. Confirmed empirically: unquoted reports 128 tests (fixtures missing); quoted reports 132 (fixtures included). Note `node --test --experimental-strip-types src/lib` (pointing at the directory, no glob) is *not* an equivalent fix — it reports 1 test, 1 failing, not a full recursive run.
+- **A mirrored view passes every property test.** Symmetry invariants stay green under a global mirror — that is what symmetry means. *Symptom:* all tests green, every drill wrong on the left/right axis. *Guard:* `src/lib/geometry/fixtures/golden.ts` parts are all asymmetric, enforced by a test, and `npm run verify:sheet` renders them for human review. If view geometry ever looks wrong, suspect the signs in `viewspec.ts` first.
+- **A property test can pass while the property it claims to guard is entirely absent from the code.** An adversarial reviewer injected eight deliberate bugs into the generator and re-ran `properties.test.ts`; five of eight still passed. Two concrete causes, both worth checking for in any new invariant test: (1) the assertion was computed from the same primitives it was meant to check — the original bounding-box test derived its bound from the projector's own output, so it was tautological — and (2) the test fixture happened not to exercise the property — the original "no hidden lines on a plain block" test used only solids with no hidden edges at all, so a generator with hidden-line classification deleted outright still passed it. *Symptom:* full green suite, confident in review, wrong regardless. *Fix used here:* positive controls (assert the property *fails* on a solid deliberately constructed to violate it), exact counts instead of non-strict bounds, and expected values derived independently of the code under test rather than recomputed from it.
 
 Add project-specific gotchas here as they are found, with enough detail that the *symptom* is searchable, not just the fix.
 
@@ -154,3 +159,4 @@ Append a short entry per working session. Newest at the bottom.
 | 2026-08-20 | Claude (Claude Code) | Project chosen and designed after `pathway-navigator` was discontinued. Competitor gap verified before designing. Spec written, self-reviewed (three fixes), then revised to add cylindrical through-holes via feature-based modelling. Repo initialised; no code yet. |
 | 2026-08-20 | Claude (Claude Code) | Scaffolded Next 16 + `node --test`. Built the pure scorer: primitives, clustering, translation-invariant comparison, content-based view assignment, placement against a convention table. 36 tests. Created the GitHub repo (`adamafzainizam/orthodrill`, **private**) — the project had none until now; PR #1 opened. |
 | 2026-08-21 | Claude (Claude Code) | Ran the convention premise check before starting the generator. Four free references agree, and they disagreed with our code: the table placed the side view to the right under BOTH conventions, so first-angle was wrong. Fixed, cited in-source, pinned by three new tests (39 total). Pushed to PR #1. |
+| 2026-08-24 | Claude (Claude Code) | Built the views generator: solid model, occupancy grid (box ops only — cylinders never enter it), edge extraction with near-to-far visibility walking, collinear merging, analytic circular bores, view composition, `validateSolid` rejecting what v1 cannot model. Adversarial review found and fixed an asymmetric bore-occlusion bug (one sampled column instead of two), and found that five of eight injected bugs slipped past the original property suite, which is now rebuilt with positive controls and exact counts. Golden fixtures fixed twice over — an unquoted glob meant they never ran, and once running, all four were mirror-invariant — now four asymmetric parts pinned by hand-derived coordinates. 133 tests. All four golden parts remain UNVERIFIED; `npm run verify:sheet` renders them for the sign-off §5.2 requires before publishing. |
