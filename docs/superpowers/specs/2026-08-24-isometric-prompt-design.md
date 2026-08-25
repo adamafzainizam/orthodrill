@@ -213,3 +213,10 @@ dev script outside `src/lib/`, which remains pure.
 - **Scale and stroke weight.** Presentation concerns belonging to the renderer,
   not the geometry. Deferred to the canvas work, which will set them alongside
   everything else the student sees.
+
+**Not an open question, stated so it is not assumed away:** the primitives carry
+**no pixel scale and no viewport**. Coordinates are in abstract projection units,
+and it is the renderer's job to fit them to whatever space the page layout
+leaves. This matters because the canvas will reserve ad slots (see the decision
+log, 2026-08-24), so the space available to the prompt is not known here and must
+not be baked in.
