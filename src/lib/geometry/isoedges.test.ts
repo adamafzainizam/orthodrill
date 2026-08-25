@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isoEdges } from "./isoedges.ts";
+import { isoEdges, faceDepth } from "./isoedges.ts";
 import { buildOccupancy } from "./occupancy.ts";
 import { block, subtractBox, subtractCylinder, type Solid } from "./solid.ts";
 import type { IsoFace, IsoLine } from "./isotypes.ts";
@@ -112,4 +112,14 @@ test("an empty solid yields nothing", () => {
 test("output is stable across runs", () => {
   const o = buildOccupancy(block(4, 3, 2));
   assert.deepEqual(isoEdges(o), isoEdges(o));
+});
+
+// Depth ordering is what makes occlusion work, and a wrong key here is
+// invisible to every structural test above (e.g. x + y + z passes all of
+// them while producing hundreds of spurious/missing pixels on real solids).
+// +x and +z are toward the viewer; +y is away, into the page.
+test("depth increases toward the viewer on each axis", () => {
+  assert.ok(faceDepth(1, 0, 0) > faceDepth(0, 0, 0), "+x must be nearer");
+  assert.ok(faceDepth(0, 1, 0) < faceDepth(0, 0, 0), "+y must be farther");
+  assert.ok(faceDepth(0, 0, 1) > faceDepth(0, 0, 0), "+z must be nearer");
 });

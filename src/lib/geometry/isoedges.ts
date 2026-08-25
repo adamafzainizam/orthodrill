@@ -20,6 +20,13 @@
  * edges between coplanar neighbours, so what survives is the true outline; it is
  * simply expressed as touching unit segments, which render identically.
  *
+ * RENDERER CONTRACT: an IsoFace must be painted as an opaque fill AND stroked
+ * in the same background colour, so it seals its own boundary. Without that,
+ * a hidden edge lying exactly on the seam between two coplanar fills shows
+ * through as an antialiasing hairline: a genuinely hidden crease (e.g. a notch
+ * floor edge) can still project onto a seam between two later, unrelated
+ * coplanar fills, and nothing short of the fill sealing its own edge hides it.
+ *
  * PURE. No I/O.
  */
 import type { Occupancy } from "./occupancy.ts";
@@ -27,15 +34,16 @@ import { project, isVisible } from "./isoproject.ts";
 import type { IsoFace, IsoLine } from "./isotypes.ts";
 
 type Corner = [number, number, number];
+type Dir = "+x" | "-y" | "+z";
 
-const FACES: { name: string; d: Corner }[] = [
+const FACES: { name: Dir; d: Corner }[] = [
   { name: "+x", d: [1, 0, 0] },
   { name: "-y", d: [0, -1, 0] },
   { name: "+z", d: [0, 0, 1] },
 ];
 
 /** The four lattice corners of one face of the voxel at (x, y, z). */
-function faceCorners(name: string, x: number, y: number, z: number): Corner[] {
+function faceCorners(name: Dir, x: number, y: number, z: number): Corner[] {
   if (name === "+x") {
     return [[x + 1, y, z], [x + 1, y + 1, z], [x + 1, y + 1, z + 1], [x + 1, y, z + 1]];
   }
@@ -48,31 +56,64 @@ function faceCorners(name: string, x: number, y: number, z: number): Corner[] {
 const cornerKey = (c: Corner) => `${c[0]},${c[1]},${c[2]}`;
 const edgeKey = (a: Corner, b: Corner) => [cornerKey(a), cornerKey(b)].sort().join("|");
 
-type Face = { name: string; x: number; y: number; z: number; t: number };
+/** The exposed (neighbour-empty) viewer-facing directions of a solid voxel. */
+function exposedDirs(o: Occupancy, x: number, y: number, z: number): Dir[] {
+  const out: Dir[] = [];
+  for (const f of FACES) {
+    if (!o.isSolid(x + f.d[0], y + f.d[1], z + f.d[2])) out.push(f.name);
+  }
+  return out;
+}
+
+/**
+ * Depth along the view direction (1,-1,1): larger is nearer the viewer.
+ * Exported so the ordering rule can be pinned directly — the emitted array's
+ * order is what makes occlusion work, and a wrong key here is invisible to
+ * every structural test.
+ */
+export function faceDepth(x: number, y: number, z: number): number {
+  return x - y + z;
+}
+
+type Face = { name: Dir; x: number; y: number; z: number; t: number };
 
 export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[] {
-  // 1. Exposed viewer-facing faces of visible voxels, with a depth key.
-  //    isVisible remains a sound cull: it finds WHOLLY hidden voxels.
-  const exposed: Face[] = [];
+  // 1. Tally edges by position AND normal, over ALL exposed faces of ALL solid
+  //    voxels — not just isVisible ones. Two coplanar patches are physically
+  //    continuous (and their shared edge must cancel) purely because both are
+  //    exposed to empty space; isVisible is a DIAGONAL ray-march cull and can
+  //    reject one side of a seam that is nonetheless coplanar and continuous
+  //    with a neighbour that IS emitted, which would otherwise leave a hidden
+  //    stroke sitting exactly on that seam (see the module docblock's renderer
+  //    contract note for the residual case this alone cannot fix).
+  const tally = new Map<string, number>();
   for (let z = 0; z < o.h; z++) {
     for (let y = 0; y < o.d; y++) {
       for (let x = 0; x < o.w; x++) {
-        if (!isVisible(o, x, y, z)) continue;
-        for (const f of FACES) {
-          if (o.isSolid(x + f.d[0], y + f.d[1], z + f.d[2])) continue;
-          exposed.push({ name: f.name, x, y, z, t: x - y + z });
+        if (!o.isSolid(x, y, z)) continue;
+        for (const name of exposedDirs(o, x, y, z)) {
+          const c = faceCorners(name, x, y, z);
+          for (let i = 0; i < 4; i++) {
+            const ek = `${edgeKey(c[i], c[(i + 1) % 4])}#${name}`;
+            tally.set(ek, (tally.get(ek) ?? 0) + 1);
+          }
         }
       }
     }
   }
 
-  // 2. Tally edges by position AND normal, so coplanar continuations cancel.
-  const tally = new Map<string, number>();
-  for (const f of exposed) {
-    const c = faceCorners(f.name, f.x, f.y, f.z);
-    for (let i = 0; i < 4; i++) {
-      tally.set(`${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`,
-        (tally.get(`${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`) ?? 0) + 1);
+  // 2. Exposed viewer-facing faces of visible voxels, with a depth key.
+  //    isVisible remains a sound cull: it finds WHOLLY hidden voxels. This is
+  //    the set that actually gets emitted.
+  const exposed: Face[] = [];
+  for (let z = 0; z < o.h; z++) {
+    for (let y = 0; y < o.d; y++) {
+      for (let x = 0; x < o.w; x++) {
+        if (!isVisible(o, x, y, z)) continue;
+        for (const name of exposedDirs(o, x, y, z)) {
+          exposed.push({ name, x, y, z, t: faceDepth(x, y, z) });
+        }
+      }
     }
   }
 
