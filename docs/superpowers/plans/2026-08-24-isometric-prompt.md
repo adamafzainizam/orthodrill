@@ -751,7 +751,12 @@ outline."
 
 **Interfaces:**
 - Consumes: `Axis`, `CylinderOp` from `./solid.ts`; `Occupancy`, `sizeAlong` from `./occupancy.ts`; `project`, `isVisible` from `./isoproject.ts`; `IsoEllipse` from `./isotypes.ts`
-- Produces: `isoBore(op: CylinderOp, o: Occupancy): IsoEllipse | null`
+- Produces: `isoBore(op: CylinderOp, o: Occupancy): { ellipse: IsoEllipse; t: number } | null`
+
+**The returned `t` is the paint depth of the face the rim sits on**, computed with
+`faceDepth` from `./isoedges.ts`. Task 3 made the output a back-to-front paint
+program, so an ellipse appended at the end would be drawn on top of anything
+that occludes its face. Returning the depth lets Task 5 interleave it correctly.
 
 Only the **near rim** is drawn — the rim on the visible face the hole emerges through: the top for a `z` hole, the front for a `y` hole, the right face for an `x` hole. Returns `null` when that face is occluded.
 
@@ -775,17 +780,18 @@ function setup(axis: Axis, u: number, v: number, r: number): {
   return { op: s.ops[0] as CylinderOp, o: buildOccupancy(s) };
 }
 
-test("a hole yields one ellipse", () => {
+test("a hole yields one ellipse, with the paint depth of its face", () => {
   const { op, o } = setup("z", 4, 4, 2);
-  const e = isoBore(op, o);
-  assert.ok(e !== null);
-  assert.equal(e.kind, "iso-ellipse");
+  const r = isoBore(op, o);
+  assert.ok(r !== null);
+  assert.equal(r.ellipse.kind, "iso-ellipse");
+  assert.ok(Number.isFinite(r.t), "must carry a paint depth");
 });
 
 // The textbook isometric ellipse ratio. Verified numerically during design.
 test("the major radius is the true radius and the minor is r over root three", () => {
   const { op, o } = setup("z", 4, 4, 2);
-  const e = isoBore(op, o)!;
+  const e = isoBore(op, o)!.ellipse;
   assert.ok(near(e.rx, 2), `rx ${e.rx}`);
   assert.ok(near(e.ry, 2 / Math.sqrt(3)), `ry ${e.ry}`);
   assert.ok(near(e.rx / e.ry, Math.sqrt(3)), "ratio must be root three");
@@ -795,21 +801,21 @@ test("the major axis rotation depends on which face the hole emerges through", (
   const z = setup("z", 4, 4, 2);
   const y = setup("y", 4, 4, 2);
   const x = setup("x", 4, 4, 2);
-  assert.ok(near(isoBore(z.op, z.o)!.rotation, 0), "z hole");
-  assert.ok(near(isoBore(y.op, y.o)!.rotation, 60), "y hole");
-  assert.ok(near(isoBore(x.op, x.o)!.rotation, 120), "x hole");
+  assert.ok(near(isoBore(z.op, z.o)!.ellipse.rotation, 0), "z hole");
+  assert.ok(near(isoBore(y.op, y.o)!.ellipse.rotation, 60), "y hole");
+  assert.ok(near(isoBore(x.op, x.o)!.ellipse.rotation, 120), "x hole");
 });
 
 test("the ellipse centre is finite", () => {
   const { op, o } = setup("z", 3, 5, 1);
-  const e = isoBore(op, o)!;
+  const e = isoBore(op, o)!.ellipse;
   assert.ok(Number.isFinite(e.cx) && Number.isFinite(e.cy));
 });
 
 test("moving the hole moves the ellipse", () => {
   const a = setup("z", 2, 2, 1);
   const b = setup("z", 6, 6, 1);
-  const ea = isoBore(a.op, a.o)!, eb = isoBore(b.op, b.o)!;
+  const ea = isoBore(a.op, a.o)!.ellipse, eb = isoBore(b.op, b.o)!.ellipse;
   assert.ok(!near(ea.cx, eb.cx) || !near(ea.cy, eb.cy));
 });
 ```
@@ -841,6 +847,7 @@ Create `src/lib/geometry/isobore.ts`:
 import type { Axis, CylinderOp } from "./solid.ts";
 import { sizeAlong, type Occupancy } from "./occupancy.ts";
 import { project, isVisible } from "./isoproject.ts";
+import { faceDepth } from "./isoedges.ts";
 import type { IsoEllipse } from "./isotypes.ts";
 
 /** Major-axis rotation in degrees, by the axis the hole runs along. */
@@ -872,12 +879,17 @@ export function isoBore(op: CylinderOp, o: Occupancy): IsoEllipse | null {
 
   const c = project(rim.x, rim.y, rim.z);
   return {
-    kind: "iso-ellipse",
-    cx: c.u,
-    cy: c.v,
-    rx: op.r,
-    ry: op.r / Math.sqrt(3),
-    rotation: ROTATION[op.axis],
+    ellipse: {
+      kind: "iso-ellipse",
+      cx: c.u,
+      cy: c.v,
+      rx: op.r,
+      ry: op.r / Math.sqrt(3),
+      rotation: ROTATION[op.axis],
+    },
+    // Paint depth of the face the rim sits on, so isometric.ts can interleave
+    // the ellipse into the back-to-front order rather than drawing it on top.
+    t: faceDepth(inside.x, inside.y, inside.z),
   };
 }
 ```
@@ -914,6 +926,21 @@ visible omissions in a picture that is never scored."
 **Interfaces:**
 - Consumes: `buildOccupancy` from `./occupancy.ts`; `isoEdges` from `./isoedges.ts`; `isoBore` from `./isobore.ts`; `validateSolid` from `./views.ts`; `CylinderOp`, `Solid` from `./solid.ts`; `IsoPrimitive` from `./isotypes.ts`
 - Produces: `isometricView(s: Solid): IsoPrimitive[]`
+
+**Task 3 requires a small addition first.** `isoEdges` gains an optional second
+parameter so extras can be interleaved into the back-to-front order:
+
+```typescript
+export function isoEdges(
+  o: Occupancy,
+  extras: { t: number; prim: IsoPrimitive }[] = [],
+): IsoPrimitive[]
+```
+
+Each extra is emitted immediately after the last fill whose depth is `<= extra.t`.
+Without this the bore ellipses would be appended at the end and drawn on top of
+anything that occludes their face. Keep the existing one-argument behaviour
+identical when `extras` is empty — the Task 3 tests must still pass unchanged.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1007,15 +1034,18 @@ export function isometricView(s: Solid): IsoPrimitive[] {
   validateSolid(s);
 
   const occ = buildOccupancy(s);
-  const out: IsoPrimitive[] = [...isoEdges(occ)];
 
+  // Bores are interleaved by paint depth, not appended: this array is a
+  // back-to-front paint program, so an ellipse added at the end would be drawn
+  // on top of anything that occludes the face its rim sits on.
+  const extras: { t: number; prim: IsoPrimitive }[] = [];
   for (const op of s.ops) {
     if (op.kind !== "cylinder") continue;
-    const ellipse = isoBore(op as CylinderOp, occ);
-    if (ellipse !== null) out.push(ellipse);
+    const bore = isoBore(op as CylinderOp, occ);
+    if (bore !== null) extras.push({ t: bore.t, prim: bore.ellipse });
   }
 
-  return out;
+  return isoEdges(occ, extras);
 }
 ```
 
