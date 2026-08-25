@@ -1131,11 +1131,30 @@ function corpus(): Solid[] {
 test("every coordinate is finite", () => {
   for (const s of corpus()) {
     for (const p of isometricView(s)) {
-      const ns = p.kind === "iso-line"
-        ? [p.x1, p.y1, p.x2, p.y2]
-        : [p.cx, p.cy, p.rx, p.ry, p.rotation];
+      const ns = p.kind === "iso-line" ? [p.x1, p.y1, p.x2, p.y2]
+        : p.kind === "iso-ellipse" ? [p.cx, p.cy, p.rx, p.ry, p.rotation]
+        : p.points.flat();
       for (const n of ns) assert.ok(Number.isFinite(n), p.kind);
     }
+  }
+});
+
+// Fills are what make occlusion work; a view without them would render as a
+// wireframe with every hidden line showing.
+test("every solid emits fills, and each is a closed quadrilateral", () => {
+  for (const s of corpus()) {
+    const fills = isometricView(s).filter((p) => p.kind === "iso-face");
+    assert.ok(fills.length > 0, "a solid must emit fills");
+    for (const f of fills) assert.equal(f.points.length, 4);
+  }
+});
+
+// The array is a paint program, so it must open with a fill - a stroke before
+// any fill could never be covered.
+test("no stroke precedes the first fill", () => {
+  for (const s of corpus()) {
+    const v = isometricView(s);
+    assert.equal(v[0].kind, "iso-face");
   }
 });
 
@@ -1159,7 +1178,7 @@ test("every ellipse keeps the isometric ratio", () => {
 
 // The bound is derived from the block's own corners via the projection basis,
 // NOT from the primitives under test, so it can actually fail.
-test("every line lies within the projected bounds of the base block", () => {
+test("every primitive lies within the projected bounds of the base block", () => {
   for (const s of corpus()) {
     const { w, d, h } = s.base;
     let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
@@ -1170,10 +1189,12 @@ test("every line lies within the projected bounds of the base block", () => {
     }
     const eps = 1e-9;
     for (const p of isometricView(s)) {
-      if (p.kind !== "iso-line") continue;
-      for (const [u, v] of [[p.x1, p.y1], [p.x2, p.y2]]) {
-        assert.ok(u >= minU - eps && u <= maxU + eps, `u ${u} outside ${minU}..${maxU}`);
-        assert.ok(v >= minV - eps && v <= maxV + eps, `v ${v} outside ${minV}..${maxV}`);
+      const pts: number[][] = p.kind === "iso-line" ? [[p.x1, p.y1], [p.x2, p.y2]]
+        : p.kind === "iso-face" ? p.points.map((q) => [q[0], q[1]])
+        : [[p.cx - p.rx, p.cy - p.rx], [p.cx + p.rx, p.cy + p.rx]];
+      for (const [u, v] of pts) {
+        assert.ok(u >= minU - eps && u <= maxU + eps, `${p.kind} u ${u} outside ${minU}..${maxU}`);
+        assert.ok(v >= minV - eps && v <= maxV + eps, `${p.kind} v ${v} outside ${minV}..${maxV}`);
       }
     }
   }
