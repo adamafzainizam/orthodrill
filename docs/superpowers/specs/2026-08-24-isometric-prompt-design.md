@@ -210,8 +210,9 @@ material around it, and §4 excludes hidden lines. Where a bore's far rim is
 genuinely visible through the hole, v1 omits it: a small, visible omission in a
 picture, not a wrong answer.
 
-Ellipse visibility follows the face the rim sits on — if that face is occluded,
-the ellipse is not drawn.
+The ellipse is emitted immediately after the fill of the face its rim sits on,
+so it participates in the paint order like any stroke (§3) and is covered by
+anything nearer.
 
 ## 8. Verification: a much lighter regime, and why that is legitimate
 
@@ -242,7 +243,7 @@ Under `src/lib/geometry/`, pure and I/O-free. Sibling `*.test.ts` per module.
 | Module | Responsibility |
 |---|---|
 | `isoproject.ts` | the screen basis, and the diagonal visibility walk |
-| `isoedges.ts` | visible voxel faces → `IsoLine` primitives |
+| `isoedges.ts` | exposed faces → depth sort → fills interleaved with cancelled, merged strokes |
 | `isobore.ts` | circle → `IsoEllipse`, with visibility |
 | `isometric.ts` | compose into `IsoPrimitive[]` |
 
@@ -252,6 +253,9 @@ dev script outside `src/lib/`, which remains pure.
 ## 10. Accepted limitations
 
 - **No hidden lines**, by §4. Conventional for a pictorial.
+- **The output is order-dependent** (§3, §6). It is a paint program: strokes of
+  partly-hidden faces are present and rely on being overpainted. A consumer that
+  reorders or filters the array gets a wrong picture.
 - **A bore's far rim and inner wall are omitted.** Looking into a hole you would
   see a sliver of the cylindrical bore surface and, at some angles, part of the
   far rim; v1 draws neither, only the near rim ellipse (§7). Both are visible
