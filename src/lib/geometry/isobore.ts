@@ -52,6 +52,32 @@ export function isoBore(op: CylinderOp, o: Occupancy): { ellipse: IsoEllipse; t:
   if (!isVisible(o, inside.x, inside.y, inside.z)) return null;
 
   const c = project(rim.x, rim.y, rim.z);
+
+  // The ellipse spans +/- op.r in projection, so it can overlap coplanar
+  // voxels of the SAME face at greater depth than the single centre voxel
+  // above. Anchoring at the centre alone left those later, nearer fills
+  // overpainting part of the rim - the same bug class isoedges.ts already
+  // warns about for merged strokes, reintroduced by attaching a multi-voxel
+  // primitive to one voxel's depth. Anchor instead at the MAXIMUM faceDepth
+  // over the hole's footprint on its own face. A bounding square around the
+  // disc (rather than the exact circle) is safe: every cell in it is
+  // coplanar with the rim, so there is no occlusion between them, and using
+  // the square can only push the ellipse LATER, never earlier.
+  const puLo = Math.max(0, Math.floor(op.u - op.r));
+  const puHi = Math.min(sizeAlong(o, pu) - 1, Math.ceil(op.u + op.r) - 1);
+  const pvLo = Math.max(0, Math.floor(op.v - op.r));
+  const pvHi = Math.min(sizeAlong(o, pv) - 1, Math.ceil(op.v + op.r) - 1);
+
+  let t = -Infinity;
+  const cell: Record<Axis, number> = { ...inside };
+  for (let a = puLo; a <= puHi; a++) {
+    for (let b = pvLo; b <= pvHi; b++) {
+      cell[pu] = a;
+      cell[pv] = b;
+      t = Math.max(t, faceDepth(cell.x, cell.y, cell.z));
+    }
+  }
+
   return {
     ellipse: {
       kind: "iso-ellipse",
@@ -61,8 +87,10 @@ export function isoBore(op: CylinderOp, o: Occupancy): { ellipse: IsoEllipse; t:
       ry: op.r / Math.sqrt(3),
       rotation: ROTATION[op.axis],
     },
-    // Paint depth of the face the rim sits on, so isometric.ts can interleave
-    // the ellipse into the back-to-front order rather than drawing it on top.
-    t: faceDepth(inside.x, inside.y, inside.z),
+    // Paint depth of the FARTHEST cell the rim's own face-footprint touches,
+    // so isometric.ts can interleave the ellipse into the back-to-front
+    // order after everything it should sit on top of, and before everything
+    // (on this face or nearer) that should occlude it.
+    t,
   };
 }

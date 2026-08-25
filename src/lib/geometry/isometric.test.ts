@@ -4,9 +4,36 @@ import { isometricView } from "./isometric.ts";
 import { isoEdges } from "./isoedges.ts";
 import { buildOccupancy } from "./occupancy.ts";
 import { block, subtractBox, subtractCylinder } from "./solid.ts";
-import type { IsoPrimitive } from "./isotypes.ts";
+import type { IsoEllipse, IsoFace, IsoPrimitive } from "./isotypes.ts";
 
 const kinds = (ps: IsoPrimitive[], k: IsoPrimitive["kind"]) => ps.filter((p) => p.kind === k);
+
+/** Standard ray-casting point-in-polygon test, for a simple (non-self-intersecting) polygon. */
+function pointInPolygon(pt: [number, number], poly: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    const crosses = yi > pt[1] !== yj > pt[1];
+    if (crosses && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Points around an IsoEllipse's rim, in screen space. */
+function rimPoints(e: IsoEllipse, n: number): [number, number][] {
+  const rad = (e.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const out: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const theta = (2 * Math.PI * i) / n;
+    const px = e.rx * Math.cos(theta);
+    const py = e.ry * Math.sin(theta);
+    out.push([e.cx + px * cos - py * sin, e.cy + px * sin + py * cos]);
+  }
+  return out;
+}
 
 test("a plain block yields fills and strokes and no ellipse", () => {
   const v = isometricView(block(6, 4, 2));
@@ -30,14 +57,26 @@ test("two holes add two ellipses", () => {
 // The whole reason isoBore returns a depth. Appending ellipses at the end would
 // draw a bore rim on top of whatever occludes its face. For a z-hole in a plain
 // block the rim sits on the top face, whose depth is nowhere near the maximum,
-// so fills MUST still follow it.
-test("the ellipse is interleaved by depth, not appended at the end", () => {
+// so fills MUST still follow it - but "some fill follows" isn't the property
+// that matters: the property that matters is that none of those later fills
+// actually covers any point of the rim outline. A defective anchor (e.g. the
+// single centre voxel rather than the farthest voxel the rim's footprint
+// touches) still has later fills, so a bare "facesAfter > 0" check would stay
+// green even as the rim gets progressively more overpainted.
+test("the ellipse rim survives the paint order: no later fill covers it", () => {
   const v = isometricView(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2));
   const at = v.findIndex((p) => p.kind === "iso-ellipse");
   assert.ok(at >= 0, "the ellipse must be present");
-  const facesAfter = v.slice(at + 1).filter((p) => p.kind === "iso-face").length;
-  assert.ok(facesAfter > 0,
-    `nearer fills must follow the ellipse; found ${facesAfter} after index ${at}`);
+  const ellipse = v[at] as IsoEllipse;
+  const laterFaces = v.slice(at + 1).filter((p): p is IsoFace => p.kind === "iso-face");
+  assert.ok(laterFaces.length > 0, "nearer fills must still follow the ellipse");
+
+  for (const pt of rimPoints(ellipse, 72)) {
+    for (const face of laterFaces) {
+      assert.ok(!pointInPolygon(pt, face.points),
+        `rim point ${JSON.stringify(pt)} is covered by a later fill ${JSON.stringify(face.points)}`);
+    }
+  }
 });
 
 // Part 1's compatibility requirement, pinned so it cannot silently regress.

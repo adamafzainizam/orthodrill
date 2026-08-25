@@ -14,7 +14,7 @@ import { buildOccupancy } from "./occupancy.ts";
 import { isoEdges } from "./isoedges.ts";
 import { isoBore } from "./isobore.ts";
 import { validateSolid } from "./views.ts";
-import type { CylinderOp, Solid } from "./solid.ts";
+import type { Solid } from "./solid.ts";
 import type { IsoPrimitive } from "./isotypes.ts";
 
 export function isometricView(s: Solid): IsoPrimitive[] {
@@ -30,7 +30,7 @@ export function isometricView(s: Solid): IsoPrimitive[] {
   const extras: { t: number; prim: IsoPrimitive }[] = [];
   for (const op of s.ops) {
     if (op.kind !== "cylinder") continue;
-    const bore = isoBore(op as CylinderOp, occ);
+    const bore = isoBore(op, occ);
     if (bore !== null) extras.push({ t: bore.t, prim: bore.ellipse });
   }
 

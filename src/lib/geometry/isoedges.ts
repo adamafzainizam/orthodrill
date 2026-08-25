@@ -154,7 +154,7 @@ export function isoEdges(
     }
   };
 
-  emitExtrasFor(-1); // extras nearer than nothing yet drawn (shouldn't occur in practice)
+  emitExtrasFor(-1); // extras farther than every fill (shouldn't occur in practice)
   for (let i = 0; i < ordered.length; i++) {
     const f = ordered[i];
     const c = faceCorners(f.name, f.x, f.y, f.z);
