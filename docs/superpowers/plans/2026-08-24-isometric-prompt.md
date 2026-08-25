@@ -860,7 +860,9 @@ function planeAxes(axis: Axis): [Axis, Axis] {
   return [a, b];
 }
 
-export function isoBore(op: CylinderOp, o: Occupancy): IsoEllipse | null {
+export function isoBore(
+  op: CylinderOp, o: Occupancy,
+): { ellipse: IsoEllipse; t: number } | null {
   const [pu, pv] = planeAxes(op.axis);
 
   // The near rim sits on the visible face the hole emerges through: the top for
