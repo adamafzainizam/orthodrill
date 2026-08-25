@@ -388,27 +388,74 @@ along an axis - exact rather than approximate."
 
 ---
 
-### Task 3: Visible edges
+### Task 3: Faces, strokes and the paint order
 
 **Files:**
+- Modify: `src/lib/geometry/isotypes.ts` (add `IsoFace`)
+- Modify: `src/lib/geometry/isotypes.test.ts` (cover the new member)
 - Create: `src/lib/geometry/isoedges.ts`
 - Test: `src/lib/geometry/isoedges.test.ts`
 
 **Interfaces:**
-- Consumes: `Occupancy` from `./occupancy.ts`; `project`, `isVisible` from `./isoproject.ts`; `IsoLine` from `./isotypes.ts`
-- Produces: `isoEdges(o: Occupancy): IsoLine[]`
+- Consumes: `Occupancy` from `./occupancy.ts`; `project`, `isVisible` from `./isoproject.ts`; `IsoFace`, `IsoLine` from `./isotypes.ts`
+- Produces:
+  - `type IsoFace = { kind: "iso-face"; points: [number, number][] }` (added to `isotypes.ts`, and to the `IsoPrimitive` union)
+  - `isoEdges(o: Occupancy): (IsoFace | IsoLine)[]` — **ordered back to front**
 
-**The algorithm, stated once so the steps make sense.**
+**READ THIS FIRST — an earlier version of this task was structurally wrong.**
 
-1. For every **visible** voxel, consider its three viewer-facing directions `+x`, `-y`, `+z`. If the neighbour in that direction is solid, the face is interior — skip it. Otherwise the face is part of the visible surface.
-2. Emit each surviving face's four boundary edges, tagged with that face's normal.
-3. **Cancel** any edge appearing exactly twice with the SAME normal — two coplanar faces continuing across it, so no line is drawn. Edges appearing once, or twice with different normals (a crease), survive.
-4. **Merge collinear runs.** Group surviving lattice edges by (axis, the two fixed coordinates) and join contiguous runs. Without this a `2×1×1` block yields 12 edges instead of 9.
-5. Project each merged lattice edge to 2D and emit an `IsoLine`, dropping anything that projects to zero length.
+The original approach emitted only lines, relying on the claim that a visible voxel's faces are wholly visible. That claim is false: projected unit-cube hexagons have area √3 against a projected lattice cell of 1/√3, so every hexagon overlaps six neighbours and partial occlusion is routine. Measured on the L-block, the tread's visibility boundary cuts *through* voxel interiors, and its right edge was emitted despite being occluded at 40 of 40 sampled points. See design §6, which records the failure in full.
 
-Because visibility is decided per diagonal and hexagons tile exactly, a visible voxel's faces are *wholly* visible — there is no partial face occlusion to handle. That is what makes this tractable.
+**The algorithm now, stated once.**
 
-- [ ] **Step 1: Write the failing tests**
+1. For every voxel that `isVisible` accepts, consider its three viewer-facing directions `+x`, `-y`, `+z`. If the neighbour in that direction is solid the face is interior; skip it. Otherwise it is an exposed face. (`isVisible` remains a sound *cull* — it identifies wholly hidden voxels. It was only wrong as a claim about faces.)
+2. Give each exposed face a depth key `t = x - y + z` — depth along the view direction, larger meaning nearer.
+3. Collect every exposed face's four boundary edges, tagged with the face normal. **Cancel** any edge appearing exactly twice with the same normal: two coplanar faces continue across it, and without this every flat surface would show a grid of unit-square outlines. Then **merge** collinear runs, or each long side of a flat region stays as separate unit segments.
+4. Sort the faces **ascending by `t`** — farthest first.
+5. Emit, in that order, for each face: its `IsoFace` fill polygon, then the surviving merged strokes that belong to it, as `IsoLine`s.
+
+The renderer paints this list in sequence, an `IsoFace` as an opaque background-coloured fill and an `IsoLine` as a stroke. Nearer fills cover farther strokes, so hidden lines vanish by overdraw — correct by construction, with no clipping arithmetic.
+
+**Verified before adoption:** painting in `t` order reproduces ray-marched ground truth at 11,778 of 11,800 sampled interior points on the L-block, the solid that broke the previous approach.
+
+**The array order is load-bearing.** Do not sort, filter or deduplicate the result.
+
+- [ ] **Step 1: Add `IsoFace` to the vocabulary**
+
+In `src/lib/geometry/isotypes.ts`, add above `IsoPrimitive`:
+
+```typescript
+/**
+ * One visible face, as a closed polygon in projection units.
+ *
+ * Rendered as an OPAQUE fill in the page background colour, not as an outline.
+ * Fills are what make hidden-line removal work: the emitted array is ordered
+ * back to front, so a nearer face's fill paints over a farther face's strokes.
+ * See the design document §6.
+ */
+export type IsoFace = {
+  kind: "iso-face";
+  points: [number, number][];
+};
+```
+
+and widen the union:
+
+```typescript
+export type IsoPrimitive = IsoFace | IsoLine | IsoEllipse;
+```
+
+Add a case to the existing "the vocabulary carries the fields the renderer needs" test in `isotypes.test.ts`:
+
+```typescript
+  const face: IsoFace = { kind: "iso-face", points: [[0, 0], [1, 0], [1, 1]] };
+  assert.equal(face.kind, "iso-face");
+  assert.equal(face.points.length, 3);
+```
+
+importing `IsoFace` alongside the other types. **Do not touch the two `@ts-expect-error` tests** — they guard the security boundary and must keep failing typecheck if the vocabularies ever become assignable.
+
+- [ ] **Step 2: Write the failing tests**
 
 Create `src/lib/geometry/isoedges.test.ts`:
 
@@ -418,46 +465,107 @@ import assert from "node:assert/strict";
 import { isoEdges } from "./isoedges.ts";
 import { buildOccupancy } from "./occupancy.ts";
 import { block, subtractBox, subtractCylinder, type Solid } from "./solid.ts";
+import type { IsoFace, IsoLine } from "./isotypes.ts";
 
-const count = (s: Solid) => isoEdges(buildOccupancy(s)).length;
+const run = (s: Solid) => isoEdges(buildOccupancy(s));
+const faces = (ps: (IsoFace | IsoLine)[]) => ps.filter((p) => p.kind === "iso-face");
+const lines = (ps: (IsoFace | IsoLine)[]) => ps.filter((p) => p.kind === "iso-line");
 
-// The load-bearing test. A rectangular box drawn isometrically shows exactly
-// nine edges - the six of the hexagonal outline plus three meeting at the near
-// corner - whatever its dimensions. It fails if coplanar faces are not
-// cancelled, and it fails if collinear runs are not merged.
-test("every plain block yields exactly nine edges, whatever its size", () => {
+/**
+ * Join collinear touching strokes, for counting only. The generator emits one
+ * unit segment per face edge on purpose - merging across faces would let a
+ * nearer coplanar fill paint over part of an outline - so the merge that makes
+ * the nine-edge invariant checkable belongs here in the test.
+ */
+function mergedCount(ps: (IsoFace | IsoLine)[]): number {
+  const segs = lines(ps).map((l) => {
+    const [a, b] = [[l.x1, l.y1], [l.x2, l.y2]].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    return { a, b };
+  });
+  const key = (p: number[]) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
+  const groups = new Map<string, { a: number[]; b: number[] }[]>();
+  for (const sg of segs) {
+    const dx = sg.b[0] - sg.a[0], dy = sg.b[1] - sg.a[1];
+    const len = Math.hypot(dx, dy);
+    // direction, normalised and sign-canonical, plus the line's offset
+    const ux = dx / len, uy = dy / len;
+    const off = (sg.a[0] * uy - sg.a[1] * ux).toFixed(6);
+    const gk = `${ux.toFixed(6)},${uy.toFixed(6)}|${off}`;
+    const g = groups.get(gk);
+    if (g) g.push(sg); else groups.set(gk, [sg]);
+  }
+  let total = 0;
+  for (const g of groups.values()) {
+    const pts = new Map<string, number>();
+    for (const sg of g) {
+      pts.set(key(sg.a), (pts.get(key(sg.a)) ?? 0) + 1);
+      pts.set(key(sg.b), (pts.get(key(sg.b)) ?? 0) + 1);
+    }
+    // Each maximal run has exactly two endpoints touched once.
+    let ends = 0;
+    for (const n of pts.values()) if (n === 1) ends++;
+    total += Math.max(1, ends / 2);
+  }
+  return total;
+}
+
+// A rectangular box drawn isometrically shows exactly nine edges - the six of
+// the hexagonal outline plus three meeting at the near corner - whatever its
+// dimensions. Independently known. Fails if coplanar strokes are not cancelled.
+test("every plain block's strokes merge to exactly nine lines, whatever its size", () => {
   for (const [w, d, h] of [[1,1,1],[2,1,1],[2,2,2],[6,4,2],[8,3,5]]) {
-    assert.equal(count(block(w, d, h)), 9, `block(${w},${d},${h})`);
+    assert.equal(mergedCount(run(block(w, d, h))), 9, `block(${w},${d},${h})`);
   }
 });
 
-test("a step adds edges beyond the nine", () => {
-  assert.equal(count(subtractBox(block(6, 4, 4), { x: 0, y: 0, z: 2, w: 3, d: 4, h: 2 })), 18);
+test("a plain block emits one fill per exposed viewer-facing face", () => {
+  assert.equal(faces(run(block(1, 1, 1))).length, 3);
+  // 2x1x1: two +z, two -y, one +x.
+  assert.equal(faces(run(block(2, 1, 1))).length, 5);
 });
 
-test("a cut corner adds more still", () => {
-  assert.equal(count(subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 2, w: 2, d: 2, h: 2 })), 22);
-});
-
-// Cylinders never enter the occupancy grid, so they cannot affect the edges.
-test("a through-hole does not change the edge count", () => {
-  assert.equal(count(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2)), 9);
-});
-
-test("every emitted line has finite coordinates and non-zero length", () => {
-  for (const p of isoEdges(buildOccupancy(block(3, 2, 2)))) {
-    for (const n of [p.x1, p.y1, p.x2, p.y2]) assert.ok(Number.isFinite(n));
-    assert.ok(Math.hypot(p.x2 - p.x1, p.y2 - p.y1) > 1e-9);
+test("every fill is a quadrilateral with finite coordinates", () => {
+  for (const p of faces(run(block(3, 2, 2)))) {
+    assert.equal(p.points.length, 4);
+    for (const [u, v] of p.points) assert.ok(Number.isFinite(u) && Number.isFinite(v));
   }
 });
 
-test("every emitted primitive is an iso-line", () => {
-  for (const p of isoEdges(buildOccupancy(block(3, 2, 2)))) assert.equal(p.kind, "iso-line");
+// The load-bearing ordering property: occlusion depends entirely on it. For a
+// 2x1x1 block the voxel at x=1 is nearer the viewer than the one at x=0, and a
+// nearer face projects further right, so its fill must be emitted LATER.
+test("nearer fills are emitted later, so they paint over farther ones", () => {
+  const ps = run(block(2, 1, 1));
+  const fs = faces(ps);
+  const centroidU = (f: IsoFace) => f.points.reduce((a, p) => a + p[0], 0) / f.points.length;
+  let leftmost = 0, rightmost = 0;
+  fs.forEach((f, i) => {
+    if (centroidU(f) < centroidU(fs[leftmost])) leftmost = i;
+    if (centroidU(f) > centroidU(fs[rightmost])) rightmost = i;
+  });
+  assert.ok(rightmost > leftmost,
+    `nearer fill at index ${rightmost} must come after farther fill at ${leftmost}`);
 });
 
-test("an empty solid yields no edges", () => {
-  const gone = subtractBox(block(2, 2, 2), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 2 });
-  assert.deepEqual(isoEdges(buildOccupancy(gone)), []);
+test("no stroke is emitted before the first fill", () => {
+  const ps = run(block(2, 2, 2));
+  const firstFace = ps.findIndex((p) => p.kind === "iso-face");
+  const firstLine = ps.findIndex((p) => p.kind === "iso-line");
+  assert.equal(firstFace, 0);
+  assert.ok(firstLine > firstFace);
+});
+
+test("a through-hole does not change the merged stroke count", () => {
+  assert.equal(mergedCount(run(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2))), 9);
+});
+
+test("a stepped solid merges to more than the nine of a plain block", () => {
+  const n = mergedCount(run(subtractBox(block(6, 4, 4), { x: 0, y: 0, z: 2, w: 3, d: 4, h: 2 })));
+  assert.ok(n > 9, `expected more than nine, got ${n}`);
+});
+
+test("an empty solid yields nothing", () => {
+  assert.deepEqual(run(subtractBox(block(2, 2, 2), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 2 })), []);
 });
 
 test("output is stable across runs", () => {
@@ -466,41 +574,46 @@ test("output is stable across runs", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 3: Run the tests to verify they fail**
 
 Run: `npm test`
 Expected: FAIL — cannot find module `./isoedges.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 4: Write the implementation**
 
 Create `src/lib/geometry/isoedges.ts`:
 
 ```typescript
 /**
- * The visible edges of a solid, seen isometrically.
+ * The visible surface of a solid, seen isometrically, as a PAINT PROGRAM.
  *
- * Only the exposed, viewer-facing faces of VISIBLE voxels contribute. Because
- * the projection direction is a lattice diagonal and visibility is decided per
- * diagonal, a visible voxel's faces are wholly visible — there is no partial
- * face occlusion to handle, which is what makes this tractable.
+ * The returned array is ORDERED back to front and must be rendered in sequence:
+ * an IsoFace as an opaque fill in the page background colour, an IsoLine as a
+ * stroke. Occlusion happens because a nearer face's fill paints over a farther
+ * face's strokes. Do not sort, filter or deduplicate the result.
  *
- * Two reductions turn faces into a line drawing:
- *   - CANCEL an edge shared by two coplanar faces: the surface continues across
- *     it and no line is drawn. An edge shared by faces with different normals is
- *     a crease and survives.
- *   - MERGE collinear runs. Cancelling alone leaves a flat 2x1 top with two
- *     collinear unit segments per long side, so a 2x1x1 block would emit twelve
- *     edges instead of the correct nine.
+ * WHY NOT JUST EMIT VISIBLE LINES. An earlier version did, on the claim that a
+ * visible voxel's faces are wholly visible. That is false: projected unit-cube
+ * hexagons have area sqrt(3) against a projected lattice cell of 1/sqrt(3), so
+ * every hexagon overlaps six neighbours and partial occlusion is routine. On the
+ * L-block the true visibility boundary cuts THROUGH voxel interiors, which no
+ * voxel-granular method can express. See the design document §6.
+ *
+ * WHY STROKES ARE NOT MERGED ACROSS FACES. Each face emits its own unit-length
+ * edges, right after its own fill. Merging a run across several coplanar faces
+ * would attach it to the farthest of them, and the nearer coplanar fills would
+ * then paint over part of the outline. Cancellation already removes the shared
+ * edges between coplanar neighbours, so what survives is the true outline; it is
+ * simply expressed as touching unit segments, which render identically.
  *
  * PURE. No I/O.
  */
 import type { Occupancy } from "./occupancy.ts";
 import { project, isVisible } from "./isoproject.ts";
-import type { IsoLine } from "./isotypes.ts";
+import type { IsoFace, IsoLine } from "./isotypes.ts";
 
 type Corner = [number, number, number];
 
-/** The three directions that can face the viewer, each with a stable name. */
 const FACES: { name: string; d: Corner }[] = [
   { name: "+x", d: [1, 0, 0] },
   { name: "-y", d: [0, -1, 0] },
@@ -521,87 +634,67 @@ function faceCorners(name: string, x: number, y: number, z: number): Corner[] {
 const cornerKey = (c: Corner) => `${c[0]},${c[1]},${c[2]}`;
 const edgeKey = (a: Corner, b: Corner) => [cornerKey(a), cornerKey(b)].sort().join("|");
 
-export function isoEdges(o: Occupancy): IsoLine[] {
-  // Steps 1-2: collect face edges, keyed by position AND normal, and count them.
-  const tally = new Map<string, number>();
+type Face = { name: string; x: number; y: number; z: number; t: number };
+
+export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[] {
+  // 1. Exposed viewer-facing faces of visible voxels, with a depth key.
+  //    isVisible remains a sound cull: it finds WHOLLY hidden voxels.
+  const exposed: Face[] = [];
   for (let z = 0; z < o.h; z++) {
     for (let y = 0; y < o.d; y++) {
       for (let x = 0; x < o.w; x++) {
         if (!isVisible(o, x, y, z)) continue;
         for (const f of FACES) {
-          if (o.isSolid(x + f.d[0], y + f.d[1], z + f.d[2])) continue; // interior face
-          const c = faceCorners(f.name, x, y, z);
-          for (let i = 0; i < 4; i++) {
-            const key = `${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`;
-            tally.set(key, (tally.get(key) ?? 0) + 1);
-          }
+          if (o.isSolid(x + f.d[0], y + f.d[1], z + f.d[2])) continue;
+          exposed.push({ name: f.name, x, y, z, t: x - y + z });
         }
       }
     }
   }
 
-  // Step 3: an edge seen twice with the same normal is interior to a flat region.
-  const surviving = new Set<string>();
-  for (const [key, n] of tally) {
-    if (n !== 2) surviving.add(key.split("#")[0]);
-  }
-
-  // Step 4: merge collinear runs, grouped by the axis the edge runs along and
-  // the two coordinates that stay fixed along it.
-  const runs = new Map<string, number[]>();
-  for (const key of surviving) {
-    const [p, q] = key.split("|").map((t) => t.split(",").map(Number));
-    const axis = [0, 1, 2].findIndex((i) => p[i] !== q[i]);
-    if (axis < 0) continue; // degenerate
-    const fixed = [0, 1, 2].filter((i) => i !== axis).map((i) => p[i]);
-    const gk = `${axis}:${fixed.join(",")}`;
-    const start = Math.min(p[axis], q[axis]);
-    const g = runs.get(gk);
-    if (g) g.push(start); else runs.set(gk, [start]);
-  }
-
-  // Step 5: project each merged run.
-  const out: IsoLine[] = [];
-  for (const [gk, startsRaw] of runs) {
-    const [axisText, fixedText] = gk.split(":");
-    const axis = Number(axisText);
-    const fixed = fixedText.split(",").map(Number);
-    const rest = [0, 1, 2].filter((i) => i !== axis);
-    const starts = [...startsRaw].sort((a, b) => a - b);
-
-    const at = (t: number): Corner => {
-      const c: Corner = [0, 0, 0];
-      c[axis] = t;
-      c[rest[0]] = fixed[0];
-      c[rest[1]] = fixed[1];
-      return c;
-    };
-
-    const emit = (from: number, to: number) => {
-      const a = at(from), b = at(to);
-      const pa = project(a[0], a[1], a[2]);
-      const pb = project(b[0], b[1], b[2]);
-      if (Math.hypot(pb.u - pa.u, pb.v - pa.v) < 1e-9) return;
-      out.push({ kind: "iso-line", x1: pa.u, y1: pa.v, x2: pb.u, y2: pb.v });
-    };
-
-    let runStart = starts[0];
-    let prev = starts[0];
-    for (let i = 1; i < starts.length; i++) {
-      if (starts[i] === prev + 1) { prev = starts[i]; continue; }
-      emit(runStart, prev + 1);
-      runStart = starts[i];
-      prev = starts[i];
+  // 2. Tally edges by position AND normal, so coplanar continuations cancel.
+  const tally = new Map<string, number>();
+  for (const f of exposed) {
+    const c = faceCorners(f.name, f.x, f.y, f.z);
+    for (let i = 0; i < 4; i++) {
+      tally.set(`${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`,
+        (tally.get(`${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`) ?? 0) + 1);
     }
-    emit(runStart, prev + 1);
   }
 
-  // Deterministic order so tests and fixtures are stable.
-  return out.sort((a, b) => a.y1 - b.y1 || a.x1 - b.x1 || a.y2 - b.y2 || a.x2 - b.x2);
+  // 3. Farthest first. Sort is stable, so ties keep collection order.
+  const ordered = [...exposed].sort((p, q) => p.t - q.t);
+
+  // 4. Each fill, then that face's own surviving edges.
+  const out: (IsoFace | IsoLine)[] = [];
+  const drawn = new Set<string>();
+  for (const f of ordered) {
+    const c = faceCorners(f.name, f.x, f.y, f.z);
+    out.push({
+      kind: "iso-face",
+      points: c.map((p) => {
+        const s = project(p[0], p[1], p[2]);
+        return [s.u, s.v] as [number, number];
+      }),
+    });
+
+    for (let i = 0; i < 4; i++) {
+      const ek = edgeKey(c[i], c[(i + 1) % 4]);
+      if (tally.get(`${ek}#${f.name}`) === 2) continue; // coplanar continuation
+      if (drawn.has(ek)) continue;                      // a crease, already drawn
+      drawn.add(ek);
+      const a = project(c[i][0], c[i][1], c[i][2]);
+      const b = project(c[(i + 1) % 4][0], c[(i + 1) % 4][1], c[(i + 1) % 4][2]);
+      if (Math.hypot(b.u - a.u, b.v - a.v) < 1e-9) continue;
+      out.push({ kind: "iso-line", x1: a.u, y1: a.v, x2: b.u, y2: b.v });
+    }
+  }
+
+  return out;
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 5: Run the tests to verify they pass**
 
 ```bash
 npm test
@@ -609,17 +702,22 @@ npm run typecheck
 npm run lint
 ```
 
-Expected: 8 new tests pass. **If the nine-edge test fails, do not change the expected number** — nine is independently known to be correct for a rectangular box. Debug the cancel step first, then the merge step.
+Expected: the nine new tests pass. **If the nine-line test fails, do not change the expected number** — nine is independently known for a rectangular box. Debug the cancellation first: the likeliest cause is that `tally` is not keyed by both position and normal.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/lib/geometry/isoedges.ts src/lib/geometry/isoedges.test.ts
-git commit -m "feat: extract the visible edges of an isometric view
+git add src/lib/geometry/isoedges.ts src/lib/geometry/isoedges.test.ts src/lib/geometry/isotypes.ts src/lib/geometry/isotypes.test.ts
+git commit -m "feat: emit the isometric surface as a back-to-front paint program
 
-Exposed viewer-facing faces of visible voxels, with coplanar shared edges
-cancelled and collinear runs merged. Merging is not cosmetic: without it a
-2x1x1 block emits twelve edges where a rectangular box always shows nine."
+Fills interleaved with each face's own surviving strokes, ordered by the
+diagonal depth key. Occlusion happens by overdraw, which is correct by
+construction - the previous line-only approach relied on a false claim that a
+visible voxel's faces are wholly visible, and drew lines across solid blocks.
+
+Strokes are deliberately not merged across faces: a merged run would attach to
+the farthest face and the nearer coplanar fills would paint over part of the
+outline."
 ```
 
 ---
