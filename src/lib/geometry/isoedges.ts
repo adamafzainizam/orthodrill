@@ -31,7 +31,7 @@
  */
 import type { Occupancy } from "./occupancy.ts";
 import { project, isVisible } from "./isoproject.ts";
-import type { IsoFace, IsoLine } from "./isotypes.ts";
+import type { IsoFace, IsoLine, IsoPrimitive } from "./isotypes.ts";
 
 type Corner = [number, number, number];
 type Dir = "+x" | "-y" | "+z";
@@ -77,7 +77,20 @@ export function faceDepth(x: number, y: number, z: number): number {
 
 type Face = { name: Dir; x: number; y: number; z: number; t: number };
 
-export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[] {
+// Overloaded rather than a single `IsoPrimitive[]` signature so that callers
+// with no extras (isoedges.test.ts among them) keep the narrower, ellipse-free
+// `(IsoFace | IsoLine)[]` type they had before this parameter existed: with
+// extras omitted (defaulting to []), the output genuinely cannot contain an
+// IsoEllipse, since only an extra's `prim` can introduce one.
+export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[];
+export function isoEdges(
+  o: Occupancy,
+  extras: { t: number; prim: IsoPrimitive }[],
+): IsoPrimitive[];
+export function isoEdges(
+  o: Occupancy,
+  extras: { t: number; prim: IsoPrimitive }[] = [],
+): IsoPrimitive[] {
   // 1. Tally edges by position AND normal, over ALL exposed faces of ALL solid
   //    voxels — not just isVisible ones. Two coplanar patches are physically
   //    continuous (and their shared edge must cancel) purely because both are
@@ -120,10 +133,30 @@ export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[] {
   // 3. Farthest first. Sort is stable, so ties keep collection order.
   const ordered = [...exposed].sort((p, q) => p.t - q.t);
 
-  // 4. Each fill, then that face's own surviving edges.
-  const out: (IsoFace | IsoLine)[] = [];
+  // 4. Each fill, then that face's own surviving edges, with any extras
+  //    (e.g. bore ellipses from isobore.ts) interleaved immediately after the
+  //    last fill whose depth is <= the extra's own depth. Extras never enter
+  //    the tally/exposed/ordered machinery above - they are painted-on
+  //    additions to an already-computed back-to-front program, not faces.
+  const insertAfter = extras.map((e) => {
+    let idx = -1;
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i].t <= e.t) idx = i; else break;
+    }
+    return idx;
+  });
+
+  const out: IsoPrimitive[] = [];
   const drawn = new Set<string>();
-  for (const f of ordered) {
+  const emitExtrasFor = (idx: number) => {
+    for (let ei = 0; ei < extras.length; ei++) {
+      if (insertAfter[ei] === idx) out.push(extras[ei].prim);
+    }
+  };
+
+  emitExtrasFor(-1); // extras nearer than nothing yet drawn (shouldn't occur in practice)
+  for (let i = 0; i < ordered.length; i++) {
+    const f = ordered[i];
     const c = faceCorners(f.name, f.x, f.y, f.z);
     out.push({
       kind: "iso-face",
@@ -133,16 +166,18 @@ export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[] {
       }),
     });
 
-    for (let i = 0; i < 4; i++) {
-      const ek = edgeKey(c[i], c[(i + 1) % 4]);
+    for (let j = 0; j < 4; j++) {
+      const ek = edgeKey(c[j], c[(j + 1) % 4]);
       if (tally.get(`${ek}#${f.name}`) === 2) continue; // coplanar continuation
       if (drawn.has(ek)) continue;                      // a crease, already drawn
       drawn.add(ek);
-      const a = project(c[i][0], c[i][1], c[i][2]);
-      const b = project(c[(i + 1) % 4][0], c[(i + 1) % 4][1], c[(i + 1) % 4][2]);
+      const a = project(c[j][0], c[j][1], c[j][2]);
+      const b = project(c[(j + 1) % 4][0], c[(j + 1) % 4][1], c[(j + 1) % 4][2]);
       if (Math.hypot(b.u - a.u, b.v - a.v) < 1e-9) continue;
       out.push({ kind: "iso-line", x1: a.u, y1: a.v, x2: b.u, y2: b.v });
     }
+
+    emitExtrasFor(i);
   }
 
   return out;
