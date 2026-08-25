@@ -20,15 +20,18 @@ function mergedCount(ps: (IsoFace | IsoLine)[]): number {
     const [a, b] = [[l.x1, l.y1], [l.x2, l.y2]].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
     return { a, b };
   });
-  const key = (p: number[]) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
+  // -0 and 0 must format identically, or one infinite line splits into two
+  // groups and the run count comes out too high.
+  const fix = (n: number) => (Math.abs(n) < 1e-9 ? 0 : Number(n.toFixed(6))).toFixed(6);
+  const key = (p: number[]) => `${fix(p[0])},${fix(p[1])}`;
   const groups = new Map<string, { a: number[]; b: number[] }[]>();
   for (const sg of segs) {
     const dx = sg.b[0] - sg.a[0], dy = sg.b[1] - sg.a[1];
     const len = Math.hypot(dx, dy);
     // direction, normalised and sign-canonical, plus the line's offset
     const ux = dx / len, uy = dy / len;
-    const off = (sg.a[0] * uy - sg.a[1] * ux).toFixed(6);
-    const gk = `${ux.toFixed(6)},${uy.toFixed(6)}|${off}`;
+    const off = sg.a[0] * uy - sg.a[1] * ux;
+    const gk = `${fix(ux)},${fix(uy)}|${fix(off)}`;
     const g = groups.get(gk);
     if (g) g.push(sg); else groups.set(gk, [sg]);
   }
