@@ -45,4 +45,17 @@ export type IsoEllipse = {
   rotation: number;
 };
 
-export type IsoPrimitive = IsoLine | IsoEllipse;
+/**
+ * One visible face, as a closed polygon in projection units.
+ *
+ * Rendered as an OPAQUE fill in the page background colour, not as an outline.
+ * Fills are what make hidden-line removal work: the emitted array is ordered
+ * back to front, so a nearer face's fill paints over a farther face's strokes.
+ * See the design document §6.
+ */
+export type IsoFace = {
+  kind: "iso-face";
+  points: [number, number][];
+};
+
+export type IsoPrimitive = IsoFace | IsoLine | IsoEllipse;

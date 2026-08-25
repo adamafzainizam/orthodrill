@@ -44,23 +44,41 @@ v = -(-x + y + 2 * z) / Math.sqrt(6)
 | `"y"` | front face | `60` |
 | `"x"` | right face | `120` |
 
-**Expected edge counts.** The block case is independently known — a rectangular box drawn isometrically always shows nine edges, six of the hexagonal outline plus three meeting at the near corner. The other two were obtained from a reference implementation that reproduces the block case correctly.
+**Expected stroke counts.** Strokes are emitted per face as unit segments, so the
+raw count is large; the invariant is what they MERGE to, which the test file's
+`mergedCount` helper computes. The block case is independently known: a
+rectangular box drawn isometrically always shows nine edges — six of the
+hexagonal outline plus three meeting at the near corner — whatever its size.
 
-| Solid | Merged edges |
+| Solid | Merged strokes |
 |---|---|
 | `block(w,d,h)` for ANY w, d, h | **9** |
-| `subtractBox(block(6,4,4), {x:0,y:0,z:2,w:3,d:4,h:2})` — L-block | 18 |
-| `subtractBox(block(4,4,4), {x:0,y:0,z:2,w:2,d:2,h:2})` — cut corner | 22 |
+| any solid with a through-hole (cylinders never enter the grid) | unchanged from its block |
+
+Do not pin counts for stepped solids. The earlier plan did, at 18 and 22, and
+those numbers encoded the bug described below — they counted lines that were
+actually hidden.
 
 ---
 
-## A step the design did not call for
+## What changed after the first attempt failed
 
-Design §6 describes cancelling shared coplanar faces. That is necessary and **not sufficient**. After cancellation a `2×1×1` block still yields **12** edges rather than 9, because each long side of the merged top face survives as *two collinear unit segments*.
+The first version of this plan emitted only lines, and cancelled shared coplanar
+faces to decide which to draw. Review found the underlying premise false: a
+visible voxel's faces are NOT wholly visible, because projected unit-cube
+hexagons overlap their neighbours threefold. On the L-block the true visibility
+boundary cuts through voxel interiors, and the code drew lines across the faces
+of solid blocks. Design §6 records the failure in full.
 
-**Collinear merging is required**, exactly as `merge.ts` does for the orthographic views. It is folded into Task 3 rather than given its own module: it operates on 3D lattice edges and is about fifteen lines.
+Task 3 now emits a **paint program**: fills interleaved with strokes, ordered
+back to front, where a nearer fill covers a farther stroke. Two consequences that
+look like simplifications and are not:
 
-This was found while writing the plan, by running the counts. Without it every edge-count test in this plan would be wrong.
+- **The array order is load-bearing.** Never sort, filter or deduplicate it.
+- **Strokes are not merged across faces.** A merged run would attach to the
+  farthest face and the nearer coplanar fills would paint over part of the
+  outline. Each face emits its own unit edges; merging happens only inside the
+  test helper, to check the nine-edge invariant.
 
 ---
 
@@ -75,7 +93,7 @@ than buried in a module that also does geometry.
 |---|---|
 | `src/lib/geometry/isotypes.ts` | the `IsoPrimitive` vocabulary, and why it is separate |
 | `src/lib/geometry/isoproject.ts` | screen basis, and the diagonal visibility walk |
-| `src/lib/geometry/isoedges.ts` | visible faces → cancel → collinear-merge → `IsoLine[]` |
+| `src/lib/geometry/isoedges.ts` | exposed faces → depth sort → fills interleaved with their own strokes |
 | `src/lib/geometry/isobore.ts` | hole → `IsoEllipse`, with visibility |
 | `src/lib/geometry/isometric.ts` | compose into `IsoPrimitive[]` |
 | `src/lib/geometry/isometric.properties.test.ts` | invariants across a corpus |
@@ -482,15 +500,18 @@ function mergedCount(ps: (IsoFace | IsoLine)[]): number {
     const [a, b] = [[l.x1, l.y1], [l.x2, l.y2]].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
     return { a, b };
   });
-  const key = (p: number[]) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
+  // -0 and 0 must format identically, or one infinite line splits into two
+  // groups and the run count comes out too high.
+  const fix = (n: number) => (Math.abs(n) < 1e-9 ? 0 : Number(n.toFixed(6))).toFixed(6);
+  const key = (p: number[]) => `${fix(p[0])},${fix(p[1])}`;
   const groups = new Map<string, { a: number[]; b: number[] }[]>();
   for (const sg of segs) {
     const dx = sg.b[0] - sg.a[0], dy = sg.b[1] - sg.a[1];
     const len = Math.hypot(dx, dy);
     // direction, normalised and sign-canonical, plus the line's offset
     const ux = dx / len, uy = dy / len;
-    const off = (sg.a[0] * uy - sg.a[1] * ux).toFixed(6);
-    const gk = `${ux.toFixed(6)},${uy.toFixed(6)}|${off}`;
+    const off = sg.a[0] * uy - sg.a[1] * ux;
+    const gk = `${fix(ux)},${fix(uy)}|${fix(off)}`;
     const g = groups.get(gk);
     if (g) g.push(sg); else groups.set(gk, [sg]);
   }

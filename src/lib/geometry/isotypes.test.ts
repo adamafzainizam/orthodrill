@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { IsoLine, IsoEllipse, IsoPrimitive } from "./isotypes.ts";
+import type { IsoLine, IsoEllipse, IsoFace, IsoPrimitive } from "./isotypes.ts";
 import type { Primitive, Segment } from "../scoring/primitives.ts";
 
 // The isometric is the PUBLIC half of a drill; the scorer's primitives are the
@@ -28,4 +28,7 @@ test("the vocabulary carries the fields the renderer needs", () => {
   assert.equal(line.kind, "iso-line");
   assert.equal(ell.kind, "iso-ellipse");
   assert.equal(ell.rotation, 60);
+  const face: IsoFace = { kind: "iso-face", points: [[0, 0], [1, 0], [1, 1]] };
+  assert.equal(face.kind, "iso-face");
+  assert.equal(face.points.length, 3);
 });
