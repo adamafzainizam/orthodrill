@@ -39,8 +39,9 @@ export type PublicDrill = {
   title: string;
   prompt: string;
   convention: Convention;
-  grid: { width: number; height: number };
-  isometric: IsoPrimitive[];
+  grid: Readonly<{ width: number; height: number }>;
+  /** Readonly because it is cached and shared across requests. */
+  isometric: readonly IsoPrimitive[];
 };
 
 /**
@@ -118,19 +119,52 @@ export function getDrill(id: string): Drill | null {
   return BY_ID.get(id) ?? null;
 }
 
+/**
+ * Generated output is cached per drill and frozen.
+ *
+ * CACHED because both projections are pure functions of a fixed solid, and
+ * without this every scored submission re-runs the whole view generator and
+ * every drill load re-runs the isometric projection. On a free tier that is
+ * paid-for CPU on each request, and it hands an attacker cost amplification
+ * that the rate limit then has to absorb alone.
+ *
+ * FROZEN because a cache turns any mutation by one caller into corruption for
+ * every caller after it — including a wrong answer key, which is the one
+ * failure §5.2 exists to prevent. Nothing mutates these today; freezing means
+ * nothing can start to.
+ */
+const keyCache = new Map<string, KeyViews>();
+const publicCache = new Map<string, PublicDrill>();
+
+/** One level deep is enough: these hold arrays of plain primitive records. */
+function freezeViews<T extends Record<string, readonly unknown[]>>(v: T): T {
+  for (const list of Object.values(v)) Object.freeze(list);
+  return Object.freeze(v);
+}
+
 /** The half that may cross the wire. Built by naming fields, never by omission. */
 export function publicHalf(drill: Drill): PublicDrill {
-  return {
+  const cached = publicCache.get(drill.id);
+  if (cached !== undefined) return cached;
+
+  const built: PublicDrill = Object.freeze({
     id: drill.id,
     title: drill.title,
     prompt: drill.prompt,
     convention: drill.convention,
-    grid: gridFor(drill.solid),
-    isometric: isometricView(drill.solid),
-  };
+    grid: Object.freeze(gridFor(drill.solid)),
+    isometric: Object.freeze(isometricView(drill.solid)),
+  });
+  publicCache.set(drill.id, built);
+  return built;
 }
 
-/** SERVER ONLY. The answer key, derived from the solid on demand. */
+/** SERVER ONLY. The answer key, derived from the solid and cached. */
 export function answerKey(drill: Drill): KeyViews {
-  return generateViews(drill.solid);
+  const cached = keyCache.get(drill.id);
+  if (cached !== undefined) return cached;
+
+  const built = freezeViews(generateViews(drill.solid));
+  keyCache.set(drill.id, built);
+  return built;
 }

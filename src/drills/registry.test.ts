@@ -72,3 +72,24 @@ test("drill ids are unique", () => {
 test("there is more than one drill, so the catalogue is a real progression", () => {
   assert.ok(listDrillIds().length >= 3, "a single drill is a demo, not a drill set");
 });
+
+test("an answer key is generated once per drill, not once per request", () => {
+  const d = getDrill(DRILL_IDS[0])!;
+  assert.equal(answerKey(d), answerKey(d), "each call re-ran the generator");
+});
+
+test("a public half is built once per drill, not once per request", () => {
+  const d = getDrill(DRILL_IDS[0])!;
+  assert.equal(publicHalf(d), publicHalf(d), "each call re-ran the isometric projection");
+});
+
+test("a cached key is frozen, so one caller cannot corrupt every later score", () => {
+  const key = answerKey(getDrill(DRILL_IDS[0])!);
+  assert.throws(() => { (key.front as unknown as unknown[]).push({}); });
+  assert.ok(Object.isFrozen(key.front));
+});
+
+test("a cached public half is frozen too", () => {
+  const pub = publicHalf(getDrill(DRILL_IDS[0])!);
+  assert.throws(() => { (pub.isometric as unknown as unknown[]).push({}); });
+});
