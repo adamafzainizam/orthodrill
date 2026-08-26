@@ -64,7 +64,7 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 3. Current status
 
-**Phase:** scorer, views generator and isometric prompt complete, golden set signed off. Canvas not started.
+**Phase:** scorer, generators, golden set and the server side are complete. The canvas is the only unbuilt piece.
 
 **Done:**
 - [x] Candidate chosen after `pathway-navigator` was discontinued — see that repo's `docs/post-mortem.md`
@@ -75,27 +75,36 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 - [x] The views generator — solid model, occupancy grid, projection, holes, golden fixtures
 - [x] The golden-set review sheet, published as a private Artifact
 - [x] All four golden parts reviewed and marked VERIFIED (2026-08-26) — by the builder against prior coursework, not an outside expert; see `docs/decision-log.md` for the residual risk
+- [x] The scoring route handler, the drill store, and the structural enforcement of §5.1 — `src/server/`, `src/drills/`, `src/app/api/`
 - [x] The isometric prompt image — painter's algorithm ordered by diagonal depth, occlusion by overdraw, analytic bore ellipse (an earlier diagonal-visibility-walk design was replaced mid-implementation; see the session log)
 
-**Not started:** the canvas, the scoring route handler, and all drill content.
+**Not started:** the canvas. Drill content is seeded with four drills; the spec asks for 8-12.
 
 ---
 
 ## 4. Next up
 
-**START HERE (updated 2026-08-26, evening).** **The golden set is signed off and the canvas is now the only thing between here and a shippable drill.**
+**START HERE (updated 2026-08-26, late).** **The canvas is the only unbuilt piece. Everything it talks to now exists and is verified against a running server.**
 
-The sign-off came from the builder's own review against prior coursework, not from an outside expert — a deliberate departure from §5.2's original wording, recorded in `docs/decision-log.md` with what it covers and the one thing it cannot. **Read that entry before treating `VERIFIED` in `golden.ts` as stronger than it is.** Two live follow-ups, neither blocking:
+The contract it must satisfy, all three routes live and tested:
 
-- **Three of the four parts carry citations that were never actually pulled up.** Comparing our output against those published exercises is free, external, and stronger than any single human opinion. It is the first thing to reach for if a drill is ever reported wrong.
-- **The spec asks for 8–10 golden parts; we have 4.** Add more as the generator's coverage grows.
+| Route | Gives you |
+|---|---|
+| `GET /api/drills` | `{ drills: [{ id, title, convention }] }` — enough for a menu |
+| `GET /api/drills/[id]` | the public half: `{ id, title, prompt, convention, grid: {width,height}, isometric }` |
+| `POST /api/score` | `{ drillId, primitives }` in; a `ScoreResult` out |
 
-The review sheet stays useful and is still published — regenerate with `npm run verify:sheet`, which writes `verification-sheet.html` (standalone, open it locally) and `verification-sheet.artifact.html` (body-only, what gets published). Both come from one body; only the outer wrapper differs, because the Artifact host supplies its own `<!doctype>`/`<head>`/`<body>`. It links Google Fonts, the one external host the Artifact CSP admits, and falls back to system faces offline.
+- **`isometric` is the paint program** described below and in `isometric.ts` — render it in array order, fills stroked in the background colour. Its ground must be the exact colour of those fills, so it cannot sit on a themed surface (§6).
+- **`POST /api/score` answers 200 for any legitimately scored attempt**, including `{ ok: false, reason: "WRONG_VIEW_COUNT" }`, which means the drawing was not three views — a teaching outcome, not an error. 400/404/413/429 are transport failures and mean the attempt was never scored. A 429 carries `retryAfterMs` and a `retry-after` header.
+- **Coordinates must be integers** within ±200, at most 400 primitives, radii 1–100. `validate.ts` rejects the whole attempt if any one primitive is off, and the canvas should never be able to produce such a thing in the first place.
+- **NEVER import from `src/drills/`, `src/server/`, `geometry/solid`, `geometry/views` or `scoring/score` in a client component.** A solid IS an answer key — anyone holding one runs the generator and has the views. `src/drills/isolation.test.ts` fails the build's test run if you do, and it is not advisory: it scans every file.
 
-**To update the published sheet, republish `verification-sheet.artifact.html` passing `url: https://claude.ai/code/artifact/6eb96803-3639-4378-b05e-0b5b45e24c8c`** — publishing without it creates a second artifact and leaves the existing link stale.
+Two follow-ups, neither blocking:
 
-2. **Then the canvas**, as described below.
+- **Drill content is seeded, not finished.** Four drills exist in `src/drills/registry.ts`; the spec asks for 8–12 in a difficulty progression. Adding one means defining a solid — the key is derived, never hand-written (§7).
+- **Three golden parts carry citations nobody has pulled up.** Free, external, stronger than any single review. First thing to reach for if a drill is ever reported wrong.
 
+The review sheet stays published — regenerate with `npm run verify:sheet`, and **re-publish `verification-sheet.artifact.html` passing `url: https://claude.ai/code/artifact/6eb96803-3639-4378-b05e-0b5b45e24c8c`**, or the reviewer's link goes stale.
 
 Build order is **scorer → generator → canvas**, and it is deliberate. The canvas is the tempting starting point and the wrong one: building it first would fix the interfaces by accident rather than by design. The scaffold, the scorer and the views generator are done; the rest follows in this order.
 
@@ -146,6 +155,8 @@ Empty for this repo so far. **Inherited from `pathway-navigator` and expected to
 
 - **`node --test` warns `MODULE_TYPELESS_PACKAGE_JSON` on every run.** `package.json` has no `"type": "module"`, so Node parses each `.test.ts` as CommonJS, fails, and reparses as ESM. *Symptom:* a noisy warning block above the test results, plus a small startup cost. Harmless — the tests pass regardless. Not fixed by setting `"type": "module"` without checking it against the Next build first, which is why it was left alone.
 - **The npm 11 allow-scripts gotcha above is confirmed here**, and `allowScripts` in `package.json` pins `unrs-resolver@1.12.2` by exact version. Bumping that package needs a fresh `npm approve-scripts`.
+- **The test glob's DIRECTORY is as easy to get wrong as its recursion.** After the unquoted-glob fix below, `npm test` still read `'src/lib/**/*.test.ts'` — correct, recursive, and blind to every test outside `src/lib`. *Symptom:* identical to the one below, and just as quiet — a new `src/drills/registry.test.ts` reported no error, no warning, and no change in the test count; the suite stayed green while the file never ran. Found only because a freshly written test was expected to FAIL and the run came back green with the count unchanged. *Fix:* `'src/**/*.test.ts'`. *Generalisation worth carrying:* after adding the first test file in a new directory, confirm the reported test count actually rose. A test that has never been seen to fail has not been shown to run.
+
 - **An unquoted `**` glob in an npm script is expanded by the shell, not by Node, and silently drops nested test directories.** `"test": "node --test --experimental-strip-types src/lib/**/*.test.ts"` looks recursive but isn't: without `shopt -s globstar` (off by default), bash treats `**` as an ordinary `*`, which does not cross `/`. The pattern only ever reached one directory level under `src/lib` (`src/lib/<dir>/*.test.ts`). *Symptom:* a `.test.ts` file placed in a nested subdirectory (e.g. `src/lib/geometry/fixtures/golden.test.ts`) is never picked up — `npm test` keeps reporting the old test count and stays green, with no error, warning, or hint that a whole file was skipped. This is exactly how the golden fixtures (`src/lib/geometry/fixtures/golden.test.ts`) — the project's only backstop against a mirrored generator, per §5.2 — went unexecuted for a full round despite being correct and passing when invoked directly. *Fix:* single-quote the glob so the shell passes it through literally and Node's own glob support expands it recursively instead: `"test": "node --test --experimental-strip-types 'src/lib/**/*.test.ts'"`. Confirmed empirically: unquoted reports 128 tests (fixtures missing); quoted reports 132 (fixtures included). Note `node --test --experimental-strip-types src/lib` (pointing at the directory, no glob) is *not* an equivalent fix — it reports 1 test, 1 failing, not a full recursive run.
 - **A mirrored view passes every property test.** Symmetry invariants stay green under a global mirror — that is what symmetry means. *Symptom:* all tests green, every drill wrong on the left/right axis. *Guard:* `src/lib/geometry/fixtures/golden.ts` parts are all asymmetric, enforced by a test, and `npm run verify:sheet` renders them for human review. If view geometry ever looks wrong, suspect the signs in `viewspec.ts` first.
 - **A property test can pass while the property it claims to guard is entirely absent from the code.** An adversarial reviewer injected eight deliberate bugs into the generator and re-ran `properties.test.ts`; five of eight still passed. Two concrete causes, both worth checking for in any new invariant test: (1) the assertion was computed from the same primitives it was meant to check — the original bounding-box test derived its bound from the projector's own output, so it was tautological — and (2) the test fixture happened not to exercise the property — the original "no hidden lines on a plain block" test used only solids with no hidden edges at all, so a generator with hidden-line classification deleted outright still passed it. *Symptom:* full green suite, confident in review, wrong regardless. *Fix used here:* positive controls (assert the property *fails* on a solid deliberately constructed to violate it), exact counts instead of non-strict bounds, and expected values derived independently of the code under test rather than recomputed from it.
@@ -207,3 +218,4 @@ Append a short entry per working session. Newest at the bottom.
 | 2026-08-26 | Claude (Claude Code) | Merged `chore/verification-sheet-artifact` to `main` (d0e3ea4) and pushed; branch deleted. 190 tests, lint, typecheck and build clean. **Everything the drill needs before a student can use it is now done except the canvas.** |
 | 2026-08-26 | Claude (Claude Code) | Noticed by the builder: no PR existed for this work, or for the two features before it. Root cause was a wrong belief recorded in this file on 2026-08-24 — that `gh` cannot reach the repo. It can: `GITHUB_TOKEN= gh <cmd>` scopes the Hermes token out for one process and `gh` falls back to the keyring account, which has full access. Corrected in §6. No PR could be opened retroactively for the merged work — its commits are already ancestors of `main`, so a PR would have an empty diff. §2.5's PR step applies from the canvas onward. |
 | 2026-08-26 | Claude (Claude Code) | Recorded the builder's attribution preference as constraint §2.7: commits carry his name only, no AI co-author trailer. Checked what was actually on GitHub first — every commit is already authored by him and the contributors list shows one name, because `noreply@anthropic.com` maps to no GitHub account. What remains is trailer TEXT in the messages of 26 of 84 commits, which is a commit-message matter rather than a contributors-graph one. Removing it retroactively needs a history rewrite and a force-push, and was offered rather than done. Also opened PR #3 — the first since the scorer — which verified the §2.5 command sequence works end to end. |
+| 2026-08-26 | Claude (Claude Code) | Built the server side, TDD throughout: attempt validation, a rate limiter, the drill store, and the three API routes. The realisation that shaped it — **the solid IS the answer key**, since anyone holding one runs `generateViews` and has the views exactly — which rules out shipping drills to the client and computing the pictorial there, and is why the public half is served from a route. `src/drills/isolation.test.ts` enforces that structurally, with positive controls, and immediately caught both `src/server/score.ts` and its own transitive blind spot. Every §7 hazard now has a test: whitelist ids with no path to traverse, rebuilt-not-passed-through primitives under caps, rate limiting ahead of validation, body size capped by header AND by what is read. Verified against a running server: a correct attempt scores perfect with correct first-angle placement, the public half serialises no solid, traversal ids 404, malformed JSON 400, the 31st submission in a minute 429 with `retry-after`. Found and fixed a second glob bug — `npm test` was scoped to `src/lib`, so the new tests were silently not running (§6). 250 tests, lint, typecheck and build clean. |
