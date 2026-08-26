@@ -44,23 +44,41 @@ v = -(-x + y + 2 * z) / Math.sqrt(6)
 | `"y"` | front face | `60` |
 | `"x"` | right face | `120` |
 
-**Expected edge counts.** The block case is independently known — a rectangular box drawn isometrically always shows nine edges, six of the hexagonal outline plus three meeting at the near corner. The other two were obtained from a reference implementation that reproduces the block case correctly.
+**Expected stroke counts.** Strokes are emitted per face as unit segments, so the
+raw count is large; the invariant is what they MERGE to, which the test file's
+`mergedCount` helper computes. The block case is independently known: a
+rectangular box drawn isometrically always shows nine edges — six of the
+hexagonal outline plus three meeting at the near corner — whatever its size.
 
-| Solid | Merged edges |
+| Solid | Merged strokes |
 |---|---|
 | `block(w,d,h)` for ANY w, d, h | **9** |
-| `subtractBox(block(6,4,4), {x:0,y:0,z:2,w:3,d:4,h:2})` — L-block | 18 |
-| `subtractBox(block(4,4,4), {x:0,y:0,z:2,w:2,d:2,h:2})` — cut corner | 22 |
+| any solid with a through-hole (cylinders never enter the grid) | unchanged from its block |
+
+Do not pin counts for stepped solids. The earlier plan did, at 18 and 22, and
+those numbers encoded the bug described below — they counted lines that were
+actually hidden.
 
 ---
 
-## A step the design did not call for
+## What changed after the first attempt failed
 
-Design §6 describes cancelling shared coplanar faces. That is necessary and **not sufficient**. After cancellation a `2×1×1` block still yields **12** edges rather than 9, because each long side of the merged top face survives as *two collinear unit segments*.
+The first version of this plan emitted only lines, and cancelled shared coplanar
+faces to decide which to draw. Review found the underlying premise false: a
+visible voxel's faces are NOT wholly visible, because projected unit-cube
+hexagons overlap their neighbours threefold. On the L-block the true visibility
+boundary cuts through voxel interiors, and the code drew lines across the faces
+of solid blocks. Design §6 records the failure in full.
 
-**Collinear merging is required**, exactly as `merge.ts` does for the orthographic views. It is folded into Task 3 rather than given its own module: it operates on 3D lattice edges and is about fifteen lines.
+Task 3 now emits a **paint program**: fills interleaved with strokes, ordered
+back to front, where a nearer fill covers a farther stroke. Two consequences that
+look like simplifications and are not:
 
-This was found while writing the plan, by running the counts. Without it every edge-count test in this plan would be wrong.
+- **The array order is load-bearing.** Never sort, filter or deduplicate it.
+- **Strokes are not merged across faces.** A merged run would attach to the
+  farthest face and the nearer coplanar fills would paint over part of the
+  outline. Each face emits its own unit edges; merging happens only inside the
+  test helper, to check the nine-edge invariant.
 
 ---
 
@@ -75,7 +93,7 @@ than buried in a module that also does geometry.
 |---|---|
 | `src/lib/geometry/isotypes.ts` | the `IsoPrimitive` vocabulary, and why it is separate |
 | `src/lib/geometry/isoproject.ts` | screen basis, and the diagonal visibility walk |
-| `src/lib/geometry/isoedges.ts` | visible faces → cancel → collinear-merge → `IsoLine[]` |
+| `src/lib/geometry/isoedges.ts` | exposed faces → depth sort → fills interleaved with their own strokes |
 | `src/lib/geometry/isobore.ts` | hole → `IsoEllipse`, with visibility |
 | `src/lib/geometry/isometric.ts` | compose into `IsoPrimitive[]` |
 | `src/lib/geometry/isometric.properties.test.ts` | invariants across a corpus |
@@ -388,27 +406,74 @@ along an axis - exact rather than approximate."
 
 ---
 
-### Task 3: Visible edges
+### Task 3: Faces, strokes and the paint order
 
 **Files:**
+- Modify: `src/lib/geometry/isotypes.ts` (add `IsoFace`)
+- Modify: `src/lib/geometry/isotypes.test.ts` (cover the new member)
 - Create: `src/lib/geometry/isoedges.ts`
 - Test: `src/lib/geometry/isoedges.test.ts`
 
 **Interfaces:**
-- Consumes: `Occupancy` from `./occupancy.ts`; `project`, `isVisible` from `./isoproject.ts`; `IsoLine` from `./isotypes.ts`
-- Produces: `isoEdges(o: Occupancy): IsoLine[]`
+- Consumes: `Occupancy` from `./occupancy.ts`; `project`, `isVisible` from `./isoproject.ts`; `IsoFace`, `IsoLine` from `./isotypes.ts`
+- Produces:
+  - `type IsoFace = { kind: "iso-face"; points: [number, number][] }` (added to `isotypes.ts`, and to the `IsoPrimitive` union)
+  - `isoEdges(o: Occupancy): (IsoFace | IsoLine)[]` — **ordered back to front**
 
-**The algorithm, stated once so the steps make sense.**
+**READ THIS FIRST — an earlier version of this task was structurally wrong.**
 
-1. For every **visible** voxel, consider its three viewer-facing directions `+x`, `-y`, `+z`. If the neighbour in that direction is solid, the face is interior — skip it. Otherwise the face is part of the visible surface.
-2. Emit each surviving face's four boundary edges, tagged with that face's normal.
-3. **Cancel** any edge appearing exactly twice with the SAME normal — two coplanar faces continuing across it, so no line is drawn. Edges appearing once, or twice with different normals (a crease), survive.
-4. **Merge collinear runs.** Group surviving lattice edges by (axis, the two fixed coordinates) and join contiguous runs. Without this a `2×1×1` block yields 12 edges instead of 9.
-5. Project each merged lattice edge to 2D and emit an `IsoLine`, dropping anything that projects to zero length.
+The original approach emitted only lines, relying on the claim that a visible voxel's faces are wholly visible. That claim is false: projected unit-cube hexagons have area √3 against a projected lattice cell of 1/√3, so every hexagon overlaps six neighbours and partial occlusion is routine. Measured on the L-block, the tread's visibility boundary cuts *through* voxel interiors, and its right edge was emitted despite being occluded at 40 of 40 sampled points. See design §6, which records the failure in full.
 
-Because visibility is decided per diagonal and hexagons tile exactly, a visible voxel's faces are *wholly* visible — there is no partial face occlusion to handle. That is what makes this tractable.
+**The algorithm now, stated once.**
 
-- [ ] **Step 1: Write the failing tests**
+1. For every voxel that `isVisible` accepts, consider its three viewer-facing directions `+x`, `-y`, `+z`. If the neighbour in that direction is solid the face is interior; skip it. Otherwise it is an exposed face. (`isVisible` remains a sound *cull* — it identifies wholly hidden voxels. It was only wrong as a claim about faces.)
+2. Give each exposed face a depth key `t = x - y + z` — depth along the view direction, larger meaning nearer.
+3. Collect every exposed face's four boundary edges, tagged with the face normal. **Cancel** any edge appearing exactly twice with the same normal: two coplanar faces continue across it, and without this every flat surface would show a grid of unit-square outlines. Then **merge** collinear runs, or each long side of a flat region stays as separate unit segments.
+4. Sort the faces **ascending by `t`** — farthest first.
+5. Emit, in that order, for each face: its `IsoFace` fill polygon, then the surviving merged strokes that belong to it, as `IsoLine`s.
+
+The renderer paints this list in sequence, an `IsoFace` as an opaque background-coloured fill and an `IsoLine` as a stroke. Nearer fills cover farther strokes, so hidden lines vanish by overdraw — correct by construction, with no clipping arithmetic.
+
+**Verified before adoption:** painting in `t` order reproduces ray-marched ground truth at 11,778 of 11,800 sampled interior points on the L-block, the solid that broke the previous approach.
+
+**The array order is load-bearing.** Do not sort, filter or deduplicate the result.
+
+- [ ] **Step 1: Add `IsoFace` to the vocabulary**
+
+In `src/lib/geometry/isotypes.ts`, add above `IsoPrimitive`:
+
+```typescript
+/**
+ * One visible face, as a closed polygon in projection units.
+ *
+ * Rendered as an OPAQUE fill in the page background colour, not as an outline.
+ * Fills are what make hidden-line removal work: the emitted array is ordered
+ * back to front, so a nearer face's fill paints over a farther face's strokes.
+ * See the design document §6.
+ */
+export type IsoFace = {
+  kind: "iso-face";
+  points: [number, number][];
+};
+```
+
+and widen the union:
+
+```typescript
+export type IsoPrimitive = IsoFace | IsoLine | IsoEllipse;
+```
+
+Add a case to the existing "the vocabulary carries the fields the renderer needs" test in `isotypes.test.ts`:
+
+```typescript
+  const face: IsoFace = { kind: "iso-face", points: [[0, 0], [1, 0], [1, 1]] };
+  assert.equal(face.kind, "iso-face");
+  assert.equal(face.points.length, 3);
+```
+
+importing `IsoFace` alongside the other types. **Do not touch the two `@ts-expect-error` tests** — they guard the security boundary and must keep failing typecheck if the vocabularies ever become assignable.
+
+- [ ] **Step 2: Write the failing tests**
 
 Create `src/lib/geometry/isoedges.test.ts`:
 
@@ -418,46 +483,110 @@ import assert from "node:assert/strict";
 import { isoEdges } from "./isoedges.ts";
 import { buildOccupancy } from "./occupancy.ts";
 import { block, subtractBox, subtractCylinder, type Solid } from "./solid.ts";
+import type { IsoFace, IsoLine } from "./isotypes.ts";
 
-const count = (s: Solid) => isoEdges(buildOccupancy(s)).length;
+const run = (s: Solid) => isoEdges(buildOccupancy(s));
+const faces = (ps: (IsoFace | IsoLine)[]) => ps.filter((p) => p.kind === "iso-face");
+const lines = (ps: (IsoFace | IsoLine)[]) => ps.filter((p) => p.kind === "iso-line");
 
-// The load-bearing test. A rectangular box drawn isometrically shows exactly
-// nine edges - the six of the hexagonal outline plus three meeting at the near
-// corner - whatever its dimensions. It fails if coplanar faces are not
-// cancelled, and it fails if collinear runs are not merged.
-test("every plain block yields exactly nine edges, whatever its size", () => {
+/**
+ * Join collinear touching strokes, for counting only. The generator emits one
+ * unit segment per face edge on purpose - merging across faces would let a
+ * nearer coplanar fill paint over part of an outline - so the merge that makes
+ * the nine-edge invariant checkable belongs here in the test.
+ */
+function mergedCount(ps: (IsoFace | IsoLine)[]): number {
+  const segs = lines(ps).map((l) => {
+    const [a, b] = [[l.x1, l.y1], [l.x2, l.y2]].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    return { a, b };
+  });
+  // -0 and 0 must format identically, or one infinite line splits into two
+  // groups and the run count comes out too high.
+  const fix = (n: number) => (Math.abs(n) < 1e-9 ? 0 : Number(n.toFixed(6))).toFixed(6);
+  const key = (p: number[]) => `${fix(p[0])},${fix(p[1])}`;
+  const groups = new Map<string, { a: number[]; b: number[] }[]>();
+  for (const sg of segs) {
+    const dx = sg.b[0] - sg.a[0], dy = sg.b[1] - sg.a[1];
+    const len = Math.hypot(dx, dy);
+    // direction, normalised and sign-canonical, plus the line's offset
+    const ux = dx / len, uy = dy / len;
+    const off = sg.a[0] * uy - sg.a[1] * ux;
+    const gk = `${fix(ux)},${fix(uy)}|${fix(off)}`;
+    const g = groups.get(gk);
+    if (g) g.push(sg); else groups.set(gk, [sg]);
+  }
+  let total = 0;
+  for (const g of groups.values()) {
+    const pts = new Map<string, number>();
+    for (const sg of g) {
+      pts.set(key(sg.a), (pts.get(key(sg.a)) ?? 0) + 1);
+      pts.set(key(sg.b), (pts.get(key(sg.b)) ?? 0) + 1);
+    }
+    // Each maximal run has exactly two endpoints touched once.
+    let ends = 0;
+    for (const n of pts.values()) if (n === 1) ends++;
+    total += Math.max(1, ends / 2);
+  }
+  return total;
+}
+
+// A rectangular box drawn isometrically shows exactly nine edges - the six of
+// the hexagonal outline plus three meeting at the near corner - whatever its
+// dimensions. Independently known. Fails if coplanar strokes are not cancelled.
+test("every plain block's strokes merge to exactly nine lines, whatever its size", () => {
   for (const [w, d, h] of [[1,1,1],[2,1,1],[2,2,2],[6,4,2],[8,3,5]]) {
-    assert.equal(count(block(w, d, h)), 9, `block(${w},${d},${h})`);
+    assert.equal(mergedCount(run(block(w, d, h))), 9, `block(${w},${d},${h})`);
   }
 });
 
-test("a step adds edges beyond the nine", () => {
-  assert.equal(count(subtractBox(block(6, 4, 4), { x: 0, y: 0, z: 2, w: 3, d: 4, h: 2 })), 18);
+test("a plain block emits one fill per exposed viewer-facing face", () => {
+  assert.equal(faces(run(block(1, 1, 1))).length, 3);
+  // 2x1x1: two +z, two -y, one +x.
+  assert.equal(faces(run(block(2, 1, 1))).length, 5);
 });
 
-test("a cut corner adds more still", () => {
-  assert.equal(count(subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 2, w: 2, d: 2, h: 2 })), 22);
-});
-
-// Cylinders never enter the occupancy grid, so they cannot affect the edges.
-test("a through-hole does not change the edge count", () => {
-  assert.equal(count(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2)), 9);
-});
-
-test("every emitted line has finite coordinates and non-zero length", () => {
-  for (const p of isoEdges(buildOccupancy(block(3, 2, 2)))) {
-    for (const n of [p.x1, p.y1, p.x2, p.y2]) assert.ok(Number.isFinite(n));
-    assert.ok(Math.hypot(p.x2 - p.x1, p.y2 - p.y1) > 1e-9);
+test("every fill is a quadrilateral with finite coordinates", () => {
+  for (const p of faces(run(block(3, 2, 2)))) {
+    assert.equal(p.points.length, 4);
+    for (const [u, v] of p.points) assert.ok(Number.isFinite(u) && Number.isFinite(v));
   }
 });
 
-test("every emitted primitive is an iso-line", () => {
-  for (const p of isoEdges(buildOccupancy(block(3, 2, 2)))) assert.equal(p.kind, "iso-line");
+// The load-bearing ordering property: occlusion depends entirely on it. For a
+// 2x1x1 block the voxel at x=1 is nearer the viewer than the one at x=0, and a
+// nearer face projects further right, so its fill must be emitted LATER.
+test("nearer fills are emitted later, so they paint over farther ones", () => {
+  const ps = run(block(2, 1, 1));
+  const fs = faces(ps);
+  const centroidU = (f: IsoFace) => f.points.reduce((a, p) => a + p[0], 0) / f.points.length;
+  let leftmost = 0, rightmost = 0;
+  fs.forEach((f, i) => {
+    if (centroidU(f) < centroidU(fs[leftmost])) leftmost = i;
+    if (centroidU(f) > centroidU(fs[rightmost])) rightmost = i;
+  });
+  assert.ok(rightmost > leftmost,
+    `nearer fill at index ${rightmost} must come after farther fill at ${leftmost}`);
 });
 
-test("an empty solid yields no edges", () => {
-  const gone = subtractBox(block(2, 2, 2), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 2 });
-  assert.deepEqual(isoEdges(buildOccupancy(gone)), []);
+test("no stroke is emitted before the first fill", () => {
+  const ps = run(block(2, 2, 2));
+  const firstFace = ps.findIndex((p) => p.kind === "iso-face");
+  const firstLine = ps.findIndex((p) => p.kind === "iso-line");
+  assert.equal(firstFace, 0);
+  assert.ok(firstLine > firstFace);
+});
+
+test("a through-hole does not change the merged stroke count", () => {
+  assert.equal(mergedCount(run(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2))), 9);
+});
+
+test("a stepped solid merges to more than the nine of a plain block", () => {
+  const n = mergedCount(run(subtractBox(block(6, 4, 4), { x: 0, y: 0, z: 2, w: 3, d: 4, h: 2 })));
+  assert.ok(n > 9, `expected more than nine, got ${n}`);
+});
+
+test("an empty solid yields nothing", () => {
+  assert.deepEqual(run(subtractBox(block(2, 2, 2), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 2 })), []);
 });
 
 test("output is stable across runs", () => {
@@ -466,41 +595,46 @@ test("output is stable across runs", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 3: Run the tests to verify they fail**
 
 Run: `npm test`
 Expected: FAIL — cannot find module `./isoedges.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 4: Write the implementation**
 
 Create `src/lib/geometry/isoedges.ts`:
 
 ```typescript
 /**
- * The visible edges of a solid, seen isometrically.
+ * The visible surface of a solid, seen isometrically, as a PAINT PROGRAM.
  *
- * Only the exposed, viewer-facing faces of VISIBLE voxels contribute. Because
- * the projection direction is a lattice diagonal and visibility is decided per
- * diagonal, a visible voxel's faces are wholly visible — there is no partial
- * face occlusion to handle, which is what makes this tractable.
+ * The returned array is ORDERED back to front and must be rendered in sequence:
+ * an IsoFace as an opaque fill in the page background colour, an IsoLine as a
+ * stroke. Occlusion happens because a nearer face's fill paints over a farther
+ * face's strokes. Do not sort, filter or deduplicate the result.
  *
- * Two reductions turn faces into a line drawing:
- *   - CANCEL an edge shared by two coplanar faces: the surface continues across
- *     it and no line is drawn. An edge shared by faces with different normals is
- *     a crease and survives.
- *   - MERGE collinear runs. Cancelling alone leaves a flat 2x1 top with two
- *     collinear unit segments per long side, so a 2x1x1 block would emit twelve
- *     edges instead of the correct nine.
+ * WHY NOT JUST EMIT VISIBLE LINES. An earlier version did, on the claim that a
+ * visible voxel's faces are wholly visible. That is false: projected unit-cube
+ * hexagons have area sqrt(3) against a projected lattice cell of 1/sqrt(3), so
+ * every hexagon overlaps six neighbours and partial occlusion is routine. On the
+ * L-block the true visibility boundary cuts THROUGH voxel interiors, which no
+ * voxel-granular method can express. See the design document §6.
+ *
+ * WHY STROKES ARE NOT MERGED ACROSS FACES. Each face emits its own unit-length
+ * edges, right after its own fill. Merging a run across several coplanar faces
+ * would attach it to the farthest of them, and the nearer coplanar fills would
+ * then paint over part of the outline. Cancellation already removes the shared
+ * edges between coplanar neighbours, so what survives is the true outline; it is
+ * simply expressed as touching unit segments, which render identically.
  *
  * PURE. No I/O.
  */
 import type { Occupancy } from "./occupancy.ts";
 import { project, isVisible } from "./isoproject.ts";
-import type { IsoLine } from "./isotypes.ts";
+import type { IsoFace, IsoLine } from "./isotypes.ts";
 
 type Corner = [number, number, number];
 
-/** The three directions that can face the viewer, each with a stable name. */
 const FACES: { name: string; d: Corner }[] = [
   { name: "+x", d: [1, 0, 0] },
   { name: "-y", d: [0, -1, 0] },
@@ -521,87 +655,67 @@ function faceCorners(name: string, x: number, y: number, z: number): Corner[] {
 const cornerKey = (c: Corner) => `${c[0]},${c[1]},${c[2]}`;
 const edgeKey = (a: Corner, b: Corner) => [cornerKey(a), cornerKey(b)].sort().join("|");
 
-export function isoEdges(o: Occupancy): IsoLine[] {
-  // Steps 1-2: collect face edges, keyed by position AND normal, and count them.
-  const tally = new Map<string, number>();
+type Face = { name: string; x: number; y: number; z: number; t: number };
+
+export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[] {
+  // 1. Exposed viewer-facing faces of visible voxels, with a depth key.
+  //    isVisible remains a sound cull: it finds WHOLLY hidden voxels.
+  const exposed: Face[] = [];
   for (let z = 0; z < o.h; z++) {
     for (let y = 0; y < o.d; y++) {
       for (let x = 0; x < o.w; x++) {
         if (!isVisible(o, x, y, z)) continue;
         for (const f of FACES) {
-          if (o.isSolid(x + f.d[0], y + f.d[1], z + f.d[2])) continue; // interior face
-          const c = faceCorners(f.name, x, y, z);
-          for (let i = 0; i < 4; i++) {
-            const key = `${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`;
-            tally.set(key, (tally.get(key) ?? 0) + 1);
-          }
+          if (o.isSolid(x + f.d[0], y + f.d[1], z + f.d[2])) continue;
+          exposed.push({ name: f.name, x, y, z, t: x - y + z });
         }
       }
     }
   }
 
-  // Step 3: an edge seen twice with the same normal is interior to a flat region.
-  const surviving = new Set<string>();
-  for (const [key, n] of tally) {
-    if (n !== 2) surviving.add(key.split("#")[0]);
-  }
-
-  // Step 4: merge collinear runs, grouped by the axis the edge runs along and
-  // the two coordinates that stay fixed along it.
-  const runs = new Map<string, number[]>();
-  for (const key of surviving) {
-    const [p, q] = key.split("|").map((t) => t.split(",").map(Number));
-    const axis = [0, 1, 2].findIndex((i) => p[i] !== q[i]);
-    if (axis < 0) continue; // degenerate
-    const fixed = [0, 1, 2].filter((i) => i !== axis).map((i) => p[i]);
-    const gk = `${axis}:${fixed.join(",")}`;
-    const start = Math.min(p[axis], q[axis]);
-    const g = runs.get(gk);
-    if (g) g.push(start); else runs.set(gk, [start]);
-  }
-
-  // Step 5: project each merged run.
-  const out: IsoLine[] = [];
-  for (const [gk, startsRaw] of runs) {
-    const [axisText, fixedText] = gk.split(":");
-    const axis = Number(axisText);
-    const fixed = fixedText.split(",").map(Number);
-    const rest = [0, 1, 2].filter((i) => i !== axis);
-    const starts = [...startsRaw].sort((a, b) => a - b);
-
-    const at = (t: number): Corner => {
-      const c: Corner = [0, 0, 0];
-      c[axis] = t;
-      c[rest[0]] = fixed[0];
-      c[rest[1]] = fixed[1];
-      return c;
-    };
-
-    const emit = (from: number, to: number) => {
-      const a = at(from), b = at(to);
-      const pa = project(a[0], a[1], a[2]);
-      const pb = project(b[0], b[1], b[2]);
-      if (Math.hypot(pb.u - pa.u, pb.v - pa.v) < 1e-9) return;
-      out.push({ kind: "iso-line", x1: pa.u, y1: pa.v, x2: pb.u, y2: pb.v });
-    };
-
-    let runStart = starts[0];
-    let prev = starts[0];
-    for (let i = 1; i < starts.length; i++) {
-      if (starts[i] === prev + 1) { prev = starts[i]; continue; }
-      emit(runStart, prev + 1);
-      runStart = starts[i];
-      prev = starts[i];
+  // 2. Tally edges by position AND normal, so coplanar continuations cancel.
+  const tally = new Map<string, number>();
+  for (const f of exposed) {
+    const c = faceCorners(f.name, f.x, f.y, f.z);
+    for (let i = 0; i < 4; i++) {
+      tally.set(`${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`,
+        (tally.get(`${edgeKey(c[i], c[(i + 1) % 4])}#${f.name}`) ?? 0) + 1);
     }
-    emit(runStart, prev + 1);
   }
 
-  // Deterministic order so tests and fixtures are stable.
-  return out.sort((a, b) => a.y1 - b.y1 || a.x1 - b.x1 || a.y2 - b.y2 || a.x2 - b.x2);
+  // 3. Farthest first. Sort is stable, so ties keep collection order.
+  const ordered = [...exposed].sort((p, q) => p.t - q.t);
+
+  // 4. Each fill, then that face's own surviving edges.
+  const out: (IsoFace | IsoLine)[] = [];
+  const drawn = new Set<string>();
+  for (const f of ordered) {
+    const c = faceCorners(f.name, f.x, f.y, f.z);
+    out.push({
+      kind: "iso-face",
+      points: c.map((p) => {
+        const s = project(p[0], p[1], p[2]);
+        return [s.u, s.v] as [number, number];
+      }),
+    });
+
+    for (let i = 0; i < 4; i++) {
+      const ek = edgeKey(c[i], c[(i + 1) % 4]);
+      if (tally.get(`${ek}#${f.name}`) === 2) continue; // coplanar continuation
+      if (drawn.has(ek)) continue;                      // a crease, already drawn
+      drawn.add(ek);
+      const a = project(c[i][0], c[i][1], c[i][2]);
+      const b = project(c[(i + 1) % 4][0], c[(i + 1) % 4][1], c[(i + 1) % 4][2]);
+      if (Math.hypot(b.u - a.u, b.v - a.v) < 1e-9) continue;
+      out.push({ kind: "iso-line", x1: a.u, y1: a.v, x2: b.u, y2: b.v });
+    }
+  }
+
+  return out;
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 5: Run the tests to verify they pass**
 
 ```bash
 npm test
@@ -609,17 +723,22 @@ npm run typecheck
 npm run lint
 ```
 
-Expected: 8 new tests pass. **If the nine-edge test fails, do not change the expected number** — nine is independently known to be correct for a rectangular box. Debug the cancel step first, then the merge step.
+Expected: the nine new tests pass. **If the nine-line test fails, do not change the expected number** — nine is independently known for a rectangular box. Debug the cancellation first: the likeliest cause is that `tally` is not keyed by both position and normal.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/lib/geometry/isoedges.ts src/lib/geometry/isoedges.test.ts
-git commit -m "feat: extract the visible edges of an isometric view
+git add src/lib/geometry/isoedges.ts src/lib/geometry/isoedges.test.ts src/lib/geometry/isotypes.ts src/lib/geometry/isotypes.test.ts
+git commit -m "feat: emit the isometric surface as a back-to-front paint program
 
-Exposed viewer-facing faces of visible voxels, with coplanar shared edges
-cancelled and collinear runs merged. Merging is not cosmetic: without it a
-2x1x1 block emits twelve edges where a rectangular box always shows nine."
+Fills interleaved with each face's own surviving strokes, ordered by the
+diagonal depth key. Occlusion happens by overdraw, which is correct by
+construction - the previous line-only approach relied on a false claim that a
+visible voxel's faces are wholly visible, and drew lines across solid blocks.
+
+Strokes are deliberately not merged across faces: a merged run would attach to
+the farthest face and the nearer coplanar fills would paint over part of the
+outline."
 ```
 
 ---
@@ -632,7 +751,12 @@ cancelled and collinear runs merged. Merging is not cosmetic: without it a
 
 **Interfaces:**
 - Consumes: `Axis`, `CylinderOp` from `./solid.ts`; `Occupancy`, `sizeAlong` from `./occupancy.ts`; `project`, `isVisible` from `./isoproject.ts`; `IsoEllipse` from `./isotypes.ts`
-- Produces: `isoBore(op: CylinderOp, o: Occupancy): IsoEllipse | null`
+- Produces: `isoBore(op: CylinderOp, o: Occupancy): { ellipse: IsoEllipse; t: number } | null`
+
+**The returned `t` is the paint depth of the face the rim sits on**, computed with
+`faceDepth` from `./isoedges.ts`. Task 3 made the output a back-to-front paint
+program, so an ellipse appended at the end would be drawn on top of anything
+that occludes its face. Returning the depth lets Task 5 interleave it correctly.
 
 Only the **near rim** is drawn — the rim on the visible face the hole emerges through: the top for a `z` hole, the front for a `y` hole, the right face for an `x` hole. Returns `null` when that face is occluded.
 
@@ -656,17 +780,18 @@ function setup(axis: Axis, u: number, v: number, r: number): {
   return { op: s.ops[0] as CylinderOp, o: buildOccupancy(s) };
 }
 
-test("a hole yields one ellipse", () => {
+test("a hole yields one ellipse, with the paint depth of its face", () => {
   const { op, o } = setup("z", 4, 4, 2);
-  const e = isoBore(op, o);
-  assert.ok(e !== null);
-  assert.equal(e.kind, "iso-ellipse");
+  const r = isoBore(op, o);
+  assert.ok(r !== null);
+  assert.equal(r.ellipse.kind, "iso-ellipse");
+  assert.ok(Number.isFinite(r.t), "must carry a paint depth");
 });
 
 // The textbook isometric ellipse ratio. Verified numerically during design.
 test("the major radius is the true radius and the minor is r over root three", () => {
   const { op, o } = setup("z", 4, 4, 2);
-  const e = isoBore(op, o)!;
+  const e = isoBore(op, o)!.ellipse;
   assert.ok(near(e.rx, 2), `rx ${e.rx}`);
   assert.ok(near(e.ry, 2 / Math.sqrt(3)), `ry ${e.ry}`);
   assert.ok(near(e.rx / e.ry, Math.sqrt(3)), "ratio must be root three");
@@ -676,21 +801,21 @@ test("the major axis rotation depends on which face the hole emerges through", (
   const z = setup("z", 4, 4, 2);
   const y = setup("y", 4, 4, 2);
   const x = setup("x", 4, 4, 2);
-  assert.ok(near(isoBore(z.op, z.o)!.rotation, 0), "z hole");
-  assert.ok(near(isoBore(y.op, y.o)!.rotation, 60), "y hole");
-  assert.ok(near(isoBore(x.op, x.o)!.rotation, 120), "x hole");
+  assert.ok(near(isoBore(z.op, z.o)!.ellipse.rotation, 0), "z hole");
+  assert.ok(near(isoBore(y.op, y.o)!.ellipse.rotation, 60), "y hole");
+  assert.ok(near(isoBore(x.op, x.o)!.ellipse.rotation, 120), "x hole");
 });
 
 test("the ellipse centre is finite", () => {
   const { op, o } = setup("z", 3, 5, 1);
-  const e = isoBore(op, o)!;
+  const e = isoBore(op, o)!.ellipse;
   assert.ok(Number.isFinite(e.cx) && Number.isFinite(e.cy));
 });
 
 test("moving the hole moves the ellipse", () => {
   const a = setup("z", 2, 2, 1);
   const b = setup("z", 6, 6, 1);
-  const ea = isoBore(a.op, a.o)!, eb = isoBore(b.op, b.o)!;
+  const ea = isoBore(a.op, a.o)!.ellipse, eb = isoBore(b.op, b.o)!.ellipse;
   assert.ok(!near(ea.cx, eb.cx) || !near(ea.cy, eb.cy));
 });
 ```
@@ -722,6 +847,7 @@ Create `src/lib/geometry/isobore.ts`:
 import type { Axis, CylinderOp } from "./solid.ts";
 import { sizeAlong, type Occupancy } from "./occupancy.ts";
 import { project, isVisible } from "./isoproject.ts";
+import { faceDepth } from "./isoedges.ts";
 import type { IsoEllipse } from "./isotypes.ts";
 
 /** Major-axis rotation in degrees, by the axis the hole runs along. */
@@ -734,7 +860,9 @@ function planeAxes(axis: Axis): [Axis, Axis] {
   return [a, b];
 }
 
-export function isoBore(op: CylinderOp, o: Occupancy): IsoEllipse | null {
+export function isoBore(
+  op: CylinderOp, o: Occupancy,
+): { ellipse: IsoEllipse; t: number } | null {
   const [pu, pv] = planeAxes(op.axis);
 
   // The near rim sits on the visible face the hole emerges through: the top for
@@ -753,12 +881,17 @@ export function isoBore(op: CylinderOp, o: Occupancy): IsoEllipse | null {
 
   const c = project(rim.x, rim.y, rim.z);
   return {
-    kind: "iso-ellipse",
-    cx: c.u,
-    cy: c.v,
-    rx: op.r,
-    ry: op.r / Math.sqrt(3),
-    rotation: ROTATION[op.axis],
+    ellipse: {
+      kind: "iso-ellipse",
+      cx: c.u,
+      cy: c.v,
+      rx: op.r,
+      ry: op.r / Math.sqrt(3),
+      rotation: ROTATION[op.axis],
+    },
+    // Paint depth of the face the rim sits on, so isometric.ts can interleave
+    // the ellipse into the back-to-front order rather than drawing it on top.
+    t: faceDepth(inside.x, inside.y, inside.z),
   };
 }
 ```
@@ -796,42 +929,76 @@ visible omissions in a picture that is never scored."
 - Consumes: `buildOccupancy` from `./occupancy.ts`; `isoEdges` from `./isoedges.ts`; `isoBore` from `./isobore.ts`; `validateSolid` from `./views.ts`; `CylinderOp`, `Solid` from `./solid.ts`; `IsoPrimitive` from `./isotypes.ts`
 - Produces: `isometricView(s: Solid): IsoPrimitive[]`
 
+**Task 3 requires a small addition first.** `isoEdges` gains an optional second
+parameter so extras can be interleaved into the back-to-front order:
+
+```typescript
+export function isoEdges(
+  o: Occupancy,
+  extras: { t: number; prim: IsoPrimitive }[] = [],
+): IsoPrimitive[]
+```
+
+Each extra is emitted immediately after the last fill whose depth is `<= extra.t`.
+Without this the bore ellipses would be appended at the end and drawn on top of
+anything that occludes their face. Keep the existing one-argument behaviour
+identical when `extras` is empty — the Task 3 tests must still pass unchanged.
+
 - [ ] **Step 1: Write the failing tests**
 
 Create `src/lib/geometry/isometric.test.ts`:
+
+**These test COMPOSITION, not edge counts.** The nine-edge invariant is already
+pinned in `isoedges.test.ts`, which owns it and has the merge helper. Re-asserting
+it here would duplicate that helper and test the wrong module's responsibility.
 
 ```typescript
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isometricView } from "./isometric.ts";
+import { isoEdges } from "./isoedges.ts";
+import { buildOccupancy } from "./occupancy.ts";
 import { block, subtractBox, subtractCylinder } from "./solid.ts";
 import type { IsoPrimitive } from "./isotypes.ts";
 
-const lines = (ps: IsoPrimitive[]) => ps.filter((p) => p.kind === "iso-line");
-const ellipses = (ps: IsoPrimitive[]) => ps.filter((p) => p.kind === "iso-ellipse");
+const kinds = (ps: IsoPrimitive[], k: IsoPrimitive["kind"]) => ps.filter((p) => p.kind === k);
 
-test("a plain block is nine lines and no ellipse", () => {
+test("a plain block yields fills and strokes and no ellipse", () => {
   const v = isometricView(block(6, 4, 2));
-  assert.equal(lines(v).length, 9);
-  assert.equal(ellipses(v).length, 0);
+  assert.ok(kinds(v, "iso-face").length > 0, "must emit fills");
+  assert.ok(kinds(v, "iso-line").length > 0, "must emit strokes");
+  assert.equal(kinds(v, "iso-ellipse").length, 0);
 });
 
 test("a through-hole adds exactly one ellipse", () => {
   const v = isometricView(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2));
-  assert.equal(ellipses(v).length, 1);
-  assert.equal(lines(v).length, 9);
+  assert.equal(kinds(v, "iso-ellipse").length, 1);
 });
 
 test("two holes add two ellipses", () => {
   const v = isometricView(
     subtractCylinder(subtractCylinder(block(12, 8, 4), "z", 3, 4, 1), "z", 9, 4, 1),
   );
-  assert.equal(ellipses(v).length, 2);
+  assert.equal(kinds(v, "iso-ellipse").length, 2);
 });
 
-test("a stepped solid has more than the nine edges of a block", () => {
-  const v = isometricView(subtractBox(block(6, 4, 4), { x: 0, y: 0, z: 2, w: 3, d: 4, h: 2 }));
-  assert.equal(lines(v).length, 18);
+// The whole reason isoBore returns a depth. Appending ellipses at the end would
+// draw a bore rim on top of whatever occludes its face. For a z-hole in a plain
+// block the rim sits on the top face, whose depth is nowhere near the maximum,
+// so fills MUST still follow it.
+test("the ellipse is interleaved by depth, not appended at the end", () => {
+  const v = isometricView(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2));
+  const at = v.findIndex((p) => p.kind === "iso-ellipse");
+  assert.ok(at >= 0, "the ellipse must be present");
+  const facesAfter = v.slice(at + 1).filter((p) => p.kind === "iso-face").length;
+  assert.ok(facesAfter > 0,
+    `nearer fills must follow the ellipse; found ${facesAfter} after index ${at}`);
+});
+
+// Part 1's compatibility requirement, pinned so it cannot silently regress.
+test("isoEdges with no extras is unchanged from its one-argument form", () => {
+  const o = buildOccupancy(block(4, 3, 2));
+  assert.deepEqual(isoEdges(o, []), isoEdges(o));
 });
 
 // Same rule the views generator applies: refuse what v1 cannot model rather
@@ -842,8 +1009,9 @@ test("an invalid solid is rejected rather than drawn", () => {
 });
 
 test("every primitive carries an isometric discriminant", () => {
-  for (const p of isometricView(subtractCylinder(block(8, 8, 4), "z", 4, 4, 2))) {
-    assert.ok(p.kind === "iso-line" || p.kind === "iso-ellipse", p.kind);
+  const v = isometricView(subtractBox(block(6, 4, 4), { x: 0, y: 0, z: 2, w: 3, d: 4, h: 2 }));
+  for (const p of v) {
+    assert.ok(p.kind === "iso-face" || p.kind === "iso-line" || p.kind === "iso-ellipse", p.kind);
   }
 });
 
@@ -888,15 +1056,18 @@ export function isometricView(s: Solid): IsoPrimitive[] {
   validateSolid(s);
 
   const occ = buildOccupancy(s);
-  const out: IsoPrimitive[] = [...isoEdges(occ)];
 
+  // Bores are interleaved by paint depth, not appended: this array is a
+  // back-to-front paint program, so an ellipse added at the end would be drawn
+  // on top of anything that occludes the face its rim sits on.
+  const extras: { t: number; prim: IsoPrimitive }[] = [];
   for (const op of s.ops) {
     if (op.kind !== "cylinder") continue;
-    const ellipse = isoBore(op as CylinderOp, occ);
-    if (ellipse !== null) out.push(ellipse);
+    const bore = isoBore(op as CylinderOp, occ);
+    if (bore !== null) extras.push({ t: bore.t, prim: bore.ellipse });
   }
 
-  return out;
+  return isoEdges(occ, extras);
 }
 ```
 
@@ -960,11 +1131,30 @@ function corpus(): Solid[] {
 test("every coordinate is finite", () => {
   for (const s of corpus()) {
     for (const p of isometricView(s)) {
-      const ns = p.kind === "iso-line"
-        ? [p.x1, p.y1, p.x2, p.y2]
-        : [p.cx, p.cy, p.rx, p.ry, p.rotation];
+      const ns = p.kind === "iso-line" ? [p.x1, p.y1, p.x2, p.y2]
+        : p.kind === "iso-ellipse" ? [p.cx, p.cy, p.rx, p.ry, p.rotation]
+        : p.points.flat();
       for (const n of ns) assert.ok(Number.isFinite(n), p.kind);
     }
+  }
+});
+
+// Fills are what make occlusion work; a view without them would render as a
+// wireframe with every hidden line showing.
+test("every solid emits fills, and each is a closed quadrilateral", () => {
+  for (const s of corpus()) {
+    const fills = isometricView(s).filter((p) => p.kind === "iso-face");
+    assert.ok(fills.length > 0, "a solid must emit fills");
+    for (const f of fills) assert.equal(f.points.length, 4);
+  }
+});
+
+// The array is a paint program, so it must open with a fill - a stroke before
+// any fill could never be covered.
+test("no stroke precedes the first fill", () => {
+  for (const s of corpus()) {
+    const v = isometricView(s);
+    assert.equal(v[0].kind, "iso-face");
   }
 });
 
@@ -988,7 +1178,7 @@ test("every ellipse keeps the isometric ratio", () => {
 
 // The bound is derived from the block's own corners via the projection basis,
 // NOT from the primitives under test, so it can actually fail.
-test("every line lies within the projected bounds of the base block", () => {
+test("every primitive lies within the projected bounds of the base block", () => {
   for (const s of corpus()) {
     const { w, d, h } = s.base;
     let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
@@ -999,10 +1189,21 @@ test("every line lies within the projected bounds of the base block", () => {
     }
     const eps = 1e-9;
     for (const p of isometricView(s)) {
-      if (p.kind !== "iso-line") continue;
-      for (const [u, v] of [[p.x1, p.y1], [p.x2, p.y2]]) {
-        assert.ok(u >= minU - eps && u <= maxU + eps, `u ${u} outside ${minU}..${maxU}`);
-        assert.ok(v >= minV - eps && v <= maxV + eps, `v ${v} outside ${minV}..${maxV}`);
+      // A rotated ellipse's axis-aligned half-extents. Using rx for both axes
+      // would overstate them and produce a false failure on a hole that sits
+      // tangent to a face, which validateSolid permits.
+      const ellipseBox = (e: { cx: number; cy: number; rx: number; ry: number; rotation: number }) => {
+        const rot = (e.rotation * Math.PI) / 180;
+        const hu = Math.hypot(e.rx * Math.cos(rot), e.ry * Math.sin(rot));
+        const hv = Math.hypot(e.rx * Math.sin(rot), e.ry * Math.cos(rot));
+        return [[e.cx - hu, e.cy - hv], [e.cx + hu, e.cy + hv]];
+      };
+      const pts: number[][] = p.kind === "iso-line" ? [[p.x1, p.y1], [p.x2, p.y2]]
+        : p.kind === "iso-face" ? p.points.map((q) => [q[0], q[1]])
+        : ellipseBox(p);
+      for (const [u, v] of pts) {
+        assert.ok(u >= minU - eps && u <= maxU + eps, `${p.kind} u ${u} outside ${minU}..${maxU}`);
+        assert.ok(v >= minV - eps && v <= maxV + eps, `${p.kind} v ${v} outside ${minV}..${maxV}`);
       }
     }
   }
@@ -1024,9 +1225,10 @@ test("an asymmetric solid's extreme points match the projection basis", () => {
   assert.ok(Math.abs(Math.min(...us) - project(0, 0, 0).u) < eps, "leftmost");
   assert.ok(Math.abs(Math.max(...us) - project(6, 4, 0).u) < eps, "rightmost");
 
-  // The step was cut from the top-front-left, so the highest surviving corner
-  // is the top-back-right at (6, 4, 4). Lowest is the bottom-front-right (6,0,0).
-  assert.ok(Math.abs(Math.min(...vs) - project(6, 4, 4).v) < eps, "topmost");
+  // Topmost is the SMALLEST screen v, i.e. the largest (-x + y + 2z). Over this
+  // solid that is 9, at (3, 4, 4) - the top-back-left corner of the tall part,
+  // where the step's riser meets the top face. Not (6, 4, 4), which gives only 6.
+  assert.ok(Math.abs(Math.min(...vs) - project(3, 4, 4).v) < eps, "topmost");
   assert.ok(Math.abs(Math.max(...vs) - project(6, 0, 0).v) < eps, "lowest");
 });
 
@@ -1081,8 +1283,12 @@ Then add this renderer beside the existing `renderView`:
 ```typescript
 function renderIsometric(ps: IsoPrimitive[], label: string): string {
   if (ps.length === 0) return `<div class="view"><em>${label}: empty</em></div>`;
-  const xs = ps.flatMap((p) => p.kind === "iso-line" ? [p.x1, p.x2] : [p.cx - p.rx, p.cx + p.rx]);
-  const ys = ps.flatMap((p) => p.kind === "iso-line" ? [p.y1, p.y2] : [p.cy - p.rx, p.cy + p.rx]);
+  const pts = (p: IsoPrimitive): number[][] =>
+    p.kind === "iso-line" ? [[p.x1, p.y1], [p.x2, p.y2]]
+    : p.kind === "iso-face" ? p.points.map((q) => [q[0], q[1]])
+    : [[p.cx - p.rx, p.cy - p.rx], [p.cx + p.rx, p.cy + p.rx]];
+  const xs = ps.flatMap((p) => pts(p).map((q) => q[0]));
+  const ys = ps.flatMap((p) => pts(p).map((q) => q[1]));
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   const S = 26; // pixels per projection unit — presentation only
@@ -1091,10 +1297,23 @@ function renderIsometric(ps: IsoPrimitive[], label: string): string {
   const px = (n: number) => (n - minX) * S + PAD;
   const py = (n: number) => (n - minY) * S + PAD;
 
-  const body = ps.map((p) => p.kind === "iso-line"
-    ? `<line x1="${px(p.x1)}" y1="${py(p.y1)}" x2="${px(p.x2)}" y2="${py(p.y2)}" stroke="#111" stroke-width="2"/>`
-    : `<ellipse cx="${px(p.cx)}" cy="${py(p.cy)}" rx="${p.rx * S}" ry="${p.ry * S}" fill="none" stroke="#111" stroke-width="2" transform="rotate(${p.rotation} ${px(p.cx)} ${py(p.cy)})"/>`
-  ).join("\n      ");
+  // ORDER IS LOAD-BEARING. Emit in sequence: a fill paints over the strokes of
+  // everything behind it, which is how hidden lines disappear. Do not sort,
+  // filter or deduplicate. Fills are BOTH filled and stroked in the background
+  // colour, per the renderer contract in isoedges.ts - stroking seals a fill's
+  // own boundary so a hidden edge lying on the seam between two coplanar fills
+  // cannot show through as an antialiasing hairline.
+  const BG = "#fff";
+  const body = ps.map((p) => {
+    if (p.kind === "iso-face") {
+      const poly = p.points.map((q) => `${px(q[0])},${py(q[1])}`).join(" ");
+      return `<polygon points="${poly}" fill="${BG}" stroke="${BG}" stroke-width="1"/>`;
+    }
+    if (p.kind === "iso-line") {
+      return `<line x1="${px(p.x1)}" y1="${py(p.y1)}" x2="${px(p.x2)}" y2="${py(p.y2)}" stroke="#111" stroke-width="2"/>`;
+    }
+    return `<ellipse cx="${px(p.cx)}" cy="${py(p.cy)}" rx="${p.rx * S}" ry="${p.ry * S}" fill="none" stroke="#111" stroke-width="2" transform="rotate(${p.rotation} ${px(p.cx)} ${py(p.cy)})"/>`;
+  }).join("\n      ");
 
   return `<div class="view">
     <h4>${label}</h4>
@@ -1147,13 +1366,18 @@ Append to the section 9 session log:
 ```markdown
 ## 2026-08-24 — the isometric prompt image
 
-**Hidden-line removal reduced to a walk already written.** The isometric projection direction (1, -1, 1) is a lattice diagonal, and uniquely so among unit steps — verified numerically before the design was accepted. Voxels projecting to the same point are exactly those on that diagonal, so a voxel is visible if and only if none nearer along it is solid. That is the same near-to-far walk `project.ts` performs along an axis, exact for the same reason rather than an approximation. The alternative — projecting every face to a polygon and clipping edges against nearer polygons — is correct for any geometry and far more machinery than an axis-aligned voxel solid needs.
+**The first hidden-line design was wrong, and the error is worth recording.** It argued that because the projection direction (1, −1, 1) is a lattice diagonal, cubes project to hexagons that tile the plane, and therefore a visible voxel's faces are wholly visible. The first two claims are true; the third does not follow. A unit cube's projected hexagon has area √3 against a projected lattice cell of 1/√3 — every hexagon overlaps six neighbours threefold — so partial occlusion between voxels not sharing a diagonal is routine. Measured on the L-block fixture: the tread's visibility boundary cuts *through* voxel interiors, which no voxel-granular method can express, and the tread's right edge was emitted despite being occluded at 40 of 40 sampled points. Convex solids came out clean, which is precisely why the nine-edge test passed and looked reassuring.
 
-**Cancelling coplanar faces is necessary and not sufficient.** Writing the plan surfaced that a 2x1x1 block still emits twelve edges after cancellation, because each long side of the merged top survives as two collinear unit segments. Collinear merging was added, after which every rectangular block emits exactly nine edges regardless of dimensions — the textbook isometric box. That count is now the load-bearing test, and it fails if either reduction is missing.
+**What replaced it: a painter's algorithm ordered by the diagonal depth.** Faces are sorted back to front by `t = x − y + z` and emitted as an opaque fill followed by that face's own strokes. A nearer fill covers a farther stroke, so occlusion happens by overdraw and is correct by construction, with no clipping arithmetic. Verified against ray-marched ground truth before adoption — 11,778 of 11,800 sampled points on the solid that broke the previous approach — and again after implementation at 100% surface agreement with zero spurious or missing ink across a randomised corpus.
 
-**The isometric's primitives are deliberately incompatible with the scorer's.** The pictorial is the public half of a drill and the three views are the private half that must never leave the server. A shared type would mean a function typed `Primitive[]` accepts either, which is how "hidden in the UI but shipped to the client" mistakes happen. A same-shaped alias would not help, because TypeScript is structurally typed. A different discriminant does: `kind: "iso-line"` is not assignable to `kind: "segment"`, so the compiler refuses the mix. The boundary is pinned by `@ts-expect-error` tests, which fail if the types ever become compatible.
+**The cost is that the output is a paint program rather than a set.** The array is ordered and the order is load-bearing: it still contains strokes belonging to partly-hidden faces, which rely on being overpainted. Anything consuming it must composite in sequence, and a renderer must stroke each fill in the background colour as well as filling it, or a hidden edge lying on the seam between two coplanar fills shows through as an antialiasing hairline. That is the one place in this project where a primitive list is not order-independent, and it is the reason the vocabulary is kept separate from the scorer's, where order means nothing.
 
-**A lighter verification regime, and why that is legitimate.** The views generator carried the full apparatus because a wrong answer key teaches an incorrect drawing silently. Nothing here is scored, so a defect is a picture that looks wrong. But one orientation test is still pinned against coordinates derived from the projection basis rather than from the generator, because a mirrored pictorial would mislead students while every structural test stayed green — the same failure the golden set exists to catch.
+**Two multi-voxel-wide primitives had to be anchored at their farthest depth, not their centre.** The same mistake appeared twice. Merging strokes across coplanar faces would attach a run to the farthest face and let the nearer coplanar fills paint over part of the outline, so strokes are deliberately not merged across faces. And a bore ellipse anchored at the depth of the single voxel under the hole centre was 25–42% overpainted by coplanar fills of its own face; it is now anchored at the maximum face depth over the voxels its footprint covers, measured back to 0%.
+
+**The isometric's primitives are deliberately incompatible with the scorer's.** The pictorial is the public half of a drill and the three views are the private half that must never leave the server. A shared type would mean a function typed `Primitive[]` accepts either, which is how "hidden in the UI but shipped to the client" mistakes happen. A same-shaped alias would not help, because TypeScript is structurally typed. A different discriminant does: `kind: "iso-face"` is not assignable to `kind: "segment"`, so the compiler refuses the mix. The boundary is pinned by `@ts-expect-error` tests, which fail if the types ever become compatible — verified by mutation.
+
+**A lighter verification regime, and why that is legitimate.** Nothing here is scored, so a defect is a picture that looks wrong rather than a silently wrong answer key. But the property suite still had to be forced to earn its keep: a mutation battery found it catching only three of seven injected bugs, including one test that restated a guard clause and could never fail. It now catches all of them, plus two mutations chosen afterwards to check it generalises. The one test that can detect a mirrored projection compares against coordinates derived from the projection basis rather than from the generator.
+
 ```
 
 - [ ] **Step 5: Run everything, commit, and open the PR**

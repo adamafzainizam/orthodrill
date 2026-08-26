@@ -32,10 +32,18 @@ framework imports, per `AGENTS.md` §2 constraint 3.
 ## 3. The isometric gets its own primitive vocabulary — and it is enforced
 
 ```typescript
+type IsoFace    = { kind: "iso-face";    points: [number, number][] };
 type IsoLine    = { kind: "iso-line";    x1: number; y1: number; x2: number; y2: number };
 type IsoEllipse = { kind: "iso-ellipse"; cx: number; cy: number; rx: number; ry: number; rotation: number };
-type IsoPrimitive = IsoLine | IsoEllipse;
+type IsoPrimitive = IsoFace | IsoLine | IsoEllipse;
 ```
+
+**The array is ORDERED, back to front, and the order is load-bearing.** The
+renderer must paint it in sequence: an `IsoFace` as an opaque fill in the page's
+background colour, an `IsoLine` as a stroke. See §6 — occlusion is achieved by
+nearer fills painting over farther strokes, so shuffling the array corrupts the
+picture. This is the one place in the project where a primitive list is a paint
+program rather than a set.
 
 The views generator deliberately reuses the scorer's `Primitive`. This one
 deliberately does not, and the reason is the security invariant, not tidiness.
@@ -77,11 +85,22 @@ Three further consequences fall out of the same choice:
 Cost: roughly six lines of duplicated line shape, and a renderer that switches on
 one extra `kind`. Cheap for a compiler-enforced trust boundary.
 
-## 4. Appearance: a clean line drawing
+## 4. Appearance: a clean line drawing, produced by fill-and-stroke
 
-Outlines only, no fill, visible edges only — the textbook idiom the student is
-being taught to read. No hidden lines: a pictorial view conventionally shows
-none, and this image is a prompt rather than an exercise in dashed-line reading.
+What the student sees is outlines only — the textbook idiom, with no hidden
+lines, since a pictorial conventionally shows none and this is a prompt rather
+than an exercise in dashed-line reading.
+
+**How that is achieved changed after the first attempt failed.** The drawing is
+produced by painting each visible face as an opaque fill in the background
+colour, followed by that face's own outline strokes, working back to front.
+Nearer fills cover farther strokes, so hidden lines disappear by overdraw. The
+rendered result is indistinguishable from a pure line drawing; the difference is
+that occlusion is correct by construction rather than computed.
+
+Strokes are still cancelled between adjacent coplanar faces, or every flat
+surface would show a grid of unit-square outlines. That cancellation is purely
+local and needs no visibility information.
 
 ## 5. Viewpoint: fixed, front-top-right
 
@@ -107,39 +126,76 @@ Verified numerically during design:
   is what makes the projection isometric. All three foreshorten equally.
 - The object's front face therefore appears on the **left** of the picture.
 
-## 6. Hidden-line removal is the walk we already do, along a diagonal
+## 6. Hidden-line removal — the first design here was WRONG
 
-This looked like the hard part and is not.
+**Recorded rather than quietly replaced, because the error is instructive.**
 
-**The projection direction (1, −1, 1) is a lattice diagonal.** Two voxels project
-to the same point exactly when they differ by a multiple of it. This was checked
-numerically: `(1, −1, 1)` is invariant under the projection and **no other unit
-lattice step is**. Cubes project to hexagons that tile the plane, one hexagon per
-diagonal line of voxels.
+### What was claimed, and why it was wrong
 
-Therefore:
+The first version of this section argued: the projection direction (1, −1, 1) is
+a lattice diagonal, so voxels projecting to the same point are exactly those on
+that diagonal; cubes project to hexagons that tile the plane; therefore a voxel
+is visible iff no voxel nearer along the diagonal is solid, and **a visible
+voxel's faces are wholly visible.**
 
-> A voxel is visible if and only if no voxel nearer along (1, −1, 1) is solid.
+The first two claims are true. The third does not follow, and is false.
 
-That is structurally identical to the near-to-far walk `project.ts` already does
-along an axis — the step is `(+1, −1, +1)` instead of a unit axis vector — and it
-is **exact for the same reason**, not an approximation. `buildOccupancy` is reused
-unchanged.
+**The hexagons do not tile.** A unit cube's projected hexagon has area √3 ≈ 1.732.
+The projected lattice cell has area 1/√3 ≈ 0.577 — a factor of three smaller. Every
+hexagon interior-overlaps six neighbours. Partial occlusion between voxels *not*
+on a shared diagonal is therefore routine, and a per-diagonal visibility test
+cannot see it.
 
-Edges come out as they do in the orthographic views. Concretely, a line is
-drawn along the shared border of two adjacent hexagons when the surfaces meeting
-there differ — that is, when one hexagon is empty and the other visible (the
-silhouette), or when both are visible but belong to voxels at different depths
-along the diagonal (a step). Where two adjacent visible voxels lie at the same
-depth and present the same face direction, the surface is continuous and no line
-is drawn. The plan pins the exact adjacency rule and its expected edge counts.
+The consequence was measured on the L-block fixture (a 6×4×4 block with a
+3×4×2 step removed from the top-front-left):
+
+- The step's tread is hidden wherever `x ≥ max(3−y, 1)` — a boundary that **cuts
+  through voxel interiors**, so no voxel-granular method can express it. Sampled
+  directly: the tread point (2.5, 0.5, 2) is visible while (2.5, 2.0, 2) is hidden.
+- The tread's right boundary edge (3,0,2)-(3,4,2) is occluded at 40 of 40 sampled
+  points, yet the algorithm emitted it — a line drawn across the face of a solid
+  block.
+- An independent checker found fully-hidden lines in every non-convex solid
+  tested: 2 of 18 on the step, 4 of 22 on a cut corner, 4 of 24 on a mid-face
+  notch. Convex blocks came out clean, which is exactly why the nine-edge test
+  passed and looked reassuring.
+
+### What replaced it: painter's algorithm, ordered by the diagonal depth
+
+Faces are sorted **back to front by `t = x − y + z`** — the depth along the view
+direction — and painted in that order: an opaque fill in the background colour,
+then that face's surviving strokes. A nearer face's fill covers a farther face's
+strokes, so occlusion happens by overdraw and is correct by construction. There
+is no clipping arithmetic and no floating-point edge cases.
+
+Verified before adoption, against ray-marched ground truth on the same L-block
+that broke the previous approach: painting in this order reproduces the true
+nearest surface at **11,778 of 11,800** sampled interior points. The 22
+disagreements are all between voxels adjacent in z, at shared face boundaries —
+rounding in the verification harness, not systematic failure.
+
+`isVisible` from §5 survives and is still correct: it identifies voxels that are
+*wholly* hidden, which is a sound culling optimisation. It was only ever wrong as
+a claim about *faces*.
+
+### What this costs
+
+The emitted array is a paint program, not a set of visible lines (§3). It still
+contains strokes belonging to partly-hidden faces; they simply get painted over.
+Anything consuming these primitives must composite them in order. That is
+acceptable here — this is a picture, never a scored answer — but it is the reason
+the vocabulary is kept separate from the scorer's, where order means nothing.
 
 Rejected alternatives:
 
-- **Painter's algorithm over filled faces.** Simplest possible occlusion, since
-  overdraw handles it. Rejected because §4 calls for a line drawing, and
-  recovering clean edges from a filled rendering is harder than computing them.
-- **General 3D hidden-line removal.** Projecting every face to a polygon and
+- **Clipping each segment in 2D** against the projected silhouettes of nearer
+  faces. Keeps the output a pure, order-independent set of lines. Rejected as
+  materially more code and more floating-point risk for a picture that is never
+  scored.
+- **Restricting v1 to convex solids.** The failed approach is provably correct
+  for them. Rejected because it would exclude steps, notches and slots — every
+  part actually worth drilling.
+- **General 3D hidden-line removal**, projecting every face to a polygon and
   clipping edges against nearer polygons. Correct for any geometry, and far more
   machinery than an axis-aligned voxel solid needs.
 
@@ -154,8 +210,9 @@ material around it, and §4 excludes hidden lines. Where a bore's far rim is
 genuinely visible through the hole, v1 omits it: a small, visible omission in a
 picture, not a wrong answer.
 
-Ellipse visibility follows the face the rim sits on — if that face is occluded,
-the ellipse is not drawn.
+The ellipse is emitted immediately after the fill of the face its rim sits on,
+so it participates in the paint order like any stroke (§3) and is covered by
+anything nearer.
 
 ## 8. Verification: a much lighter regime, and why that is legitimate
 
@@ -186,7 +243,7 @@ Under `src/lib/geometry/`, pure and I/O-free. Sibling `*.test.ts` per module.
 | Module | Responsibility |
 |---|---|
 | `isoproject.ts` | the screen basis, and the diagonal visibility walk |
-| `isoedges.ts` | visible voxel faces → `IsoLine` primitives |
+| `isoedges.ts` | exposed faces → depth sort → fills interleaved with cancelled, merged strokes |
 | `isobore.ts` | circle → `IsoEllipse`, with visibility |
 | `isometric.ts` | compose into `IsoPrimitive[]` |
 
@@ -196,6 +253,9 @@ dev script outside `src/lib/`, which remains pure.
 ## 10. Accepted limitations
 
 - **No hidden lines**, by §4. Conventional for a pictorial.
+- **The output is order-dependent** (§3, §6). It is a paint program: strokes of
+  partly-hidden faces are present and rely on being overpainted. A consumer that
+  reorders or filters the array gets a wrong picture.
 - **A bore's far rim and inner wall are omitted.** Looking into a hole you would
   see a sliver of the cylindrical bore surface and, at some angles, part of the
   far rim; v1 draws neither, only the near rim ellipse (§7). Both are visible
