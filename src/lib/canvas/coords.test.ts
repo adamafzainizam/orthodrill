@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { gridToScreen, screenToGrid, radiusFrom } from "./coords.ts";
+import { MAX_RADIUS } from "../scoring/validate.ts";
 
 const v = { cell: 20, padding: 16 };
 
@@ -38,4 +39,9 @@ test("a radius rounds to the nearest whole unit", () => {
 
 test("a radius is never zero, so a click cannot make an invalid circle", () => {
   assert.equal(radiusFrom({ x: 5, y: 5 }, { x: 5, y: 5 }), 1);
+});
+
+test("a radius is capped at what the server will accept", () => {
+  // validate.ts rejects r > MAX_RADIUS, so the UI must not be able to make one.
+  assert.equal(radiusFrom({ x: 0, y: 0 }, { x: 500, y: 500 }), MAX_RADIUS);
 });

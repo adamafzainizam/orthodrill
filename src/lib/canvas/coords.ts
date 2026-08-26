@@ -7,6 +7,8 @@
  *
  * PURE. No I/O, no DOM.
  */
+import { MAX_RADIUS } from "../scoring/validate.ts";
+
 export type Point = { x: number; y: number };
 
 /** `cell` is pixels per grid unit; `padding` is the margin around the grid. */
@@ -27,12 +29,15 @@ export function screenToGrid(p: Point, v: Viewport): Point {
 /**
  * Radius from a centre and a point on the circumference, in whole units.
  *
- * Never zero: `validate.ts` requires a positive integer radius, so a click that
- * lands on the centre yields the smallest legal circle rather than an invalid
- * one the server would reject.
+ * Bounded [1, MAX_RADIUS]:
+ * - Minimum 1: `validate.ts` requires a positive integer radius, so a click
+ *   on the centre yields the smallest legal circle rather than an invalid one.
+ * - Maximum MAX_RADIUS: `validate.ts` rejects circles with r > MAX_RADIUS,
+ *   so the UI must not be able to produce what the server would refuse.
+ *   Import MAX_RADIUS rather than hardcoding it, so the two can never drift.
  */
 export function radiusFrom(centre: Point, edge: Point): number {
   const dx = edge.x - centre.x;
   const dy = edge.y - centre.y;
-  return Math.max(1, Math.round(Math.hypot(dx, dy)));
+  return Math.min(MAX_RADIUS, Math.max(1, Math.round(Math.hypot(dx, dy))));
 }
