@@ -10,6 +10,8 @@ import { writeFileSync } from "node:fs";
 import { GOLDEN_PARTS } from "../src/lib/geometry/fixtures/golden.ts";
 import { generateViews } from "../src/lib/geometry/views.ts";
 import { boundingBox, type Primitive } from "../src/lib/scoring/primitives.ts";
+import { isometricView } from "../src/lib/geometry/isometric.ts";
+import type { IsoPrimitive } from "../src/lib/geometry/isotypes.ts";
 
 const SCALE = 12;
 const PAD = 16;
@@ -38,6 +40,48 @@ function renderView(ps: Primitive[], label: string): string {
   </div>`;
 }
 
+function renderIsometric(ps: IsoPrimitive[], label: string): string {
+  if (ps.length === 0) return `<div class="view"><em>${label}: empty</em></div>`;
+  const pts = (p: IsoPrimitive): number[][] =>
+    p.kind === "iso-line" ? [[p.x1, p.y1], [p.x2, p.y2]]
+    : p.kind === "iso-face" ? p.points.map((q) => [q[0], q[1]])
+    : [[p.cx - p.rx, p.cy - p.rx], [p.cx + p.rx, p.cy + p.rx]];
+  const xs = ps.flatMap((p) => pts(p).map((q) => q[0]));
+  const ys = ps.flatMap((p) => pts(p).map((q) => q[1]));
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const S = 26; // pixels per projection unit — presentation only
+  const w = (maxX - minX) * S + PAD * 2;
+  const h = (maxY - minY) * S + PAD * 2;
+  const px = (n: number) => (n - minX) * S + PAD;
+  const py = (n: number) => (n - minY) * S + PAD;
+
+  // ORDER IS LOAD-BEARING. Emit in sequence: a fill paints over the strokes of
+  // everything behind it, which is how hidden lines disappear. Do not sort,
+  // filter or deduplicate. Fills are BOTH filled and stroked in the background
+  // colour, per the renderer contract in isoedges.ts - stroking seals a fill's
+  // own boundary so a hidden edge lying on the seam between two coplanar fills
+  // cannot show through as an antialiasing hairline.
+  const BG = "#fff";
+  const body = ps.map((p) => {
+    if (p.kind === "iso-face") {
+      const poly = p.points.map((q) => `${px(q[0])},${py(q[1])}`).join(" ");
+      return `<polygon points="${poly}" fill="${BG}" stroke="${BG}" stroke-width="1"/>`;
+    }
+    if (p.kind === "iso-line") {
+      return `<line x1="${px(p.x1)}" y1="${py(p.y1)}" x2="${px(p.x2)}" y2="${py(p.y2)}" stroke="#111" stroke-width="2"/>`;
+    }
+    return `<ellipse cx="${px(p.cx)}" cy="${py(p.cy)}" rx="${p.rx * S}" ry="${p.ry * S}" fill="none" stroke="#111" stroke-width="2" transform="rotate(${p.rotation} ${px(p.cx)} ${py(p.cy)})"/>`;
+  }).join("\n      ");
+
+  return `<div class="view">
+    <h4>${label}</h4>
+    <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+      ${body}
+    </svg>
+  </div>`;
+}
+
 function main(): void {
   const sections = GOLDEN_PARTS.map((part) => {
     const v = generateViews(part.solid);
@@ -46,6 +90,7 @@ function main(): void {
   <p>${part.description}</p>
   <p class="src"><strong>Source:</strong> ${part.source}</p>
   <div class="views">
+    ${renderIsometric(isometricView(part.solid), "Isometric (prompt)")}
     ${renderView(v.front, "Front")}
     ${renderView(v.top, "Top")}
     ${renderView(v.side, "Right side")}

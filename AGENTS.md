@@ -49,7 +49,7 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 3. Current status
 
-**Phase:** scorer and views generator complete. Isometric prompt and canvas not started.
+**Phase:** scorer, views generator and isometric prompt complete. Canvas not started.
 
 **Done:**
 - [x] Candidate chosen after `pathway-navigator` was discontinued — see that repo's `docs/post-mortem.md`
@@ -58,8 +58,9 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 - [x] Repository initialised
 - [x] Scaffold, test harness, and the pure scoring engine — 36 tests
 - [x] The views generator — solid model, occupancy grid, projection, holes, golden fixtures
+- [x] The isometric prompt image — diagonal visibility walk, analytic bore ellipse
 
-**Not started:** the isometric prompt image, the canvas, the scoring route handler, and all drill content.
+**Not started:** the canvas, the scoring route handler, and all drill content.
 
 ---
 
@@ -67,8 +68,7 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 Build order is **scorer → generator → canvas**, and it is deliberate. The canvas is the tempting starting point and the wrong one: building it first would fix the interfaces by accident rather than by design. The scaffold, the scorer and the views generator are done; the rest follows in this order.
 
-1. **The isometric prompt image.** Solid → the isometric view a student is shown. Rendering only; never scored.
-2. **The canvas.** Snap-to-grid primitive input, then feedback rendering.
+1. **The canvas.** Snap-to-grid primitive input, then feedback rendering.
 
 **Views generator: DONE 2026-08-24, golden set UNVERIFIED.** `src/lib/geometry/` turns a base block plus ordered subtractive operations into front/top/side views with correct hidden-line classification and analytic circular bores — see the decision log entry of the same date for what the adversarial review found. The four golden fixtures in `src/lib/geometry/fixtures/golden.ts` are all asymmetric, but only the L-block's front view is pinned by hand-derived coordinates — the other three are pinned only by asymmetry, citation, non-emptiness and run-to-run stability, all of which are mirror-invariant and therefore regression-only (see the file header in `golden.test.ts`). No human or cited source has signed off on any of them yet. `npm run verify:sheet` renders them for that review. Shipping drills is gated on that sign-off; merging the generator code was not.
 
@@ -162,3 +162,4 @@ Append a short entry per working session. Newest at the bottom.
 | 2026-08-24 | Claude (Claude Code) | Built the views generator: solid model, occupancy grid (box ops only — cylinders never enter it), edge extraction with near-to-far visibility walking, collinear merging, analytic circular bores, view composition, `validateSolid` rejecting what v1 cannot model. Adversarial review found and fixed an asymmetric bore-occlusion bug (one sampled column instead of two), and found that five of eight injected bugs slipped past the original property suite, which is now rebuilt with positive controls and exact counts. Golden fixtures fixed twice over — an unquoted glob meant they never ran, and once running, all four were mirror-invariant — now four asymmetric parts, with the L-block's front view additionally pinned by hand-derived coordinates. 133 tests. All four golden parts remain UNVERIFIED; `npm run verify:sheet` renders them for the sign-off §5.2 requires before publishing. |
 | 2026-08-24 | Claude (Claude Code) | Applied the fix wave from a final whole-branch review. Two blockers: coincident lattice-edge/bore-silhouette primitives were both emitted with no precedence, so `compare.ts`'s last-write-wins keying let a hidden bore entry override a visible face edge at the same position (fixed by deduplicating on `positionKey` with visible > hidden > centre precedence, in `buildView`); and `validateSolid` never checked a cylinder against the base block itself, so a hole overhanging a face or sitting entirely outside the block was silently accepted (fixed, tangency kept legal). Folded in a third check: a fully-subtracted solid now throws instead of producing three empty "perfect" views. Added the coverage gap the review named — a bore-exposure test under `nearIsLow: false` in the TOP view specifically. Recorded the `CENTRE_OVERSHOOT`/bounding-box-normalisation interaction as an open seam for the canvas to resolve, not fixed here. Corrected this file's overstatement about which golden fixtures are coordinate-pinned versus asymmetry-pinned only. 141 tests, lint and typecheck clean. |
 | 2026-08-24 | Claude (Claude Code) | Merged `feat/generator` to `main` (7478804) and pushed; branch deleted. PR #2 auto-closed when its commits landed on `main`. **Note for future sessions: `gh` cannot reach this repo, and that is expected, not a fault to fix.** A `GITHUB_TOKEN` env var is set deliberately for the builder's separate Hermes research project and takes precedence over `gh`'s stored credentials; it has no access to this private repo. Git over SSH works normally, so use `git` for anything scriptable and the web UI for PR/issue operations. Do not clear or override that token. The stale `feat/scorer` branch is still on the remote and is harmless. The four golden parts remain **UNVERIFIED** — run `npm run verify:sheet` and have someone who knows drafting check it before any drill ships. |
+| 2026-08-24 | (whoever) | Built the isometric prompt image: projection basis, visibility by walking the lattice diagonal (1,-1,1), face cancellation plus collinear merging, analytic bore ellipse at the textbook root-three ratio. Its primitives use a distinct discriminant from the scorer's, so the compiler enforces the public/private split. Verification sheet now renders the pictorial beside the three views. |
