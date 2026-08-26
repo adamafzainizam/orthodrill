@@ -1218,33 +1218,49 @@ export function Sheet({
 
 - [ ] **Step 2: Add the feedback and ink colour tokens**
 
-In `src/app/globals.css`, inside the existing `:root` block, add:
+`src/app/globals.css` currently defines only `--background` and `--foreground`, and
+already has a `@media (prefers-color-scheme: dark)` block. Add ALL of the tokens
+below — every one is referenced by a component in Task 6 or Task 7, and a missing
+token renders as an invalid colour rather than an error.
+
+Inside the existing `:root` block, add:
 
 ```css
+  /* The drawing surface. Fixed in both themes: a technical drawing is black
+     ink on white paper, and pinning the paper means the ink never has to flip. */
   --paper: #ffffff;
   --grid: #e6eae3;
   --ink: #15191a;
   --centre: #b0261c;
+
+  /* Chrome around the drawing, which DOES follow the theme. */
+  --card: #f7f9f5;
+  --rule: #c6cdc4;
+
+  /* Interaction and feedback tones, kept clear of the centre-line red. */
   --select: #1f6feb;
+  --ok: #2f6b45;
   --miss: #b8860b;
   --bad: #c02626;
   --warn: #c2740a;
 ```
 
-And in the dark block (create `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { … } }` if the file has none), redefine only these:
+Inside the existing `@media (prefers-color-scheme: dark) { :root { … } }` block,
+redefine ONLY the tokens whose role changes on a dark ground — the paper and its
+ink deliberately do not:
 
 ```css
-  --paper: #ffffff;
-  --grid: #e6eae3;
-  --ink: #15191a;
-  --centre: #b0261c;
+  --card: #1c2124;
+  --rule: #333b3d;
   --select: #4c8dff;
+  --ok: #7fc79b;
   --miss: #d9a520;
   --bad: #e05252;
   --warn: #e0921f;
 ```
 
-The sheet stays white ink-on-paper in both themes: technical drawings are black on white, and keeping the paper fixed means the ink tokens never need to flip.
+**Do not redefine `--paper`, `--grid`, `--ink` or `--centre` in the dark block.**
+They are the drawing itself, and they stay put.
 
 - [ ] **Step 3: Verify it renders**
 
