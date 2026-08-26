@@ -40,3 +40,4 @@ npm-debug.log*
 # scratch — working files that shouldn't be committed
 scratch/
 verification-sheet.html
+verification-sheet.artifact.html
