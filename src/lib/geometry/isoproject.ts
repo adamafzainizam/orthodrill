@@ -23,7 +23,7 @@ import type { Occupancy } from "./occupancy.ts";
 
 export type Point2 = { u: number; v: number };
 
-/** The unit lattice step from a voxel toward the viewer. */
+/** The minimal invariant lattice step from a voxel toward the viewer (length sqrt(3), not 1). */
 export const VIEW_STEP = [1, -1, 1] as const;
 
 export function project(x: number, y: number, z: number): Point2 {

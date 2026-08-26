@@ -66,7 +66,7 @@ function renderIsometric(ps: IsoPrimitive[], label: string): string {
   const body = ps.map((p) => {
     if (p.kind === "iso-face") {
       const poly = p.points.map((q) => `${px(q[0])},${py(q[1])}`).join(" ");
-      return `<polygon points="${poly}" fill="${BG}" stroke="${BG}" stroke-width="1"/>`;
+      return `<polygon points="${poly}" fill="${BG}" stroke="${BG}" stroke-width="0.3"/>`;
     }
     if (p.kind === "iso-line") {
       return `<line x1="${px(p.x1)}" y1="${py(p.y1)}" x2="${px(p.x2)}" y2="${py(p.y2)}" stroke="#111" stroke-width="2"/>`;

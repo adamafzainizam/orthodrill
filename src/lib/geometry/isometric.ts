@@ -8,6 +8,10 @@
  * Coordinates carry no pixel scale and no viewport. The renderer fits them to
  * whatever space the page layout leaves.
  *
+ * The returned array is an ORDERED back-to-front paint program, not a set of
+ * primitives: it must be painted in sequence, and must never be sorted,
+ * filtered or deduplicated — see isoedges.ts for why occlusion depends on it.
+ *
  * PURE. No I/O.
  */
 import { buildOccupancy } from "./occupancy.ts";

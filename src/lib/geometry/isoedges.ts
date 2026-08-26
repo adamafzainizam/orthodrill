@@ -20,11 +20,21 @@
  * edges between coplanar neighbours, so what survives is the true outline; it is
  * simply expressed as touching unit segments, which render identically.
  *
+ * WHY A CREASE IS EMITTED BY ITS NEAREST FACE, NOT ITS FIRST. A crease shared
+ * by two faces of different orientation is a candidate stroke for both. Whoever
+ * draws it first gets half its line width overpainted by the OTHER face's later
+ * fill, since the stroke is centred on their shared boundary: a stable 2px
+ * silhouette next to a half-weight grey hairline. The last (nearest) owning
+ * face in paint order is the only one guaranteed not to be painted over again,
+ * so that is the one that draws it.
+ *
  * RENDERER CONTRACT: an IsoFace must be painted as an opaque fill AND stroked
- * in the same background colour, so it seals its own boundary. Without that,
- * a hidden edge lying exactly on the seam between two coplanar fills shows
- * through as an antialiasing hairline: a genuinely hidden crease (e.g. a notch
- * floor edge) can still project onto a seam between two later, unrelated
+ * in the same background colour, so it seals its own boundary, with that seal
+ * kept to a small fraction of the ink line weight — wide enough to hide
+ * antialiasing, not wide enough to bite into an adjacent stroke. Without the
+ * seal, a hidden edge lying exactly on the seam between two coplanar fills
+ * shows through as an antialiasing hairline: a genuinely hidden crease (e.g. a
+ * notch floor edge) can still project onto a seam between two later, unrelated
  * coplanar fills, and nothing short of the fill sealing its own edge hides it.
  *
  * PURE. No I/O.
@@ -146,8 +156,27 @@ export function isoEdges(
     return idx;
   });
 
+  // A crease is shared by exactly two faces (its two adjoining normals); a
+  // silhouette edge is owned by one. Whichever of the two is emitted first
+  // strokes the boundary before the OTHER one's fill is painted, and because
+  // the stroke is centred on the shared edge, that later fill repaints its own
+  // half of the line in the background colour, leaving a half-weight hairline.
+  // Emitting from the LAST (nearest) owning face instead means every fill that
+  // could paint over the stroke has already been painted by the time it is
+  // drawn. Precomputed before the emission loop so ties resolve unambiguously
+  // by index rather than by a first-wins Set.
+  const lastOwner = new Map<string, number>();
+  for (let i = 0; i < ordered.length; i++) {
+    const f = ordered[i];
+    const c = faceCorners(f.name, f.x, f.y, f.z);
+    for (let j = 0; j < 4; j++) {
+      const ek = edgeKey(c[j], c[(j + 1) % 4]);
+      if (tally.get(`${ek}#${f.name}`) === 2) continue; // coplanar continuation
+      lastOwner.set(ek, i);
+    }
+  }
+
   const out: IsoPrimitive[] = [];
-  const drawn = new Set<string>();
   const emitExtrasFor = (idx: number) => {
     for (let ei = 0; ei < extras.length; ei++) {
       if (insertAfter[ei] === idx) out.push(extras[ei].prim);
@@ -169,8 +198,7 @@ export function isoEdges(
     for (let j = 0; j < 4; j++) {
       const ek = edgeKey(c[j], c[(j + 1) % 4]);
       if (tally.get(`${ek}#${f.name}`) === 2) continue; // coplanar continuation
-      if (drawn.has(ek)) continue;                      // a crease, already drawn
-      drawn.add(ek);
+      if (lastOwner.get(ek) !== i) continue;             // a crease; the nearer face draws it
       const a = project(c[j][0], c[j][1], c[j][2]);
       const b = project(c[(j + 1) % 4][0], c[(j + 1) % 4][1], c[(j + 1) % 4][2]);
       if (Math.hypot(b.u - a.u, b.v - a.v) < 1e-9) continue;
