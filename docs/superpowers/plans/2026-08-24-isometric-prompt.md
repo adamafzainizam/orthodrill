@@ -1283,8 +1283,12 @@ Then add this renderer beside the existing `renderView`:
 ```typescript
 function renderIsometric(ps: IsoPrimitive[], label: string): string {
   if (ps.length === 0) return `<div class="view"><em>${label}: empty</em></div>`;
-  const xs = ps.flatMap((p) => p.kind === "iso-line" ? [p.x1, p.x2] : [p.cx - p.rx, p.cx + p.rx]);
-  const ys = ps.flatMap((p) => p.kind === "iso-line" ? [p.y1, p.y2] : [p.cy - p.rx, p.cy + p.rx]);
+  const pts = (p: IsoPrimitive): number[][] =>
+    p.kind === "iso-line" ? [[p.x1, p.y1], [p.x2, p.y2]]
+    : p.kind === "iso-face" ? p.points.map((q) => [q[0], q[1]])
+    : [[p.cx - p.rx, p.cy - p.rx], [p.cx + p.rx, p.cy + p.rx]];
+  const xs = ps.flatMap((p) => pts(p).map((q) => q[0]));
+  const ys = ps.flatMap((p) => pts(p).map((q) => q[1]));
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   const S = 26; // pixels per projection unit — presentation only
@@ -1293,10 +1297,23 @@ function renderIsometric(ps: IsoPrimitive[], label: string): string {
   const px = (n: number) => (n - minX) * S + PAD;
   const py = (n: number) => (n - minY) * S + PAD;
 
-  const body = ps.map((p) => p.kind === "iso-line"
-    ? `<line x1="${px(p.x1)}" y1="${py(p.y1)}" x2="${px(p.x2)}" y2="${py(p.y2)}" stroke="#111" stroke-width="2"/>`
-    : `<ellipse cx="${px(p.cx)}" cy="${py(p.cy)}" rx="${p.rx * S}" ry="${p.ry * S}" fill="none" stroke="#111" stroke-width="2" transform="rotate(${p.rotation} ${px(p.cx)} ${py(p.cy)})"/>`
-  ).join("\n      ");
+  // ORDER IS LOAD-BEARING. Emit in sequence: a fill paints over the strokes of
+  // everything behind it, which is how hidden lines disappear. Do not sort,
+  // filter or deduplicate. Fills are BOTH filled and stroked in the background
+  // colour, per the renderer contract in isoedges.ts - stroking seals a fill's
+  // own boundary so a hidden edge lying on the seam between two coplanar fills
+  // cannot show through as an antialiasing hairline.
+  const BG = "#fff";
+  const body = ps.map((p) => {
+    if (p.kind === "iso-face") {
+      const poly = p.points.map((q) => `${px(q[0])},${py(q[1])}`).join(" ");
+      return `<polygon points="${poly}" fill="${BG}" stroke="${BG}" stroke-width="1"/>`;
+    }
+    if (p.kind === "iso-line") {
+      return `<line x1="${px(p.x1)}" y1="${py(p.y1)}" x2="${px(p.x2)}" y2="${py(p.y2)}" stroke="#111" stroke-width="2"/>`;
+    }
+    return `<ellipse cx="${px(p.cx)}" cy="${py(p.cy)}" rx="${p.rx * S}" ry="${p.ry * S}" fill="none" stroke="#111" stroke-width="2" transform="rotate(${p.rotation} ${px(p.cx)} ${py(p.cy)})"/>`;
+  }).join("\n      ");
 
   return `<div class="view">
     <h4>${label}</h4>
@@ -1349,13 +1366,18 @@ Append to the section 9 session log:
 ```markdown
 ## 2026-08-24 — the isometric prompt image
 
-**Hidden-line removal reduced to a walk already written.** The isometric projection direction (1, -1, 1) is a lattice diagonal, and uniquely so among unit steps — verified numerically before the design was accepted. Voxels projecting to the same point are exactly those on that diagonal, so a voxel is visible if and only if none nearer along it is solid. That is the same near-to-far walk `project.ts` performs along an axis, exact for the same reason rather than an approximation. The alternative — projecting every face to a polygon and clipping edges against nearer polygons — is correct for any geometry and far more machinery than an axis-aligned voxel solid needs.
+**The first hidden-line design was wrong, and the error is worth recording.** It argued that because the projection direction (1, −1, 1) is a lattice diagonal, cubes project to hexagons that tile the plane, and therefore a visible voxel's faces are wholly visible. The first two claims are true; the third does not follow. A unit cube's projected hexagon has area √3 against a projected lattice cell of 1/√3 — every hexagon overlaps six neighbours threefold — so partial occlusion between voxels not sharing a diagonal is routine. Measured on the L-block fixture: the tread's visibility boundary cuts *through* voxel interiors, which no voxel-granular method can express, and the tread's right edge was emitted despite being occluded at 40 of 40 sampled points. Convex solids came out clean, which is precisely why the nine-edge test passed and looked reassuring.
 
-**Cancelling coplanar faces is necessary and not sufficient.** Writing the plan surfaced that a 2x1x1 block still emits twelve edges after cancellation, because each long side of the merged top survives as two collinear unit segments. Collinear merging was added, after which every rectangular block emits exactly nine edges regardless of dimensions — the textbook isometric box. That count is now the load-bearing test, and it fails if either reduction is missing.
+**What replaced it: a painter's algorithm ordered by the diagonal depth.** Faces are sorted back to front by `t = x − y + z` and emitted as an opaque fill followed by that face's own strokes. A nearer fill covers a farther stroke, so occlusion happens by overdraw and is correct by construction, with no clipping arithmetic. Verified against ray-marched ground truth before adoption — 11,778 of 11,800 sampled points on the solid that broke the previous approach — and again after implementation at 100% surface agreement with zero spurious or missing ink across a randomised corpus.
 
-**The isometric's primitives are deliberately incompatible with the scorer's.** The pictorial is the public half of a drill and the three views are the private half that must never leave the server. A shared type would mean a function typed `Primitive[]` accepts either, which is how "hidden in the UI but shipped to the client" mistakes happen. A same-shaped alias would not help, because TypeScript is structurally typed. A different discriminant does: `kind: "iso-line"` is not assignable to `kind: "segment"`, so the compiler refuses the mix. The boundary is pinned by `@ts-expect-error` tests, which fail if the types ever become compatible.
+**The cost is that the output is a paint program rather than a set.** The array is ordered and the order is load-bearing: it still contains strokes belonging to partly-hidden faces, which rely on being overpainted. Anything consuming it must composite in sequence, and a renderer must stroke each fill in the background colour as well as filling it, or a hidden edge lying on the seam between two coplanar fills shows through as an antialiasing hairline. That is the one place in this project where a primitive list is not order-independent, and it is the reason the vocabulary is kept separate from the scorer's, where order means nothing.
 
-**A lighter verification regime, and why that is legitimate.** The views generator carried the full apparatus because a wrong answer key teaches an incorrect drawing silently. Nothing here is scored, so a defect is a picture that looks wrong. But one orientation test is still pinned against coordinates derived from the projection basis rather than from the generator, because a mirrored pictorial would mislead students while every structural test stayed green — the same failure the golden set exists to catch.
+**Two multi-voxel-wide primitives had to be anchored at their farthest depth, not their centre.** The same mistake appeared twice. Merging strokes across coplanar faces would attach a run to the farthest face and let the nearer coplanar fills paint over part of the outline, so strokes are deliberately not merged across faces. And a bore ellipse anchored at the depth of the single voxel under the hole centre was 25–42% overpainted by coplanar fills of its own face; it is now anchored at the maximum face depth over the voxels its footprint covers, measured back to 0%.
+
+**The isometric's primitives are deliberately incompatible with the scorer's.** The pictorial is the public half of a drill and the three views are the private half that must never leave the server. A shared type would mean a function typed `Primitive[]` accepts either, which is how "hidden in the UI but shipped to the client" mistakes happen. A same-shaped alias would not help, because TypeScript is structurally typed. A different discriminant does: `kind: "iso-face"` is not assignable to `kind: "segment"`, so the compiler refuses the mix. The boundary is pinned by `@ts-expect-error` tests, which fail if the types ever become compatible — verified by mutation.
+
+**A lighter verification regime, and why that is legitimate.** Nothing here is scored, so a defect is a picture that looks wrong rather than a silently wrong answer key. But the property suite still had to be forced to earn its keep: a mutation battery found it catching only three of seven injected bugs, including one test that restated a guard clause and could never fail. It now catches all of them, plus two mutations chosen afterwards to check it generalises. The one test that can detect a mirrored projection compares against coordinates derived from the projection basis rather than from the generator.
+
 ```
 
 - [ ] **Step 5: Run everything, commit, and open the PR**
