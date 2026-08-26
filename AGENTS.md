@@ -41,7 +41,19 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 2. **Answer keys never reach the client.** See section 5. This is a security requirement, not a preference.
 3. **The scorer and generator stay pure and I/O-free.** No framework imports, no filesystem, no network. They are the two things that must be testable without a browser or a server.
 4. **Test a premise before building on it.** The predecessor project spent a week of infrastructure on an assumption that three PDFs would have disproved in an afternoon. Find the cheapest question that could kill a piece of work, and answer it first.
-5. **Git workflow:** one feature = one branch, atomic commits, PR per feature, tagged releases. Branch *before* writing code.
+5. **Git workflow:** one feature = one branch, atomic commits, PR per feature, tagged releases. Branch *before* writing code. **The PR is the step that keeps lapsing** — three features merged straight to `main` because a wrong note said `gh` could not reach this repo (see §6). It can. The whole sequence is scriptable, so there is no manual web-UI step to skip:
+
+   ```bash
+   git checkout -b feat/thing          # BEFORE writing code
+   # ... atomic commits ...
+   npm test && npm run lint && npm run typecheck && npm run build
+   git push -u origin feat/thing       # push the BRANCH, never main
+   GITHUB_TOKEN= gh pr create --fill   # the empty assignment is required; see §6
+   GITHUB_TOKEN= gh pr merge --merge --delete-branch
+   ```
+
+   **Never push straight to `main`.** Once a branch's commits are ancestors of `main`, no PR can be opened for them — the diff is empty — and the work is unreviewable as a unit forever.
+
 6. **Reasoning gets recorded**, not just outcomes. The builder is using this project to learn, so the *why* matters as much as the *what*.
 7. **English only.** No i18n, no Bahasa Melayu. Reversing this needs a recorded decision.
 
