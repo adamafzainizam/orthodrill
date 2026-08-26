@@ -5,13 +5,20 @@
  * from the object to the viewer is (+1, -1, +1) with +x right, +y back, +z up.
  * The three faces that can face the viewer are therefore +x, -y and +z.
  *
- * WHY VISIBILITY IS EASY HERE. The projection direction is a LATTICE DIAGONAL:
- * two voxels project to the same point exactly when they differ by a multiple
- * of (1, -1, 1), and no other unit step is invariant. Cubes project to hexagons
- * that tile the plane, one hexagon per diagonal line of voxels. So a voxel is
- * visible if and only if no voxel nearer along that diagonal is solid — the
- * same near-to-far walk project.ts does along an axis, and exact for the same
- * reason rather than an approximation.
+ * THE PROJECTION DIRECTION IS A LATTICE DIAGONAL: two voxels project to the
+ * same point exactly when they differ by a multiple of (1, -1, 1), and no
+ * other unit step is invariant. That part holds and is why VIEW_STEP is what
+ * it is.
+ *
+ * WHAT DOES NOT HOLD: projected unit-cube hexagons do NOT tile the plane —
+ * each has area sqrt(3) against a projected lattice cell of 1/sqrt(3), so
+ * every hexagon overlaps six neighbours threefold. Partial occlusion between
+ * voxels that do not share a diagonal is therefore routine, not an edge case.
+ * `isVisible` below walks only along the shared diagonal, so it is sound as a
+ * cull for voxels that are WHOLLY hidden — it is not a visibility criterion
+ * and cannot decide partial occlusion. Actual hidden-line removal is done by
+ * overdraw in isoedges.ts's painter's algorithm; see that file's module
+ * docblock and the design document §6.
  *
  * A wrong sign in `project` produces a picture that is perfectly self-consistent
  * and perfectly MIRRORED. The constants below were verified numerically during
@@ -23,7 +30,7 @@ import type { Occupancy } from "./occupancy.ts";
 
 export type Point2 = { u: number; v: number };
 
-/** The minimal invariant lattice step from a voxel toward the viewer (length sqrt(3), not 1). */
+/** The minimal invariant lattice step toward the viewer (length sqrt(3), not 1). */
 export const VIEW_STEP = [1, -1, 1] as const;
 
 export function project(x: number, y: number, z: number): Point2 {

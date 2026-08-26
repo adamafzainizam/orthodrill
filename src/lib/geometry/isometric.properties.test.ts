@@ -408,3 +408,56 @@ test("an asymmetric solid's extreme points match the projection basis", () => {
 test("generating the same solid twice gives identical output", () => {
   for (const s of corpus()) assert.deepEqual(isometricView(s), isometricView(s));
 });
+
+// ---- Crease strokes are never half-repainted -----------------------------
+//
+// isoedges.ts emits a shared crease after its LAST (nearest) owning face
+// specifically so every fill capable of repainting it has already been
+// painted by the time it draws (see that file's module docblock, "WHY A
+// CREASE IS EMITTED BY ITS NEAREST FACE, NOT ITS FIRST"). Nothing else in
+// this suite pins that rule: reverting isoedges.ts to first-wins still
+// passes every other test here, because none of them looks at what paints
+// AFTER a given stroke. This test exists solely to keep that rule from
+// silently regressing back to half-weight creases.
+//
+// For each stroke, probe a point just off its midpoint on each perpendicular
+// side and ask whether any fill painted LATER in the program covers it. A
+// stroke should never come out covered on exactly one side: uncovered on
+// both means it survives as a visible line, covered on both means it is
+// genuinely hidden behind later geometry either way, but covered on exactly
+// one side means a later fill is repainting only half the stroke's width -
+// the half-weight-hairline bug the last-owner rule fixed.
+test("no surviving crease stroke is repainted on exactly one side by a later fill", () => {
+  const solids = [
+    subtractBox(block(6, 4, 4), { x: 0, y: 0, z: 2, w: 3, d: 4, h: 2 }),
+    subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 2, w: 2, d: 2, h: 2 }),
+  ];
+  const eps = 0.03;
+  for (const s of solids) {
+    const prog = isometricView(s);
+    let checked = 0;
+    for (let i = 0; i < prog.length; i++) {
+      const line = prog[i];
+      if (line.kind !== "iso-line") continue;
+      const dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-9) continue;
+      const mx = (line.x1 + line.x2) / 2, my = (line.y1 + line.y2) / 2;
+      const px = -dy / len, py = dx / len; // unit perpendicular to the stroke
+      const sideA: [number, number] = [mx + px * eps, my + py * eps];
+      const sideB: [number, number] = [mx - px * eps, my - py * eps];
+      const laterFaces = prog
+        .slice(i + 1)
+        .filter((q): q is IsoFace => q.kind === "iso-face");
+      const coveredA = laterFaces.some((f) => strictlyInsideQuad(sideA, f.points));
+      const coveredB = laterFaces.some((f) => strictlyInsideQuad(sideB, f.points));
+      checked++;
+      assert.equal(
+        coveredA, coveredB,
+        `stroke ${i} (${line.x1},${line.y1})-(${line.x2},${line.y2}) is repainted ` +
+        `on exactly one side (A=${coveredA}, B=${coveredB})`,
+      );
+    }
+    assert.ok(checked > 0, "expected at least one stroke to check");
+  }
+});
