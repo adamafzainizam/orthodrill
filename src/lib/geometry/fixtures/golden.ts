@@ -14,6 +14,12 @@
  * regression — but no drill may ship from an unverified generator path.
  * See AGENTS.md §7 and the design document §8.
  *
+ * All four were marked VERIFIED on 2026-08-26 by the builder's own review
+ * rather than by an outside expert, which is a deliberate departure from
+ * §5.2's original wording and is recorded in docs/decision-log.md. What that
+ * sign-off rests on, and the one thing it cannot rule out, are written up
+ * there — read it before treating VERIFIED here as stronger than it is.
+ *
  * PURE. No I/O.
  */
 import { block, subtractBox, subtractCylinder, type Solid } from "../solid.ts";
@@ -38,7 +44,12 @@ export const GOLDEN_PARTS: GoldenPart[] = [
     source:
       "Engineering LibreTexts, Illinois Institute of Technology, " +
       "Introduction to Engineering Drawing and Design, Module B §2.7 Exercises",
-    status: "UNVERIFIED",
+    status: "VERIFIED",
+    verifiedBy:
+      "Adam (project builder), 2026-08-26. Checked each pictorial against its "
+      + "three views, and against prior secondary-school technical drawing "
+      + "coursework held independently of this project. See the decision log "
+      + "entry of the same date for what this sign-off does and does not cover.",
   },
   {
     id: "corner-notch",
@@ -47,7 +58,12 @@ export const GOLDEN_PARTS: GoldenPart[] = [
       "Distinguishes left from right in the top and side views.",
     solid: subtractBox(block(8, 4, 4), { x: 6, y: 0, z: 0, w: 2, d: 2, h: 4 }),
     source: "Orthographic Projection Exercises (olaengineering), exercise sheet 1",
-    status: "UNVERIFIED",
+    status: "VERIFIED",
+    verifiedBy:
+      "Adam (project builder), 2026-08-26. Checked each pictorial against its "
+      + "three views, and against prior secondary-school technical drawing "
+      + "coursework held independently of this project. See the decision log "
+      + "entry of the same date for what this sign-off does and does not cover.",
   },
   {
     id: "offset-through-hole",
@@ -57,7 +73,12 @@ export const GOLDEN_PARTS: GoldenPart[] = [
       "and would verify nothing about handedness.",
     solid: subtractCylinder(block(8, 8, 4), "z", 3, 3, 2),
     source: "Engineering Graphics and Design Grade 12, third-angle castings worksheets",
-    status: "UNVERIFIED",
+    status: "VERIFIED",
+    verifiedBy:
+      "Adam (project builder), 2026-08-26. Checked each pictorial against its "
+      + "three views, and against prior secondary-school technical drawing "
+      + "coursework held independently of this project. See the decision log "
+      + "entry of the same date for what this sign-off does and does not cover.",
   },
   {
     id: "stepped-plate-with-hole",
@@ -73,9 +94,15 @@ export const GOLDEN_PARTS: GoldenPart[] = [
       "y", 2, 1, 1,
     ),
     source:
-      "Not yet matched to a published exercise. Carried as a regression " +
-      "fixture only — it pins current behaviour against accidental change and " +
-      "must NOT be treated as evidence of correct orientation until cited.",
-    status: "UNVERIFIED",
+      "Not matched to a published exercise — verified by direct review only " +
+      "(see verifiedBy). The weakest of the four on provenance: the other " +
+      "three can still be checked against a citation if the review is ever " +
+      "doubted, and this one cannot.",
+    status: "VERIFIED",
+    verifiedBy:
+      "Adam (project builder), 2026-08-26. Checked each pictorial against its "
+      + "three views, and against prior secondary-school technical drawing "
+      + "coursework held independently of this project. See the decision log "
+      + "entry of the same date for what this sign-off does and does not cover.",
   },
 ];
