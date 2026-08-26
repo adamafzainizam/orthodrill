@@ -1189,9 +1189,18 @@ test("every primitive lies within the projected bounds of the base block", () =>
     }
     const eps = 1e-9;
     for (const p of isometricView(s)) {
+      // A rotated ellipse's axis-aligned half-extents. Using rx for both axes
+      // would overstate them and produce a false failure on a hole that sits
+      // tangent to a face, which validateSolid permits.
+      const ellipseBox = (e: { cx: number; cy: number; rx: number; ry: number; rotation: number }) => {
+        const rot = (e.rotation * Math.PI) / 180;
+        const hu = Math.hypot(e.rx * Math.cos(rot), e.ry * Math.sin(rot));
+        const hv = Math.hypot(e.rx * Math.sin(rot), e.ry * Math.cos(rot));
+        return [[e.cx - hu, e.cy - hv], [e.cx + hu, e.cy + hv]];
+      };
       const pts: number[][] = p.kind === "iso-line" ? [[p.x1, p.y1], [p.x2, p.y2]]
         : p.kind === "iso-face" ? p.points.map((q) => [q[0], q[1]])
-        : [[p.cx - p.rx, p.cy - p.rx], [p.cx + p.rx, p.cy + p.rx]];
+        : ellipseBox(p);
       for (const [u, v] of pts) {
         assert.ok(u >= minU - eps && u <= maxU + eps, `${p.kind} u ${u} outside ${minU}..${maxU}`);
         assert.ok(v >= minV - eps && v <= maxV + eps, `${p.kind} v ${v} outside ${minV}..${maxV}`);
@@ -1216,9 +1225,10 @@ test("an asymmetric solid's extreme points match the projection basis", () => {
   assert.ok(Math.abs(Math.min(...us) - project(0, 0, 0).u) < eps, "leftmost");
   assert.ok(Math.abs(Math.max(...us) - project(6, 4, 0).u) < eps, "rightmost");
 
-  // The step was cut from the top-front-left, so the highest surviving corner
-  // is the top-back-right at (6, 4, 4). Lowest is the bottom-front-right (6,0,0).
-  assert.ok(Math.abs(Math.min(...vs) - project(6, 4, 4).v) < eps, "topmost");
+  // Topmost is the SMALLEST screen v, i.e. the largest (-x + y + 2z). Over this
+  // solid that is 9, at (3, 4, 4) - the top-back-left corner of the tall part,
+  // where the step's riser meets the top face. Not (6, 4, 4), which gives only 6.
+  assert.ok(Math.abs(Math.min(...vs) - project(3, 4, 4).v) < eps, "topmost");
   assert.ok(Math.abs(Math.max(...vs) - project(6, 0, 0).v) < eps, "lowest");
 });
 
