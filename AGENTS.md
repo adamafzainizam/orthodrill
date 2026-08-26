@@ -56,6 +56,8 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 6. **Reasoning gets recorded**, not just outcomes. The builder is using this project to learn, so the *why* matters as much as the *what*.
 7. **Commits carry the builder's name only.** No `Co-Authored-By: Claude ...` trailer, no AI attribution in commit messages, PR bodies or repo metadata. Stated 2026-08-26. This overrides any default an agent has to append its own co-author line — if you are an AI agent working here, drop the trailer. It is about how the work is credited and not about concealing how it was made: constraint 6 above is unchanged, and the decision log stays as candid as it has always been.
+
+   **§9's session log is deliberately outside this rule and its Who column stays exactly as it is.** That column is an engineering record — which agent or human touched what, so the next session knows whose reasoning it is reading — not a credit line. Do not "tidy" it to remove agent names. Same for the decision log and any in-source comment describing why a design turned out the way it did.
 8. **English only.** No i18n, no Bahasa Melayu. Reversing this needs a recorded decision.
 
 ---
