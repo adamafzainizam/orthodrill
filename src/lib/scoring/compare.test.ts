@@ -93,3 +93,31 @@ test("a view of nothing but centre lines still normalises", () => {
   const only: Primitive[] = [seg(0, 4, 8, 4, "centre")];
   assert.equal(isPerfect(compareView(only, only)), true);
 });
+
+test("the diff reports where the attempt was drawn, so feedback can be placed", () => {
+  const key: Primitive[] = [
+    { kind: "segment", type: "visible", x1: 0, y1: 0, x2: 4, y2: 0 },
+  ];
+  // The same view, drawn 10 right and 7 down.
+  const attempt: Primitive[] = [
+    { kind: "segment", type: "visible", x1: 10, y1: 7, x2: 14, y2: 7 },
+  ];
+  const d = compareView(attempt, key);
+  assert.deepEqual(d.anchor, { dx: 10, dy: 7 });
+});
+
+test("the anchor ignores centre-line overhang, matching the diff's own anchor rule", () => {
+  const key: Primitive[] = [
+    { kind: "segment", type: "visible", x1: 0, y1: 0, x2: 4, y2: 0 },
+  ];
+  const attempt: Primitive[] = [
+    { kind: "segment", type: "visible", x1: 10, y1: 7, x2: 14, y2: 7 },
+    // A centre line running 2 units left of the object must not move the anchor.
+    { kind: "segment", type: "centre", x1: 8, y1: 7, x2: 16, y2: 7 },
+  ];
+  assert.deepEqual(compareView(attempt, key).anchor, { dx: 10, dy: 7 });
+});
+
+test("a view with nothing in it reports a zero anchor rather than crashing", () => {
+  assert.deepEqual(compareView([], []).anchor, { dx: 0, dy: 0 });
+});

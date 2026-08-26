@@ -9,6 +9,13 @@ export type ViewDiff = {
   missing: Primitive[];
   extra: Primitive[];
   wrongType: WrongType[];
+  /**
+   * Where the attempt's view sat. Every primitive in this diff is
+   * origin-normalised; add this offset to place one in the coordinates the
+   * student actually submitted. Anchored on the object exactly as `toOrigin`
+   * anchors, so the two can never disagree.
+   */
+  anchor: { dx: number; dy: number };
 };
 
 export type ViewName = "front" | "top" | "side";

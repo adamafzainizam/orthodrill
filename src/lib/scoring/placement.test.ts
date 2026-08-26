@@ -7,7 +7,7 @@ import type { Primitive, Segment } from "./primitives.ts";
 const box = (x: number, y: number): Primitive[] =>
   [{ kind: "segment", type: "visible", x1: x, y1: y, x2: x + 4, y2: y + 4 } as Segment];
 
-const emptyDiff = { correct: [], missing: [], extra: [], wrongType: [] };
+const emptyDiff = { correct: [], missing: [], extra: [], wrongType: [], anchor: { dx: 0, dy: 0 } };
 
 const at = (front: [number, number], top: [number, number], side: [number, number]): Assignment => ({
   byView: {
