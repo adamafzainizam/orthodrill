@@ -49,7 +49,7 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 3. Current status
 
-**Phase:** scorer, views generator and isometric prompt complete. Canvas not started.
+**Phase:** scorer, views generator and isometric prompt complete, golden set signed off. Canvas not started.
 
 **Done:**
 - [x] Candidate chosen after `pathway-navigator` was discontinued — see that repo's `docs/post-mortem.md`
@@ -58,7 +58,8 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 - [x] Repository initialised
 - [x] Scaffold, test harness, and the pure scoring engine — 36 tests
 - [x] The views generator — solid model, occupancy grid, projection, holes, golden fixtures
-- [x] The golden-set review sheet, published as a private Artifact and awaiting a drafting reviewer (see §4)
+- [x] The golden-set review sheet, published as a private Artifact
+- [x] All four golden parts reviewed and marked VERIFIED (2026-08-26) — by the builder against prior coursework, not an outside expert; see `docs/decision-log.md` for the residual risk
 - [x] The isometric prompt image — painter's algorithm ordered by diagonal depth, occlusion by overdraw, analytic bore ellipse (an earlier diagonal-visibility-walk design was replaced mid-implementation; see the session log)
 
 **Not started:** the canvas, the scoring route handler, and all drill content.
@@ -67,15 +68,16 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 4. Next up
 
-**START HERE (added 2026-08-26, updated 2026-08-26 evening).** Two things, in this order:
+**START HERE (updated 2026-08-26, evening).** **The golden set is signed off and the canvas is now the only thing between here and a shippable drill.**
 
-1. **The golden set is published and waiting on a human. This is the oldest outstanding item and it blocks shipping any drill.** The sheet is live as a private Artifact:
-   **https://claude.ai/code/artifact/6eb96803-3639-4378-b05e-0b5b45e24c8c**
-   What is left is not a build step — it is sending that link to a GMI contact who knows drafting, and recording what comes back. The sheet asks for a pass or fail per part plus a note.
-   - `npm run verify:sheet` writes two gitignored files: `verification-sheet.html` (standalone, open it locally) and `verification-sheet.artifact.html` (body-only, what gets published). Both come from one body; only the outer wrapper differs, because the Artifact host supplies its own `<!doctype>`/`<head>`/`<body>`.
-   - **To update the published sheet, republish `verification-sheet.artifact.html` with the URL above as `url`** — publishing without it creates a second artifact and the reviewer's link goes stale.
-   - It is no longer strictly self-contained: it links Google Fonts, the one external host the Artifact CSP admits. Offline it falls back to system faces and stays legible.
-   - **When a verdict comes back, it goes in `src/lib/geometry/fixtures/golden.ts`** — flip `status` to `VERIFIED` and fill `verifiedBy` with who checked it and when. A fail is the more valuable outcome: fix the generator, then re-render and re-publish.
+The sign-off came from the builder's own review against prior coursework, not from an outside expert — a deliberate departure from §5.2's original wording, recorded in `docs/decision-log.md` with what it covers and the one thing it cannot. **Read that entry before treating `VERIFIED` in `golden.ts` as stronger than it is.** Two live follow-ups, neither blocking:
+
+- **Three of the four parts carry citations that were never actually pulled up.** Comparing our output against those published exercises is free, external, and stronger than any single human opinion. It is the first thing to reach for if a drill is ever reported wrong.
+- **The spec asks for 8–10 golden parts; we have 4.** Add more as the generator's coverage grows.
+
+The review sheet stays useful and is still published — regenerate with `npm run verify:sheet`, which writes `verification-sheet.html` (standalone, open it locally) and `verification-sheet.artifact.html` (body-only, what gets published). Both come from one body; only the outer wrapper differs, because the Artifact host supplies its own `<!doctype>`/`<head>`/`<body>`. It links Google Fonts, the one external host the Artifact CSP admits, and falls back to system faces offline.
+
+**To update the published sheet, republish `verification-sheet.artifact.html` passing `url: https://claude.ai/code/artifact/6eb96803-3639-4378-b05e-0b5b45e24c8c`** — publishing without it creates a second artifact and leaves the existing link stale.
 
 2. **Then the canvas**, as described below.
 
@@ -84,7 +86,7 @@ Build order is **scorer → generator → canvas**, and it is deliberate. The ca
 
 1. **The canvas.** Snap-to-grid primitive input, then feedback rendering. It is also the renderer for `isometricView`'s output (`src/lib/geometry/isometric.ts`), which is an ORDERED back-to-front paint program, not a set of primitives: render every `IsoFace` as an opaque fill in the page background colour AND stroke it in that same colour to seal its own boundary, then render the `IsoLine`/`IsoEllipse` entries that follow it, in array order. Reordering, filtering or deduplicating the array corrupts the picture — occlusion happens entirely by later fills overdrawing earlier strokes, not by any visibility computation the renderer needs to redo.
 
-**Views generator: DONE 2026-08-24, golden set UNVERIFIED.** `src/lib/geometry/` turns a base block plus ordered subtractive operations into front/top/side views with correct hidden-line classification and analytic circular bores — see the decision log entry of the same date for what the adversarial review found. The four golden fixtures in `src/lib/geometry/fixtures/golden.ts` are all asymmetric, but only the L-block's front view is pinned by hand-derived coordinates — the other three are pinned only by asymmetry, citation, non-emptiness and run-to-run stability, all of which are mirror-invariant and therefore regression-only (see the file header in `golden.test.ts`). No human or cited source has signed off on any of them yet. `npm run verify:sheet` renders them for that review. Shipping drills is gated on that sign-off; merging the generator code was not.
+**Views generator: DONE 2026-08-24, golden set SIGNED OFF 2026-08-26.** `src/lib/geometry/` turns a base block plus ordered subtractive operations into front/top/side views with correct hidden-line classification and analytic circular bores — see the decision log entry of the same date for what the adversarial review found. The four golden fixtures in `src/lib/geometry/fixtures/golden.ts` are all asymmetric, but only the L-block's front view is pinned by hand-derived coordinates — the other three are pinned only by asymmetry, citation, non-emptiness and run-to-run stability, all of which are mirror-invariant and therefore regression-only (see the file header in `golden.test.ts`). All four were reviewed and passed by the builder on 2026-08-26 against prior coursework; no cited source has been pulled up to confirm them independently, and three of the four could still be. `npm run verify:sheet` renders them for review. Shipping drills was gated on that sign-off, and no longer is.
 
 **Convention details: CHECKED 2026-08-21.** Four free references agree on first- vs third-angle view placement, and the check found a real bug — the shipped table placed the side view identically under both conventions. Corrected and pinned by test. ISO 128 and ISO 5456 remain paywalled and were not consulted; the table in `src/lib/scoring/placement.ts` carries the citations and is the single place to change if a paid standard ever contradicts them.
 
@@ -104,10 +106,12 @@ Anything the client can check, the client can read. There is no client-side miti
 
 A wrong key means the app confidently teaches an incorrect drawing. This is the predecessor project's provenance problem in new form: *how do you know your own data is right?*
 
-The builder is **not** a technical drawing expert. Never rely on that judgement. Two layers instead:
+The builder is **not** a technical drawing expert. Two layers instead of relying on that judgement:
 
 - **Property tests** — invariants that hold for any solid (projected edges within the bounding box projection; symmetric solids give symmetric views; a through-hole gives exactly one circle and two bore-line pairs).
 - **A human-verified golden set** — 8–10 parts confirmed by someone who knows the subject, stored as fixtures.
+
+**Amended 2026-08-26.** The four parts we have were signed off by the builder's own review, checked against technical drawing coursework that predates this project — external to it, which was the property self-review was missing. This overrides the original "never rely on that judgement" wording and is recorded in `docs/decision-log.md`, along with the one failure it cannot rule out: a mirror applied consistently from `solid.ts` through `viewspec.ts` into the fixture descriptions would leave description and views agreeing with each other and both wrong. Only an external published answer separates those.
 
 ---
 
@@ -182,3 +186,4 @@ Append a short entry per working session. Newest at the bottom.
 | 2026-08-26 | Claude (Claude Code) | Applied the fix wave from a final whole-branch review of the isometric prompt. Blocker: shared creases (edges between two differently-oriented faces) were drawn by the FIRST face to claim them in paint order, which under farthest-first sorting is the farther of the two — so the nearer face's later fill repainted its own half of the stroke, leaving 14 of 45 strokes on the L-block at half line weight. Fixed in `isoedges.ts` by precomputing the last (nearest) owning face index per edge and emitting only from that index, replacing the first-wins `drawn` Set; half-covered strokes now 0 of 45. Corrected this file's session log and Done list, which had credited the discarded diagonal-walk/collinear-merging design as what shipped — the actual mechanism is the painter's algorithm above. Added the paint-program order contract to `isometric.ts`'s docblock and to §4/§6 below. Thinned the verification sheet's fill-seal stroke from 1px to 0.3px so it stops biting into adjacent 2px ink strokes. Reworded `isoproject.ts`'s `VIEW_STEP` comment: its length is sqrt(3), so it is the minimal invariant lattice step, not "the unit" step. 189 tests, lint and typecheck clean. |
 | 2026-08-26 | Claude (Claude Code) | Merged `feat/isometric` to `main` (4529573) and pushed; branch deleted. 190 tests, lint/typecheck/build clean. **Both generators are now done and the canvas is the only thing left before drills can ship.** |
 | 2026-08-26 | Claude (Claude Code) | Took the golden-set sheet from "a file that exists" to "a document sent to a reviewer", which is what §5.2's sign-off actually needs. Read it as the drafting reviewer instead of as its author and found the gap: it never said where the observer stands for each view, which is the one fact needed to judge handedness — the exact failure the sheet exists to catch. Added the four viewing directions, an explicit note that sheet layout (first- vs third-angle) is NOT under review, the review procedure in order with handedness first, and a request for a pass/fail per part. Added a 10&nbsp;mm grid under the orthographic views (not the isometric — opaque fills would bury it) and enlarged them from 12 to 20&nbsp;px/unit, since they had been rendering at half the pictorial's size. Redesigned the sheet and split the output into a standalone file plus a body-only file for publishing. Rendering it headlessly before publishing caught two real bugs a source read would not have: a grid-layout `li` that put every step's prose in the 2&nbsp;rem counter column, and legend swatches in true ink colours that vanished on the dark card. Published privately — **the URL is in §4 and must be reused via `url` on any re-publish, or the reviewer's link goes stale**. 190 tests, lint and typecheck clean. |
+| 2026-08-26 | Claude (Claude Code) | Golden set signed off. The builder reviewed all four parts against their own secondary-school technical drawing coursework and passed them — external to this project, which was the property self-review was missing and the actual basis of the objection to it. All four flipped to `VERIFIED` with `verifiedBy` recording who, when, and what it rests on. §5.2's "never rely on that judgement" wording overridden and the override recorded in `docs/decision-log.md`, together with the residual it cannot cover: a mirror applied consistently from `solid.ts` through `viewspec.ts` into the fixture descriptions leaves description and views agreeing with each other and both wrong. Three of the four parts carry citations that were never pulled up and could still settle that; `stepped-plate-with-hole` carries none and its source text was rewritten to say so rather than contradict the status beside it. Sheet re-rendered and re-published to the same URL. **The canvas is now the only thing left.** 190 tests, lint and typecheck clean. |

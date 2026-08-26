@@ -278,13 +278,14 @@ function prelude(): string {
   <p class="eyebrow">Orthodrill · generator golden set</p>
   <h1>Golden set review</h1>
   <p class="lede">Four parts produced by the projection generator, each shown as a pictorial
-  beside the three views it generated. None has been checked by anyone who knows drafting.
-  Until one is, no drill can ship — the app would be marking students against these drawings.</p>
+  beside the three views it generated. All four were reviewed and passed on 26 August 2026,
+  against technical drawing coursework that predates this project. This page is now the record
+  of that review — and the sheet to re-read whenever the generator changes.</p>
 </header>
 
 <section class="panel">
   <h2>Where the observer stands</h2>
-  <p>Judging left from right is the whole point of this review, so the viewing directions are
+  <p>Judging left from right is the whole point of this sheet, so the viewing directions are
   stated rather than assumed.</p>
   <ul class="dirs">
     <li><span class="who">Pictorial</span><span class="what">Drawn from the front, above and to the right. The faces you can see are the front, the top and the right side.</span></li>
@@ -292,13 +293,13 @@ function prelude(): string {
     <li><span class="who">Top</span><span class="what">Observer above, looking down. The part's right is the view's right, and the front of the part is at the <b>bottom</b> of the view.</span></li>
     <li><span class="who">Right side</span><span class="what">Observer at the right, looking left. The front of the part is at the <b>left</b> of the view; up is up.</span></li>
   </ul>
-  <p><b>Sheet layout is not under review.</b> The views sit side by side and labelled on purpose.
+  <p><b>Sheet layout is not what this checks.</b> The views sit side by side and labelled on purpose.
   Whether they belong above, below or beside one another is first- versus third-angle placement,
   which the app handles separately and teaches as a difference rather than a right answer.</p>
 </section>
 
 <section class="panel">
-  <h2>What to check, in this order</h2>
+  <h2>What was checked, in this order</h2>
   <ol class="steps">
     <li><p><b>Handedness.</b> Does every feature sit on the same side as it does in the pictorial? A view mirrored left-to-right is the specific failure this sheet exists to catch — it survives every automated check we have, because a mirrored drawing is perfectly self-consistent.</p></li>
     <li><p><b>Line types.</b> Visible edges solid, hidden edges dashed, hole axes as a red chain line.</p></li>
@@ -310,9 +311,11 @@ function prelude(): string {
     <li>${legendSwatch(' stroke-dasharray="6 4"', "#111")} Hidden edge</li>
     <li>${legendSwatch(' stroke-dasharray="12 3 3 3"', "#b00")} Centre line</li>
   </ul>
-  <p>Reply with a pass or fail per part and a note on anything wrong — a sentence is plenty,
-  a marked-up screenshot is better. A fail is a useful result: it means the generator is caught
-  before a single student sees it.</p>
+  <p><b>Still open, and worth doing if any drill is ever reported wrong:</b> three of the four
+  parts cite a published exercise that has never actually been pulled up and compared. That
+  comparison is the one check this page cannot perform on itself — if the model convention were
+  mirrored consistently, every description here would agree with every drawing here and both
+  would be wrong. Only an outside answer separates those two worlds.</p>
 </section>`;
 }
 
