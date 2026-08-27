@@ -1,21 +1,33 @@
 "use client";
 
 import { gridToScreen, screenToGrid, type Point, type Viewport } from "@/lib/canvas/coords";
-import type { Primitive } from "@/lib/scoring/primitives";
+import type { Primitive, PrimitiveType } from "@/lib/scoring/primitives";
 import type { ViewDiff } from "@/lib/scoring/types";
 
 export type FeedbackOverlay = { views: ViewDiff[] };
 
 const VIEWPORT: Viewport = { cell: 20, padding: 16 };
 
-const DASH: Record<string, string | undefined> = {
+// Typed Record<PrimitiveType, ...> rather than a loose Record<string, ...> so
+// the compiler forces every new primitive type to be given a dash pattern
+// and an ink colour here — it caught nothing missing for "construction" only
+// because both were added deliberately in the same change.
+const DASH: Record<PrimitiveType, string | undefined> = {
   visible: undefined,
   hidden: "6 4",
   centre: "12 3 3 3",
+  // A real construction line is a faint continuous line, not a dashed one —
+  // it reads as scaffolding through its weight and colour, not its pattern.
+  construction: undefined,
 };
 
 /** Ink colours. Feedback tones are separate so they never collide with them. */
-const INK = { visible: "var(--ink)", hidden: "var(--ink)", centre: "var(--centre)" };
+const INK: Record<PrimitiveType, string> = {
+  visible: "var(--ink)",
+  hidden: "var(--ink)",
+  centre: "var(--centre)",
+  construction: "var(--construction)",
+};
 
 function primitivePath(p: Primitive, v: Viewport, extra: Record<string, unknown>) {
   const dash = DASH[p.type];
@@ -109,7 +121,9 @@ export function Sheet({
           {primitivePath(p, v, { stroke: "transparent", strokeWidth: 14, fill: "none" })}
           {primitivePath(p, v, {
             stroke: chosen.has(i) ? "var(--select)" : INK[p.type],
-            strokeWidth: chosen.has(i) ? 3 : 2,
+            // Construction lines are thin and light — scaffolding, not ink —
+            // so they read as working lines even when unselected.
+            strokeWidth: chosen.has(i) ? 3 : p.type === "construction" ? 1 : 2,
             fill: "none",
           })}
         </g>

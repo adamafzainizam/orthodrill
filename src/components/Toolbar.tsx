@@ -13,6 +13,7 @@ const TYPES: { id: PrimitiveType; label: string }[] = [
   { id: "visible", label: "Visible edge" },
   { id: "hidden", label: "Hidden edge" },
   { id: "centre", label: "Centre line" },
+  { id: "construction", label: "Construction line" },
 ];
 
 export function Toolbar({
