@@ -180,8 +180,15 @@ export function validateSolid(s: Solid): void {
   }
 }
 
-/** Drafting precedence when two primitives land at the same position. */
-const TYPE_PRECEDENCE: Record<Primitive["type"], number> = { visible: 0, hidden: 1, centre: 2 };
+/**
+ * Drafting precedence when two primitives land at the same position.
+ *
+ * `construction` never occurs here — this generator produces answer keys
+ * only, and a key has no working lines — but the map must stay exhaustive
+ * over `PrimitiveType` so the compiler catches the next addition to it too.
+ * Its rank is arbitrary and dead code by construction.
+ */
+const TYPE_PRECEDENCE: Record<Primitive["type"], number> = { visible: 0, hidden: 1, centre: 2, construction: 3 };
 
 /**
  * Resolve coincident primitives before they reach the key.

@@ -41,7 +41,15 @@ export function scoreAttempt(
   convention: Convention,
   gap: number = DEFAULT_CLUSTER_GAP,
 ): ScoreResult {
-  const clusters = clusterPrimitives(attempt, gap);
+  // Construction lines (mitre line, projection lines) are working lines a
+  // draughtsman draws to lay the sheet out — a real three-view drawing with
+  // them crosses the whole sheet and would otherwise cluster as one group
+  // instead of three. Stripped HERE, at the scorer's one entry point, so no
+  // caller — canvas or otherwise — can forget to do it. validate.ts accepts
+  // the type precisely so a construction line that reaches this point is
+  // harmless rather than fatal.
+  const scoreable = attempt.filter((p) => p.type !== "construction");
+  const clusters = clusterPrimitives(scoreable, gap);
 
   // Not "your drawing is wrong" — a different problem needing different words.
   if (clusters.length !== 3) {

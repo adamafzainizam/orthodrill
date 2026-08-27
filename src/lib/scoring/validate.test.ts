@@ -50,6 +50,12 @@ test("a non-integer coordinate is rejected — the grid snaps", () => {
   assert.equal(r.ok === false && r.reason, "NOT_ON_GRID");
 });
 
+test("a construction-type primitive is accepted", () => {
+  const r = validateAttempt([{ kind: "segment", type: "construction", x1: 0, y1: 0, x2: 4, y2: 0 }]);
+  assert.equal(r.ok, true);
+  assert.equal(r.ok && r.primitives[0].type, "construction");
+});
+
 test("an unknown line type is rejected", () => {
   const r = validateAttempt([{ kind: "segment", type: "dotted", x1: 0, y1: 0, x2: 1, y2: 0 }]);
   assert.equal(r.ok, false);
