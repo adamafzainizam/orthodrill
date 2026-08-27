@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleScoreRequest } from "./score.ts";
+import { handleScoreRequest, type ScoringLookup } from "./score.ts";
 import { createRateLimiter } from "../lib/ratelimit.ts";
 import { getDrill, answerKey, DRILL_IDS } from "../drills/registry.ts";
 import { MAX_PRIMITIVES } from "../lib/scoring/validate.ts";
+import type { Primitive } from "../lib/scoring/primitives.ts";
 
 const permissive = () => createRateLimiter({ limit: 1000, windowMs: 1000 });
 const id = DRILL_IDS[0];
@@ -95,6 +96,48 @@ test("a wrong number of views is a scored outcome, not an HTTP error", () => {
   assert.equal(r.status, 200);
   assert.equal((r.body as { ok: boolean }).ok, false);
   assert.equal((r.body as { reason: string }).reason, "WRONG_VIEW_COUNT");
+});
+
+// --- mode dispatch: a figure exercise scores through the same handler ---
+
+/** A minimal figure key, independent of any real (Task 3) generator. */
+const figureKey: Primitive[] = [
+  { kind: "segment", type: "visible", x1: 0, y1: 0, x2: 4, y2: 0 },
+  { kind: "segment", type: "visible", x1: 4, y1: 0, x2: 4, y2: 4 },
+];
+
+/** Stands in for the registry until Task 3/4 add a real figure exercise. */
+const figureLookup: ScoringLookup = (id) =>
+  id === "the-figure-exercise"
+    ? { found: true, mode: "figure", key: figureKey }
+    : { found: false };
+
+test("submitting kind: figure to a views exercise is refused with BAD_KIND", () => {
+  const r = handleScoreRequest(
+    { drillId: id, kind: "figure", primitives: [] }, "1.2.3.4", 0, permissive(),
+  );
+  assert.equal(r.status, 400);
+  assert.equal((r.body as { reason: string }).reason, "BAD_KIND");
+});
+
+test("submitting kind: views to a figure exercise is refused with BAD_KIND", () => {
+  const r = handleScoreRequest(
+    { drillId: "the-figure-exercise", kind: "views", primitives: [] },
+    "1.2.3.4", 0, permissive(), figureLookup,
+  );
+  assert.equal(r.status, 400);
+  assert.equal((r.body as { reason: string }).reason, "BAD_KIND");
+});
+
+test("a well-formed figure submission to a figure exercise scores", () => {
+  const r = handleScoreRequest(
+    { drillId: "the-figure-exercise", kind: "figure", primitives: figureKey },
+    "1.2.3.4", 0, permissive(), figureLookup,
+  );
+  assert.equal(r.status, 200);
+  const body = r.body as { ok: boolean; perfect: boolean };
+  assert.equal(body.ok, true);
+  assert.equal(body.perfect, true);
 });
 
 test("no response ever serialises the solid or the raw key", () => {

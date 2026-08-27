@@ -18,7 +18,7 @@ export async function submitAttempt(
   fetchImpl: typeof fetch = fetch,
 ): Promise<ScoreResult | SubmitFailure> {
   try {
-    // Belt and braces: the LOAD-BEARING strip is scoreAttempt's, at the
+    // Belt and braces: the LOAD-BEARING strip is scoreViews's, at the
     // server's one entry point (score.ts). This one just avoids posting
     // scaffolding the server would discard anyway.
     const scoreable = primitives.filter((p) => p.type !== "construction");
