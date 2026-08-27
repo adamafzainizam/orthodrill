@@ -10,6 +10,15 @@ const TONE: Record<Notice["tone"], string> = {
 /** How long a toast stays before falling into the backlog. */
 const DWELL_MS = 6000;
 
+/**
+ * Sentinel used to seed `seen` below. It must be a reference no caller could
+ * ever pass as `notices`, so that a batch already present on the very first
+ * render is adopted rather than mistaken for one we've already seen — seeding
+ * `seen` with `notices` itself would make the first render's guard a no-op
+ * and silently drop that batch. See the review that caught this.
+ */
+const NONE: Notice[] = [];
+
 export function Notifications({ notices }: { notices: Notice[] }) {
   const [visible, setVisible] = useState<Notice[]>([]);
   const [backlog, setBacklog] = useState<Notice[]>([]);
@@ -18,7 +27,7 @@ export function Notifications({ notices }: { notices: Notice[] }) {
   // from the parent can be adopted into `visible` during render — the
   // React-sanctioned way to derive state from a prop change — rather than by
   // calling setState synchronously inside an effect body.
-  const [seen, setSeen] = useState(notices);
+  const [seen, setSeen] = useState<Notice[]>(NONE);
 
   if (notices !== seen) {
     setSeen(notices);
