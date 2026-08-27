@@ -13,15 +13,33 @@ import type { Point } from "@/lib/canvas/coords";
 import type { IsoPrimitive } from "@/lib/geometry/isotypes";
 import type { IsoDim } from "@/lib/geometry/isodims";
 
-export type PublicDrill = {
-  id: string;
-  title: string;
-  prompt: string;
-  convention: "first_angle" | "third_angle";
-  grid: { width: number; height: number };
-  isometric: readonly IsoPrimitive[];
-  dimensions: readonly IsoDim[];
-};
+// Hand-duplicated from registry.ts's PublicDrill, not imported — importing it
+// would trip isolation.test.ts even though PublicDrill itself is safe,
+// because the same module also exports the key-bearing Drill/ViewsDrill/
+// FigureDrill types. Nothing links the two shapes but structural
+// assignability at the one call site that hands a real PublicDrill to
+// <Editor>. `mode` is the discriminant both here and there: a "views"
+// exercise carries the isometric pictorial and a convention to place views
+// by, a "figure" exercise carries neither — there is nothing to project and
+// nothing to place relative to anything else.
+export type PublicDrill =
+  | {
+      id: string;
+      title: string;
+      prompt: string;
+      mode: "views";
+      convention: "first_angle" | "third_angle";
+      grid: { width: number; height: number };
+      isometric: readonly IsoPrimitive[];
+      dimensions: readonly IsoDim[];
+    }
+  | {
+      id: string;
+      title: string;
+      prompt: string;
+      mode: "figure";
+      grid: { width: number; height: number };
+    };
 
 export function Editor({ drill }: { drill: PublicDrill }) {
   const [state, dispatch] = useReducer(reduce, undefined, initEditor);
@@ -101,11 +119,20 @@ export function Editor({ drill }: { drill: PublicDrill }) {
     // changing) — this one avoids a stale overlay flashing on screen while a
     // repeat submit of the SAME drawing is in flight.
     setFeedback(null);
-    const result = await submitAttempt(drill.id, drawing(state));
+    const result = await submitAttempt(drill.id, drill.mode, drawing(state));
     setSubmitting(false);
 
     if ("views" in result && result.ok) {
       setFeedback({ views: [result.views.front, result.views.top, result.views.side] });
+      setNotices(noticesFor(result));
+      return;
+    }
+    // FigureScoreResult has no `ok: false` branch — compareView has nothing
+    // structurally equivalent to a wrong view count to fail on — so `"diff"
+    // in result` alone is enough to know this is a figure success, unlike
+    // the views case above which also has to check `result.ok`.
+    if ("diff" in result) {
+      setFeedback({ views: [result.diff] });
       setNotices(noticesFor(result));
       return;
     }
@@ -116,23 +143,27 @@ export function Editor({ drill }: { drill: PublicDrill }) {
         ? "You are checking very quickly — wait a moment and try again."
         : "Could not reach the marker. Check your connection and try again.",
     }]);
-  }, [drill.id, state]);
+  }, [drill.id, drill.mode, state]);
 
   return (
     <div className="flex flex-col gap-4">
       <header>
         <h1 className="text-2xl font-semibold">{drill.title}</h1>
         <p className="max-w-[65ch] mt-1">{drill.prompt}</p>
-        <p className="text-sm mt-1 opacity-70">
-          Convention: {drill.convention === "first_angle" ? "first angle" : "third angle"}
-        </p>
+        {drill.mode === "views" && (
+          <p className="text-sm mt-1 opacity-70">
+            Convention: {drill.convention === "first_angle" ? "first angle" : "third angle"}
+          </p>
+        )}
       </header>
 
       <div className="flex flex-wrap gap-6 items-start">
-        <figure className="m-0">
-          <figcaption className="text-xs uppercase tracking-wider opacity-70 mb-1">The part</figcaption>
-          <Pictorial primitives={drill.isometric} dimensions={drill.dimensions} />
-        </figure>
+        {drill.mode === "views" && (
+          <figure className="m-0">
+            <figcaption className="text-xs uppercase tracking-wider opacity-70 mb-1">The part</figcaption>
+            <Pictorial primitives={drill.isometric} dimensions={drill.dimensions} />
+          </figure>
+        )}
 
         <div className="flex flex-col gap-2 flex-1 min-w-[320px]">
           <Toolbar
