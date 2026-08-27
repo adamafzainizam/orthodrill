@@ -47,11 +47,22 @@ export function Editor({ drill }: { drill: PublicDrill }) {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         dispatch({ type: "REDO" });
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
+        // Placement is one of the two things the scorer marks, and until now
+        // there was no way to nudge a mis-placed view without deleting and
+        // redrawing it. Only claim the key (and stop the page scrolling)
+        // when there is a selection to move; otherwise let arrow keys behave
+        // normally.
+        if (state.selection.length === 0) return;
+        e.preventDefault();
+        const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+        const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+        dispatch({ type: "MOVE_SELECTION", dx, dy });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [state.selection]);
 
   const onAction = useCallback((a: Action) => dispatch(a), []);
 

@@ -30,45 +30,51 @@ export function Toolbar({
   const button = "px-3 py-1.5 text-sm border border-[var(--rule)] rounded disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--select)]";
 
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2 border border-[var(--rule)] rounded">
-      <div className="flex gap-1" role="group" aria-label="Tool">
-        {TOOLS.map((t) => (
-          <button
-            key={t.id} type="button" className={button}
-            aria-pressed={tool === t.id}
-            style={tool === t.id ? { background: "var(--select)", color: "#fff" } : undefined}
-            onClick={() => onAction({ type: "SET_TOOL", tool: t.id })}
-          >{t.label}</button>
-        ))}
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2 p-2 border border-[var(--rule)] rounded">
+        <div className="flex gap-1" role="group" aria-label="Tool">
+          {TOOLS.map((t) => (
+            <button
+              key={t.id} type="button" className={button}
+              aria-pressed={tool === t.id}
+              style={tool === t.id ? { background: "var(--select)", color: "#fff" } : undefined}
+              onClick={() => onAction({ type: "SET_TOOL", tool: t.id })}
+            >{t.label}</button>
+          ))}
+        </div>
+
+        <label className="text-sm flex items-center gap-1.5">
+          Line type
+          <select
+            className={button}
+            value={activeType}
+            onChange={(e) => {
+              const lineType = e.target.value as PrimitiveType;
+              // With a selection, this RETYPES it; otherwise it sets what comes next.
+              onAction(hasSelection
+                ? { type: "RETYPE_SELECTION", lineType }
+                : { type: "SET_ACTIVE_TYPE", lineType });
+            }}
+          >
+            {TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </label>
+
+        <button type="button" className={button} disabled={!canUndo}
+          onClick={() => onAction({ type: "UNDO" })}>Undo</button>
+        <button type="button" className={button} disabled={!canRedo}
+          onClick={() => onAction({ type: "REDO" })}>Redo</button>
+        <button type="button" className={button} disabled={!hasSelection}
+          onClick={() => onAction({ type: "DELETE_SELECTION" })}>Delete</button>
+
+        <button type="button" className={`${button} ml-auto`} disabled={submitting} onClick={onSubmit}>
+          {submitting ? "Checking…" : "Check my drawing"}
+        </button>
       </div>
 
-      <label className="text-sm flex items-center gap-1.5">
-        Line type
-        <select
-          className={button}
-          value={activeType}
-          onChange={(e) => {
-            const lineType = e.target.value as PrimitiveType;
-            // With a selection, this RETYPES it; otherwise it sets what comes next.
-            onAction(hasSelection
-              ? { type: "RETYPE_SELECTION", lineType }
-              : { type: "SET_ACTIVE_TYPE", lineType });
-          }}
-        >
-          {TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-        </select>
-      </label>
-
-      <button type="button" className={button} disabled={!canUndo}
-        onClick={() => onAction({ type: "UNDO" })}>Undo</button>
-      <button type="button" className={button} disabled={!canRedo}
-        onClick={() => onAction({ type: "REDO" })}>Redo</button>
-      <button type="button" className={button} disabled={!hasSelection}
-        onClick={() => onAction({ type: "DELETE_SELECTION" })}>Delete</button>
-
-      <button type="button" className={`${button} ml-auto`} disabled={submitting} onClick={onSubmit}>
-        {submitting ? "Checking…" : "Check my drawing"}
-      </button>
+      <p className="text-xs opacity-60">
+        Select a line or circle, then use the arrow keys to nudge it into place.
+      </p>
     </div>
   );
 }
