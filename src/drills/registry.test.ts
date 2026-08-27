@@ -99,3 +99,30 @@ test("a cached public half is frozen too", () => {
   const pub = publicHalf(getDrill(DRILL_IDS[0])!);
   assert.throws(() => { (pub.isometric as unknown as unknown[]).push({}); });
 });
+
+test("every drill uses the same sheet, so nothing has to be relearned per exercise", () => {
+  const sizes = listDrillIds().map((id) => publicHalf(getDrill(id)!).grid);
+  const first = sizes[0];
+  for (const g of sizes) {
+    assert.deepEqual(g, first, "drills disagree about the sheet size");
+  }
+});
+
+test("the sheet's dimensions are even, so the quadrant dividers land on grid lines", () => {
+  // An odd dimension puts a divider on a half-unit, which reads as a canvas
+  // that is subtly out of alignment with its own grid.
+  const g = publicHalf(getDrill(DRILL_IDS[0])!).grid;
+  assert.equal(g.width % 2, 0, `sheet width ${g.width} is odd`);
+  assert.equal(g.height % 2, 0, `sheet height ${g.height} is odd`);
+});
+
+test("the sheet is big enough for every drill's three views plus gaps", () => {
+  // Guards a future drill silently outgrowing a now-fixed sheet.
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    const { w, d, h } = drill.solid.base;
+    const g = publicHalf(drill).grid;
+    assert.ok(w + d < g.width, `${id} needs ${w + d} across, sheet is ${g.width}`);
+    assert.ok(h + d < g.height, `${id} needs ${h + d} down, sheet is ${g.height}`);
+  }
+});
