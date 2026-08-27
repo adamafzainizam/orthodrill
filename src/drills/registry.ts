@@ -286,6 +286,46 @@ const CATALOGUE: Drill[] = [
     // the sheet" property. PRIVATE: see FigureDrill's `spec` field above.
     spec: { n: 5, originX: 24, originY: 38 },
   },
+  {
+    id: "parabola-rectangle-4",
+    title: "Parabola by the rectangle method (fewer divisions)",
+    prompt:
+      "Construct a parabolic arc opening upward, using the rectangle (offset) "
+      + "method with 4 equal divisions on each side. Place the vertex in the "
+      + "lower part of the sheet, leaving room on both sides and above for the "
+      + "arms to rise. Draw your rays, division marks and any other scaffolding "
+      + "with the Construction line type — the marker ignores construction "
+      + "lines and grades the curve as straight segments joining each located "
+      + "point to the next, not a hand-smoothed sweep.",
+    topicId: "parabola",
+    mode: "figure",
+    // n=4, easier than the seeded n=5 exercise: fewer points to locate, a
+    // shorter and squatter rectangle (8 wide, 16 tall against n=5's 10x25).
+    // Same apex placement style as parabola-rectangle-5. n=4 != DIAGRAM_N
+    // (3) below, so this never coincides with the method diagram — see that
+    // constant's docstring before ever picking an n that would.
+    spec: { n: 4, originX: 24, originY: 38 },
+  },
+  {
+    id: "parabola-rectangle-6",
+    title: "Parabola by the rectangle method (more divisions)",
+    prompt:
+      "Construct a parabolic arc opening upward, using the rectangle (offset) "
+      + "method with 6 equal divisions on each side. Place the vertex in the "
+      + "lower part of the sheet, leaving room on both sides and above for the "
+      + "arms to rise. Draw your rays, division marks and any other scaffolding "
+      + "with the Construction line type — the marker ignores construction "
+      + "lines and grades the curve as straight segments joining each located "
+      + "point to the next, not a hand-smoothed sweep.",
+    topicId: "parabola",
+    mode: "figure",
+    // n=6, harder than the seeded n=5 exercise: more points to locate and a
+    // taller rectangle (12 wide, 36 tall) that very nearly fills the
+    // sheet's 40-unit height — n=7 does not fit at all (49 tall), which is
+    // why 6 is the ceiling. n=6 != DIAGRAM_N (3) below, for the same reason
+    // as parabola-rectangle-4 above.
+    spec: { n: 6, originX: 24, originY: 38 },
+  },
 ];
 
 /** A Map, so an id is a whitelist key and inherited names resolve to nothing. */
