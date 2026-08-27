@@ -14,6 +14,15 @@ import type { IsoDim } from "@/lib/geometry/isodims";
  * folded into the bounding-box computation below deliberately: isodims.ts
  * places them outside the picture's own silhouette on purpose, and a
  * bounding box drawn from `primitives` alone would clip exactly that.
+ *
+ * Every figure isodims.ts hands back is a BARE NUMBER — no repeated "mm" —
+ * so the unit is declared exactly once, here, in the caption under the
+ * drawing. Do not put "mm" back onto individual labels; that was the second
+ * thing a real render caught (labels wide enough to run into each other).
+ *
+ * `labelAnchor`/`labelBaseline` come from isodims.ts, not decided here: which
+ * side of its own dimension line a label reads from depends on which way
+ * that dimension was pushed out, and isodims.ts is the one place that knows.
  */
 const PAPER = "#ffffff";
 const INK = "#111";
@@ -47,38 +56,43 @@ export function Pictorial(
   const h = (maxY - minY) * SCALE + PAD * 2;
 
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}
-      className="max-w-full h-auto border border-[var(--rule)]"
-      style={{ background: PAPER }} role="img" aria-label="Isometric view of the part, dimensioned">
-      {primitives.map((p, i) => {
-        if (p.kind === "iso-face") {
-          return <polygon key={i} points={p.points.map((q) => `${px(q[0])},${py(q[1])}`).join(" ")}
-            fill={PAPER} stroke={PAPER} strokeWidth={0.3} />;
-        }
-        if (p.kind === "iso-line") {
-          return <line key={i} x1={px(p.x1)} y1={py(p.y1)} x2={px(p.x2)} y2={py(p.y2)}
-            stroke={INK} strokeWidth={2} />;
-        }
-        return <ellipse key={i} cx={px(p.cx)} cy={py(p.cy)} rx={p.rx * SCALE} ry={p.ry * SCALE}
-          fill="none" stroke={INK} strokeWidth={2}
-          transform={`rotate(${p.rotation} ${px(p.cx)} ${py(p.cy)})`} />;
-      })}
-      {dimensions.map((d, i) => (
-        <g key={i} stroke={DIM_INK} fill={DIM_INK}>
-          <line x1={px(d.extension[0].x1)} y1={py(d.extension[0].y1)}
-            x2={px(d.extension[0].x2)} y2={py(d.extension[0].y2)} strokeWidth={0.5} />
-          <line x1={px(d.extension[1].x1)} y1={py(d.extension[1].y1)}
-            x2={px(d.extension[1].x2)} y2={py(d.extension[1].y2)} strokeWidth={0.5} />
-          <line x1={px(d.line.x1)} y1={py(d.line.y1)} x2={px(d.line.x2)} y2={py(d.line.y2)} strokeWidth={0.75} />
-          {d.arrows.map((arrow, j) => (
-            <polygon key={j} points={arrow.map(([ax, ay]) => `${px(ax)},${py(ay)}`).join(" ")} stroke="none" />
-          ))}
-          <text x={px(d.labelAt.x)} y={py(d.labelAt.y)} fontSize={11}
-            textAnchor="middle" dominantBaseline="middle" stroke="none">
-            {d.label}
-          </text>
-        </g>
-      ))}
-    </svg>
+    <>
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}
+        className="max-w-full h-auto border border-[var(--rule)]"
+        style={{ background: PAPER }} role="img" aria-label="Isometric view of the part, dimensioned">
+        {primitives.map((p, i) => {
+          if (p.kind === "iso-face") {
+            return <polygon key={i} points={p.points.map((q) => `${px(q[0])},${py(q[1])}`).join(" ")}
+              fill={PAPER} stroke={PAPER} strokeWidth={0.3} />;
+          }
+          if (p.kind === "iso-line") {
+            return <line key={i} x1={px(p.x1)} y1={py(p.y1)} x2={px(p.x2)} y2={py(p.y2)}
+              stroke={INK} strokeWidth={2} />;
+          }
+          return <ellipse key={i} cx={px(p.cx)} cy={py(p.cy)} rx={p.rx * SCALE} ry={p.ry * SCALE}
+            fill="none" stroke={INK} strokeWidth={2}
+            transform={`rotate(${p.rotation} ${px(p.cx)} ${py(p.cy)})`} />;
+        })}
+        {dimensions.map((d, i) => (
+          <g key={i} stroke={DIM_INK} fill={DIM_INK}>
+            <line x1={px(d.extension[0].x1)} y1={py(d.extension[0].y1)}
+              x2={px(d.extension[0].x2)} y2={py(d.extension[0].y2)} strokeWidth={0.5} />
+            <line x1={px(d.extension[1].x1)} y1={py(d.extension[1].y1)}
+              x2={px(d.extension[1].x2)} y2={py(d.extension[1].y2)} strokeWidth={0.5} />
+            <line x1={px(d.line.x1)} y1={py(d.line.y1)} x2={px(d.line.x2)} y2={py(d.line.y2)} strokeWidth={0.75} />
+            {d.arrows.map((arrow, j) => (
+              <polygon key={j} points={arrow.map(([ax, ay]) => `${px(ax)},${py(ay)}`).join(" ")} stroke="none" />
+            ))}
+            <text x={px(d.labelAt.x)} y={py(d.labelAt.y)} fontSize={11}
+              textAnchor={d.labelAnchor} dominantBaseline={d.labelBaseline} stroke="none">
+              {d.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+      {dimensions.length > 0 && (
+        <p className="text-xs mt-1 opacity-70">Dimensions in mm</p>
+      )}
+    </>
   );
 }

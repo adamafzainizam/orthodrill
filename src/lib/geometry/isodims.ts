@@ -20,7 +20,11 @@
  *     symbol) plus two POSITION dimensions locating its centre from the
  *     origin along the two axes perpendicular to the hole.
  * 1 grid unit = 10 mm, the convention scripts/verification-sheet.ts already
- * uses; every figure is printed in mm.
+ * uses. Figures themselves are printed as BARE NUMBERS — no repeated "mm" —
+ * matching a real drawing's convention of stating the unit once, in a title
+ * block or caption, rather than on every figure; Pictorial.tsx carries that
+ * single caption. The diameter symbol is kept on diameter figures because it
+ * is not a unit, it is which KIND of size the figure names.
  *
  * PLACEMENT RULE. Every dimension belongs to a "family" keyed by which axis
  * it measures (x, y or z), and every dimension in a family is anchored to the
@@ -54,17 +58,48 @@
  * parallel to the isometric axes. Worth a second look once this has been seen
  * rendered; nothing about the type or the invariants above depends on it.
  *
+ * LABEL PLACEMENT. A label centred exactly on its dimension line has the
+ * stroke run straight through the glyphs — the first thing a real render
+ * caught. Every family's dimension line is axis-aligned in PROJECTED space
+ * (constant projected v for the x-family, constant projected u for y/z — see
+ * FAMILY below), so clearing the stroke reduces to one perpendicular offset
+ * per family, decided once and reused by every dimension in that family:
+ *   - x-family (dimension line is ~horizontal): the label is centred on the
+ *     line horizontally and sits ABOVE it — smaller projected v, using the
+ *     text's own alphabetic baseline (not vertical-centred) so the WHOLE
+ *     glyph sits above the line, not straddling it.
+ *   - y/z-family (dimension line is ~vertical): the label is centred on the
+ *     line vertically, but anchored so it reads entirely to the far side of
+ *     the line (text-anchor "start" for y, pushed further right; "end" for
+ *     z, pushed further left) — this clears the stroke regardless of how
+ *     wide the figure's text turns out to be, without this module needing to
+ *     know anything about font metrics.
+ * `labelAnchor`/`labelBaseline` carry that decision to the renderer as SVG
+ * `text-anchor`/`dominant-baseline` values, so Pictorial.tsx does not have to
+ * re-derive it.
+ *
  * PURE. No I/O.
  */
 import { project, type Point2 } from "./isoproject.ts";
 import type { Axis, Solid } from "./solid.ts";
 
 const MM_PER_UNIT = 10;
-const MARGIN_BASE = 1.0;
-const MARGIN_STEP = 0.6;
+/** Gap from the base block's own projected bounding box to the FIRST
+ *  (innermost) dimension line placed in a family. */
+const FAMILY_MARGIN_BASE = 1.0;
+/**
+ * Extra gap between successive dimension lines sharing a family. Must clear
+ * not just the previous LINE but the previous dimension's own LABEL — this
+ * was the second real-render bug: at the old value (0.6) adjacent stacked
+ * figures' text ran together. Sized generously against Pictorial.tsx's
+ * SCALE/font-size, not derived from them (this module has no rendering
+ * concerns of its own).
+ */
+const FAMILY_STAGGER = 1.15;
 const ARROW_LEN = 0.14;
 const ARROW_WIDTH = 0.07;
-const LABEL_GAP = 0.35;
+/** Gap between a dimension line and the start of its own label. */
+const LABEL_CLEARANCE = 0.3;
 
 export type IsoDimSeg = { x1: number; y1: number; x2: number; y2: number };
 
@@ -78,10 +113,16 @@ export type IsoDim = {
   /** A small filled triangle at each end of `line`, tip at the line's own
    *  endpoint, pointing outward. */
   arrows: [[number, number][], [number, number][]];
-  /** The printed figure, in millimetres, e.g. "60 mm" or "⌀ 40 mm". */
+  /** The printed figure, a bare number in millimetres, e.g. "60" or "⌀40" —
+   *  see the module docblock for why the unit is not repeated here. */
   label: string;
-  /** Where to draw `label`; already clear of `line`. */
+  /** Where to draw `label`; already clear of `line` regardless of the
+   *  label's own text width — see labelAnchor. */
   labelAt: { x: number; y: number };
+  /** SVG text-anchor to use when drawing `label` at `labelAt`. */
+  labelAnchor: "start" | "middle" | "end";
+  /** SVG dominant-baseline to use when drawing `label` at `labelAt`. */
+  labelBaseline: "auto" | "middle";
 };
 
 function project3(x: number, y: number, z: number): Point2 {
@@ -93,11 +134,11 @@ function seg(a: Point2, b: Point2): IsoDimSeg {
 }
 
 function fmtLinear(units: number): string {
-  return `${units * MM_PER_UNIT} mm`;
+  return `${units * MM_PER_UNIT}`;
 }
 
 function fmtDiameter(diameterUnits: number): string {
-  return `⌀ ${diameterUnits * MM_PER_UNIT} mm`;
+  return `⌀${diameterUnits * MM_PER_UNIT}`;
 }
 
 type BBox = { minU: number; maxU: number; minV: number; maxV: number };
@@ -146,21 +187,32 @@ function arrow(tip: Point2, towardU: number, towardV: number): [number, number][
   ];
 }
 
-/** Assembles the dimension from its two feature points and its two (already
- *  pushed-out) dimension-line points. Shared by every dimension family and by
- *  the diameter dimension, which supplies its own p1/p2. */
-function buildDim(p1: Point2, p2: Point2, d1: Point2, d2: Point2, label: string): IsoDim {
+/**
+ * Assembles the dimension from its two feature points and its two (already
+ * pushed-out) dimension-line points. Shared by every dimension family and by
+ * the diameter dimension, which supplies its own p1/p2.
+ *
+ * `axis` decides label placement, not the points themselves — see the module
+ * docblock's LABEL PLACEMENT section. A family's dimension line is always
+ * axis-aligned in projected space (constant v for the x-family's push="v",
+ * constant u for y/z's push="u"), so d1 and d2 always agree on that pushed
+ * coordinate; `d1`'s value of it is used as "the line's position" below.
+ */
+function buildDim(axis: Axis, p1: Point2, p2: Point2, d1: Point2, d2: Point2, label: string): IsoDim {
   const dirU = d2.u - d1.u;
   const dirV = d2.v - d1.v;
   const len = Math.hypot(dirU, dirV) || 1;
   const ux = dirU / len;
   const uy = dirV / len;
 
-  const midFeature = { u: (p1.u + p2.u) / 2, v: (p1.v + p2.v) / 2 };
   const midLine = { u: (d1.u + d2.u) / 2, v: (d1.v + d2.v) / 2 };
-  const outU = midLine.u - midFeature.u;
-  const outV = midLine.v - midFeature.v;
-  const outLen = Math.hypot(outU, outV) || 1;
+  const fam = FAMILY[axis];
+
+  const labelAt = fam.push === "v"
+    ? { x: midLine.u, y: d1.v - LABEL_CLEARANCE } // always "above": smaller v
+    : { x: d1.u + fam.dir * LABEL_CLEARANCE, y: midLine.v }; // further from the line, whichever way it was pushed
+  const labelAnchor: IsoDim["labelAnchor"] = fam.push === "v" ? "middle" : (fam.dir === 1 ? "start" : "end");
+  const labelBaseline: IsoDim["labelBaseline"] = fam.push === "v" ? "auto" : "middle";
 
   return {
     kind: "iso-dim",
@@ -168,10 +220,9 @@ function buildDim(p1: Point2, p2: Point2, d1: Point2, d2: Point2, label: string)
     line: seg(d1, d2),
     arrows: [arrow(d1, ux, uy), arrow(d2, -ux, -uy)],
     label,
-    labelAt: {
-      x: midLine.u + (outU / outLen) * LABEL_GAP,
-      y: midLine.v + (outV / outLen) * LABEL_GAP,
-    },
+    labelAt,
+    labelAnchor,
+    labelBaseline,
   };
 }
 
@@ -179,13 +230,13 @@ function placeDim(
   axis: Axis, bbox: BBox, p1: Point2, p2: Point2, stagger: number, label: string,
 ): IsoDim {
   const fam = FAMILY[axis];
-  const margin = MARGIN_BASE + stagger * MARGIN_STEP;
+  const margin = FAMILY_MARGIN_BASE + stagger * FAMILY_STAGGER;
   const target = fam.dir === 1
     ? (fam.push === "u" ? bbox.maxU : bbox.maxV) + margin
     : (fam.push === "u" ? bbox.minU : bbox.minV) - margin;
   const d1: Point2 = fam.push === "u" ? { u: target, v: p1.v } : { u: p1.u, v: target };
   const d2: Point2 = fam.push === "u" ? { u: target, v: p2.v } : { u: p2.u, v: target };
-  return buildDim(p1, p2, d1, d2, label);
+  return buildDim(axis, p1, p2, d1, d2, label);
 }
 
 function axisDim(

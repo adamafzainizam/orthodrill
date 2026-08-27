@@ -41,6 +41,20 @@ function dimPoints(d: IsoDim): [number, number][] {
   return pts;
 }
 
+/**
+ * Perpendicular distance from a point to the INFINITE line through a
+ * dimension line's two endpoints — computed fresh here with the standard
+ * point-to-line formula, not by reusing anything from isodims.ts, so this
+ * genuinely checks "does the label sit on the stroke" rather than restating
+ * whatever offset the module happened to apply.
+ */
+function distanceToLine(px: number, py: number, seg: IsoDim["line"]): number {
+  const dx = seg.x2 - seg.x1;
+  const dy = seg.y2 - seg.y1;
+  const len = Math.hypot(dx, dy) || 1;
+  return Math.abs((py - seg.y1) * dx - (px - seg.x1) * dy) / len;
+}
+
 test("positive control: the interior-point predicate actually rejects an interior point", () => {
   const bbox: BBox = { minX: 0, maxX: 10, minY: 0, maxY: 10 };
   assert.ok(pointStrictlyInside(bbox, 5, 5), "a point in the dead centre must read as inside");
@@ -63,7 +77,7 @@ test("a base block of a known size yields exactly three overall dimensions with 
   const labels = dims.map((d) => d.label).sort();
   // Figures derived independently from the block() call above, not from
   // isodims.ts's own arithmetic: 1 grid unit = 10 mm by convention.
-  assert.deepEqual(labels, ["40 mm", "60 mm", "90 mm"].sort());
+  assert.deepEqual(labels, ["40", "60", "90"].sort());
 });
 
 test("a box op's cut is sized and located along every axis it does not fully span", () => {
@@ -80,9 +94,9 @@ test("a box op's cut is sized and located along every axis it does not fully spa
   const dims = isometricDimensions(solid);
   assert.equal(dims.length, 7);
   const labels = dims.map((d) => d.label);
-  assert.equal(labels.filter((l) => l === "60 mm").length, 1);
-  assert.equal(labels.filter((l) => l === "40 mm").length, 3);
-  assert.equal(labels.filter((l) => l === "20 mm").length, 3);
+  assert.equal(labels.filter((l) => l === "60").length, 1);
+  assert.equal(labels.filter((l) => l === "40").length, 3);
+  assert.equal(labels.filter((l) => l === "20").length, 3);
 });
 
 test("a flush box op needs no position figure, only a size figure per axis", () => {
@@ -94,8 +108,8 @@ test("a flush box op needs no position figure, only a size figure per axis", () 
   const dims = isometricDimensions(solid);
   // 3 overall + size-x + size-y = 5. No "0 mm" position figure anywhere.
   assert.equal(dims.length, 5);
-  assert.ok(!dims.some((d) => d.label.startsWith("0 ")), "a flush cut must not carry a zero-length position figure");
-  const sizeLabels = dims.map((d) => d.label).filter((l) => l === "20 mm");
+  assert.ok(!dims.some((d) => d.label === "0"), "a flush cut must not carry a zero-length position figure");
+  const sizeLabels = dims.map((d) => d.label).filter((l) => l === "20");
   assert.equal(sizeLabels.length, 2, "expected the notch's two 20 mm sizes (w=2 and d=2, both *10mm)");
 });
 
@@ -106,7 +120,7 @@ test("a solid with a cylinder yields a diameter dimension carrying the diameter 
   const dims = isometricDimensions(solid);
   const diameterDims = dims.filter((d) => d.label.startsWith("⌀"));
   assert.equal(diameterDims.length, 1);
-  assert.equal(diameterDims[0].label, "⌀ 40 mm");
+  assert.equal(diameterDims[0].label, "⌀40");
 });
 
 test("a cylinder's centre is located from the origin along both axes perpendicular to its own", () => {
@@ -115,7 +129,7 @@ test("a cylinder's centre is located from the origin along both axes perpendicul
   // overall-height figure cannot coincidentally collide with these two.
   const solid = subtractCylinder(block(8, 6, 5), "z", 3, 3, 2);
   const dims = isometricDimensions(solid);
-  const thirty = dims.filter((d) => d.label === "30 mm");
+  const thirty = dims.filter((d) => d.label === "30");
   assert.equal(thirty.length, 2, "expected two 30 mm locating figures, one per plane axis");
 });
 
@@ -139,6 +153,45 @@ test("no dimension's line, arrows or label falls inside the picture's own projec
         );
       }
     }
+  }
+});
+
+test("REGRESSION: no label sits on its own dimension line", () => {
+  // The bug a real render caught: labelAt was centred exactly on the line,
+  // so the stroke ran through the glyphs. A label centred on its own line
+  // has distance 0 from it; anything clearly off the line is a real fix.
+  const drills: Solid[] = [
+    block(6, 4, 4),
+    subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 }),
+    subtractCylinder(subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }), "y", 2, 1, 1),
+  ];
+  for (const solid of drills) {
+    for (const d of isometricDimensions(solid)) {
+      const dist = distanceToLine(d.labelAt.x, d.labelAt.y, d.line);
+      assert.ok(dist > 0.05, `label "${d.label}" sits only ${dist} from its own dimension line`);
+    }
+  }
+});
+
+test("REGRESSION: successive dimensions sharing an axis are staggered far enough apart to read", () => {
+  // stepped-plate-bore's solid has four z-family dimensions (overall height,
+  // the step's position and size, and the bore's z-locating figure) — the
+  // exact case a real render showed running together. Identify the z-family
+  // by its anchor (only z produces "end") and check the pushed coordinate
+  // (line.x1, since z's family pushes projected u) is spread out enough that
+  // two ~11px-tall labels at adjacent offsets cannot overlap. 0.5 projection
+  // units is a generic floor, not the module's own stagger constant restated.
+  const solid = subtractCylinder(
+    subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }), "y", 2, 1, 1,
+  );
+  const zFamily = isometricDimensions(solid).filter((d) => d.labelAnchor === "end");
+  assert.equal(zFamily.length, 4, "expected all four z-family dimensions for this solid");
+  const offsets = zFamily.map((d) => d.line.x1).sort((a, b) => a - b);
+  for (let i = 1; i < offsets.length; i++) {
+    assert.ok(
+      offsets[i] - offsets[i - 1] >= 0.5,
+      `z-family dimensions at ${offsets[i - 1]} and ${offsets[i]} are only ${offsets[i] - offsets[i - 1]} apart`,
+    );
   }
 });
 
