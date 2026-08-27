@@ -68,6 +68,56 @@ test("correct views under the wrong convention are not perfect, but the views ar
   assert.equal(r.views.side.missing.length, 0);
 });
 
+test("construction lines joining the three views do not collapse them into one cluster", () => {
+  // This is the reported bug: a mitre line and projection lines crossing the
+  // whole sheet connect all three view-clusters into one, so the scorer used
+  // to see one cluster instead of three. Construction lines must be stripped
+  // before clustering, not merely tolerated by it.
+  const attempt = laidOut("first_angle");
+  const construction: Primitive[] = [
+    // A long mitre-style line and projection lines that bridge the front,
+    // top and side clusters — exactly what connects them under `near()`.
+    seg(-50, -50, 90, 90, "construction"),
+    seg(0, 0, 40, 0, "construction"),
+    seg(0, 0, 0, 40, "construction"),
+  ];
+  const r = scoreAttempt([...attempt, ...construction], key, "first_angle");
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.perfect, true);
+});
+
+test("construction lines never appear in any ViewDiff", () => {
+  const attempt = laidOut("first_angle");
+  const construction: Primitive[] = [
+    seg(-50, -50, 90, 90, "construction"),
+    seg(0, 0, 40, 0, "construction"),
+  ];
+  const r = scoreAttempt([...attempt, ...construction], key, "first_angle");
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  for (const name of ["front", "top", "side"] as const) {
+    const d = r.views[name];
+    for (const bucket of [d.correct, d.missing, d.extra]) {
+      assert.ok(bucket.every((p) => p.type !== "construction"));
+    }
+    assert.ok(d.wrongType.every((wt) => wt.expected.type !== "construction" && wt.drawn.type !== "construction"));
+  }
+});
+
+test("a perfect attempt stays perfect when construction lines are added to it", () => {
+  const attempt = laidOut("first_angle");
+  const construction: Primitive[] = [
+    seg(-50, -50, 90, 90, "construction"),
+    seg(20, -20, 20, 60, "construction"),
+  ];
+  const r = scoreAttempt([...attempt, ...construction], key, "first_angle");
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.perfect, true);
+  assert.equal(r.placement.correct, true);
+});
+
 test("a hidden edge drawn solid surfaces as wrongType on the right view", () => {
   const keyWithHidden: KeyViews = { ...key, top: [seg(0, 0, 6, 0, "hidden")] };
   const c = CONVENTIONS.first_angle;

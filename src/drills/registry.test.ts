@@ -52,7 +52,13 @@ test("the public half carries what the question needs", () => {
   assert.equal(typeof pub.prompt, "string");
   assert.ok(pub.convention === "first_angle" || pub.convention === "third_angle");
   assert.ok(pub.isometric.length > 0, "no pictorial to show the student");
+  assert.ok(pub.dimensions.length > 0, "no dimensions to show the student");
   assert.ok(pub.grid.width > 0 && pub.grid.height > 0);
+});
+
+test("a cached public half's dimensions are frozen too", () => {
+  const pub = publicHalf(getDrill(DRILL_IDS[0])!);
+  assert.throws(() => { (pub.dimensions as unknown as unknown[]).push({}); });
 });
 
 test("every drill yields three non-empty views as its key", () => {

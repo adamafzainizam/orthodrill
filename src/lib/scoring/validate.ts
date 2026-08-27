@@ -42,7 +42,12 @@ export type ValidationResult =
   | { ok: true; primitives: Primitive[] }
   | { ok: false; reason: ValidationFailure };
 
-const TYPES: readonly string[] = ["visible", "hidden", "centre"];
+// "construction" is accepted deliberately: the canvas strips construction
+// lines before submit, but that filter must not be the ONLY thing standing
+// between a student and a rejected attempt. If it ever breaks, a construction
+// line reaching here must be harmless rather than fatal — scoreAttempt strips
+// it again at its own entry point, which is the load-bearing strip.
+const TYPES: readonly string[] = ["visible", "hidden", "centre", "construction"];
 
 /** A coordinate must be a real integer inside the bound — the grid snaps. */
 function badCoord(n: unknown): ValidationFailure | null {

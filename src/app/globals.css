@@ -10,6 +10,13 @@
   --grid: #e6eae3;
   --ink: #15191a;
   --centre: #b0261c;
+  --construction: #9aa39a;
+  /* Quadrant dividers: a visual aid for laying the sheet out, so they must
+     read as guides -- quieter than the student's ink, but clearer than the
+     grid itself, or the quadrant they mark would be invisible. Not redefined
+     in the dark block for the same reason as the other drawing-surface
+     tokens above: the sheet is white paper in both themes. */
+  --quadrant: #c9d1c5;
 
   /* Chrome around the drawing, which DOES follow the theme. */
   --card: #f7f9f5;

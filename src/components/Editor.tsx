@@ -11,6 +11,7 @@ import { noticesFor, type Notice } from "@/lib/canvas/messages";
 import { submitAttempt } from "@/lib/canvas/submit";
 import type { Point } from "@/lib/canvas/coords";
 import type { IsoPrimitive } from "@/lib/geometry/isotypes";
+import type { IsoDim } from "@/lib/geometry/isodims";
 
 export type PublicDrill = {
   id: string;
@@ -19,6 +20,7 @@ export type PublicDrill = {
   convention: "first_angle" | "third_angle";
   grid: { width: number; height: number };
   isometric: readonly IsoPrimitive[];
+  dimensions: readonly IsoDim[];
 };
 
 export function Editor({ drill }: { drill: PublicDrill }) {
@@ -58,6 +60,15 @@ export function Editor({ drill }: { drill: PublicDrill }) {
         const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
         const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
         dispatch({ type: "MOVE_SELECTION", dx, dy });
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        // Single-key tool shortcuts. Deliberately excluded from firing under
+        // any modifier — "no modifier" per the plan, and it also keeps Ctrl+C
+        // (copy), Cmd+L, etc. untouched. The form-control guard above already
+        // stops these from firing while the line-type <select> or any other
+        // control has focus.
+        const tool = e.key === "s" ? "select" : e.key === "l" ? "line"
+          : e.key === "c" ? "circle" : e.key === "g" ? "move" : null;
+        if (tool !== null) dispatch({ type: "SET_TOOL", tool });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -120,7 +131,7 @@ export function Editor({ drill }: { drill: PublicDrill }) {
       <div className="flex flex-wrap gap-6 items-start">
         <figure className="m-0">
           <figcaption className="text-xs uppercase tracking-wider opacity-70 mb-1">The part</figcaption>
-          <Pictorial primitives={drill.isometric} />
+          <Pictorial primitives={drill.isometric} dimensions={drill.dimensions} />
         </figure>
 
         <div className="flex flex-col gap-2 flex-1 min-w-[320px]">
@@ -137,12 +148,14 @@ export function Editor({ drill }: { drill: PublicDrill }) {
           <div className="overflow-x-auto">
             <Sheet
               grid={drill.grid}
+              tool={state.tool}
               drawing={drawing(state)}
               selection={state.selection}
               pending={state.pending}
+              drag={state.drag}
               cursor={cursor}
               feedback={feedback}
-              onGridClick={(p, additive) => dispatch({ type: "CLICK_GRID", at: p, additive })}
+              onAction={onAction}
               onGridMove={setCursor}
             />
           </div>

@@ -4,7 +4,7 @@
  * PURE. No I/O, no framework imports. See AGENTS.md §2 constraint 3.
  */
 
-export type PrimitiveType = "visible" | "hidden" | "centre";
+export type PrimitiveType = "visible" | "hidden" | "centre" | "construction";
 
 export type Segment = {
   kind: "segment";
