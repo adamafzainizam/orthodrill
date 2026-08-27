@@ -323,3 +323,76 @@ export function answerKey(drill: Drill): KeyViews | Primitive[] {
   keyCache.set(drill.id, built);
   return built;
 }
+
+/**
+ * A worked METHOD DIAGRAM for the parabola topic: a small figure showing how
+ * the rectangle method locates a point, not an answer to any exercise.
+ *
+ * DELIBERATELY AT A DIFFERENT n FROM ANY EXERCISE. The seeded parabola drill
+ * (`parabola-rectangle-5` above) uses n=5; this diagram uses n=DIAGRAM_N=3.
+ * Do NOT change this to "helpfully" match whichever exercise is on screen —
+ * that would turn a textbook illustration of the METHOD into the answer key
+ * for the INSTANCE, exactly the leak `publicHalf` is written to avoid. If a
+ * second figure exercise is ever added at n=3, this diagram still must not
+ * be changed to match it; pick a value that matches no shipped exercise.
+ *
+ * Reuses `parabolaKey` for the curve itself (same function, different spec —
+ * n=3 here is not secret; only a specific EXERCISE's spec is) and derives the
+ * rectangle/division/ray/offset construction lines algebraically alongside
+ * it. The derivation: a ray from the apex to the i-th mark on a side divided
+ * into n EQUAL parts (at height i*n above the apex) crosses the vertical
+ * raised from the i-th mark on the half-width (also divided into n equal
+ * parts, at distance i from the apex) at height i*n * (i/n) = i² — exactly
+ * `parabolaKey`'s point(k=i) = (i, -i²). Worth re-deriving by hand before
+ * touching either half of this function; the two must keep agreeing or the
+ * diagram stops matching the thing it explains.
+ */
+const DIAGRAM_N = 3;
+
+function buildParabolaMethodDiagram(): Primitive[] {
+  const n = DIAGRAM_N;
+  const originX = n;
+  const originY = n * n;
+  const spec: ParabolaSpec = { n, originX, originY };
+
+  const seg = (x1: number, y1: number, x2: number, y2: number, type: Primitive["type"]): Primitive =>
+    ({ kind: "segment", type, x1, y1, x2, y2 });
+
+  const primitives: Primitive[] = [
+    // The enclosing rectangle: 2n wide, n^2 tall, apex at the mid-point of its base.
+    seg(originX - n, originY, originX + n, originY, "construction"),
+    seg(originX - n, originY - n * n, originX + n, originY - n * n, "construction"),
+    seg(originX - n, originY, originX - n, originY - n * n, "construction"),
+    seg(originX + n, originY, originX + n, originY - n * n, "construction"),
+    // The axis of symmetry, through the apex.
+    seg(originX, originY, originX, originY - n * n, "centre"),
+  ];
+
+  for (const sign of [1, -1] as const) {
+    const edgeX = originX + sign * n;
+    for (let i = 1; i <= n; i++) {
+      const markY = originY - i * n;
+      // Ray from the apex to the i-th equal division of the side.
+      primitives.push(seg(originX, originY, edgeX, markY, "construction"));
+      // Vertical raised from the i-th equal division of the half-width, up
+      // to where it meets that ray — the located point.
+      const pointX = originX + sign * i;
+      const pointY = originY - i * i;
+      primitives.push(seg(pointX, originY, pointX, pointY, "construction"));
+    }
+  }
+
+  // The curve itself: straight segments joining consecutive located points,
+  // exactly as the student is asked to draw it (see parabola.ts).
+  primitives.push(...parabolaKey(spec));
+
+  return primitives;
+}
+
+/**
+ * PUBLIC, unlike `answerKey` above: this never varies per drill and reveals
+ * nothing about any exercise's spec — see the docstring above. Computed once
+ * at module load (deterministic and cheap) and frozen, like the isometric
+ * pictorial's cached output, so every request shares the same array.
+ */
+export const PARABOLA_METHOD_DIAGRAM: readonly Primitive[] = Object.freeze(buildParabolaMethodDiagram());
