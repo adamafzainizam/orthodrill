@@ -64,11 +64,31 @@ export function Editor({ drill }: { drill: PublicDrill }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [state.selection]);
 
+  // An edit invalidates the last overlay — its anchors describe a drawing
+  // that no longer exists. `state.history.present` is a new reference on
+  // every commit (draw, move, retype, delete) and on undo/redo, and on
+  // NOTHING else — submitting a check does not touch the drawing, so this
+  // does not race the feedback a submit is about to set. Confirmed by
+  // reading `onSubmit` below: it never assigns `state.history`, so the
+  // reference `seenDrawing` is compared against is unchanged across a
+  // submit, and this does not clobber the result `setFeedback` sets
+  // afterwards. Adjusted during render rather than in an effect — the same
+  // pattern as `Notifications`' `seen` sentinel — so the clear lands in the
+  // same commit as the edit instead of one render later.
+  const [seenDrawing, setSeenDrawing] = useState(state.history.present);
+  if (state.history.present !== seenDrawing) {
+    setSeenDrawing(state.history.present);
+    setFeedback(null);
+  }
+
   const onAction = useCallback((a: Action) => dispatch(a), []);
 
   const onSubmit = useCallback(async () => {
     setSubmitting(true);
-    // Any edit invalidates the last overlay; clear before asking again.
+    // Clears any overlay left over from a previous check. This is a separate
+    // concern from the edit-driven clear above (which handles the drawing
+    // changing) — this one avoids a stale overlay flashing on screen while a
+    // repeat submit of the SAME drawing is in flight.
     setFeedback(null);
     const result = await submitAttempt(drill.id, drawing(state));
     setSubmitting(false);
