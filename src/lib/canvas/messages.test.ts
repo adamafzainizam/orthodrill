@@ -45,7 +45,14 @@ test("a wrong line type is reported separately from a missing line", () => {
 
 test("wrong placement is its own notice, distinct from view content", () => {
   const r = result({});
-  r.ok && (r.placement = { correct: false, expected: { top: "below", side: "left" }, actual: { top: "above", side: "left" }, matchesOtherConvention: "third_angle" });
+  if (r.ok) {
+    r.placement = {
+      correct: false,
+      expected: { top: "below", side: "left" },
+      actual: { top: "above", side: "left" },
+      matchesOtherConvention: "third_angle",
+    };
+  }
   const n = noticesFor(r);
   assert.ok(n.some((x) => /placement|convention|angle/i.test(x.text)));
 });
