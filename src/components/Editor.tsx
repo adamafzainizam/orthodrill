@@ -179,6 +179,7 @@ export function Editor({ drill }: { drill: PublicDrill }) {
           <div className="overflow-x-auto">
             <Sheet
               grid={drill.grid}
+              mode={drill.mode}
               tool={state.tool}
               drawing={drawing(state)}
               selection={state.selection}

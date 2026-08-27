@@ -51,9 +51,19 @@ function place(p: Primitive, anchor: { dx: number; dy: number }): Primitive {
 }
 
 export function Sheet({
-  grid, tool, drawing, selection, pending, drag, cursor, feedback, onAction, onGridMove,
+  grid, mode, tool, drawing, selection, pending, drag, cursor, feedback, onAction, onGridMove,
 }: {
   grid: { width: number; height: number };
+  /**
+   * Explicit, not inferred from the absence of a third view or anything
+   * else about `drawing` — same reasoning as `Drill.mode` (registry.ts):
+   * inference is how the wrong branch gets taken. Gates the quadrant
+   * dividers and the mitre line below, which exist to help lay out THREE
+   * views; a "figure" exercise has one figure and nothing to place relative
+   * to anything else, so both would be meaningless (or actively misleading,
+   * in the mitre line's case) furniture on its sheet.
+   */
+  mode: "views" | "figure";
   tool: Tool;
   drawing: Primitive[];
   selection: number[];
@@ -144,17 +154,19 @@ export function Sheet({
   }
 
   // Quadrant dividers and the mitre line are a VISUAL AID ONLY -- they help
-  // the student lay the sheet out, exactly the way a draughtsman's own
+  // the student lay THREE views out, exactly the way a draughtsman's own
   // construction lines would. Neither is a primitive: they are never added
   // to `drawing` and never reach the scorer. `mitreLine` looks at CONTENT
   // (which quadrant the student's own primitives occupy) purely to find the
   // one empty quadrant to draw in -- it never decides which view belongs
-  // where. See `src/lib/canvas/quadrants.ts`.
+  // where. See `src/lib/canvas/quadrants.ts`. Both are `mode === "views"`
+  // only: a "figure" exercise has one figure, not three views to place, so
+  // there is no layout for either of these to assist with.
   const midX = gridToScreen({ x: grid.width / 2, y: 0 }, v).x;
   const midY = gridToScreen({ x: 0, y: grid.height / 2 }, v).y;
   const topLeft = gridToScreen({ x: 0, y: 0 }, v);
   const bottomRight = gridToScreen({ x: grid.width, y: grid.height }, v);
-  const mitre = mitreLine(drawing, grid);
+  const mitre = mode === "views" ? mitreLine(drawing, grid) : null;
   const mitreA = mitre ? gridToScreen({ x: mitre.x1, y: mitre.y1 }, v) : null;
   const mitreB = mitre ? gridToScreen({ x: mitre.x2, y: mitre.y2 }, v) : null;
 
@@ -195,11 +207,14 @@ export function Sheet({
       <g>{gridLines}</g>
 
       {/* Quadrant dividers: clearer than the grid, quieter than the drawing.
-          Drawn under the feedback overlay and the student's ink (see below). */}
-      <g>
-        <line x1={midX} y1={topLeft.y} x2={midX} y2={bottomRight.y} stroke="var(--quadrant)" strokeWidth={1} />
-        <line x1={topLeft.x} y1={midY} x2={bottomRight.x} y2={midY} stroke="var(--quadrant)" strokeWidth={1} />
-      </g>
+          Drawn under the feedback overlay and the student's ink (see below).
+          "views" only -- see the mode prop's doc comment above. */}
+      {mode === "views" && (
+        <g>
+          <line x1={midX} y1={topLeft.y} x2={midX} y2={bottomRight.y} stroke="var(--quadrant)" strokeWidth={1} />
+          <line x1={topLeft.x} y1={midY} x2={bottomRight.x} y2={midY} stroke="var(--quadrant)" strokeWidth={1} />
+        </g>
+      )}
 
       {/* The mitre line in the sheet's one empty quadrant, styled exactly like
           the student's own construction lines so it reads as scaffolding,
