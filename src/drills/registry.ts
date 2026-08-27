@@ -33,6 +33,14 @@ export type Drill = {
   convention: Convention;
   /** Which topic's sidebar and hints this exercise belongs under. */
   topicId: TopicId;
+  /**
+   * Which scoring mode this exercise uses. Explicit rather than inferred from
+   * the presence of `solid` — inference is how the wrong branch gets taken
+   * when a mode this catalogue does not yet carry (e.g. "figure", for a
+   * single-drawing construction exercise) arrives. Every drill here is
+   * "views" today; nothing in this catalogue is figure-mode yet.
+   */
+  mode: "views";
   /** PRIVATE. The answer key in compressed form. Never serialise this. */
   solid: Solid;
 };
@@ -86,6 +94,7 @@ const CATALOGUE: Drill[] = [
       + "top and right-side views, and place them according to the convention shown.",
     convention: "first_angle",
     topicId: "orthographic",
+    mode: "views",
     solid: subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 }, "step"),
   },
   {
@@ -96,6 +105,7 @@ const CATALOGUE: Drill[] = [
       + "which side the notch appears on in each view.",
     convention: "first_angle",
     topicId: "orthographic",
+    mode: "views",
     solid: subtractBox(block(8, 4, 4), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 4 }, "notch"),
   },
   {
@@ -107,6 +117,7 @@ const CATALOGUE: Drill[] = [
       + "circular feature carries its centre lines.",
     convention: "third_angle",
     topicId: "orthographic",
+    mode: "views",
     solid: subtractCylinder(block(8, 6, 3), "z", 3, 3, 2, "bore"),
   },
   {
@@ -117,6 +128,7 @@ const CATALOGUE: Drill[] = [
       + "depth axis, so it is hidden in two of the three views.",
     convention: "first_angle",
     topicId: "orthographic",
+    mode: "views",
     solid: subtractCylinder(
       subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }, "step"),
       "y", 2, 1, 1, "bore",
