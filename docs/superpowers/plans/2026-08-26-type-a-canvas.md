@@ -953,7 +953,14 @@ test("a wrong line type is reported separately from a missing line", () => {
 
 test("wrong placement is its own notice, distinct from view content", () => {
   const r = result({});
-  r.ok && (r.placement = { correct: false, expected: { top: "below", side: "left" }, actual: { top: "above", side: "left" }, matchesOtherConvention: "third_angle" });
+  if (r.ok) {
+    r.placement = {
+      correct: false,
+      expected: { top: "below", side: "left" },
+      actual: { top: "above", side: "left" },
+      matchesOtherConvention: "third_angle",
+    };
+  }
   const n = noticesFor(r);
   assert.ok(n.some((x) => /placement|convention|angle/i.test(x.text)));
 });
@@ -1151,7 +1158,17 @@ export function Sheet({
 
   const toGrid = (e: React.MouseEvent<SVGSVGElement>): Point => {
     const box = e.currentTarget.getBoundingClientRect();
-    return screenToGrid({ x: e.clientX - box.left, y: e.clientY - box.top }, v);
+    // The SVG is max-w-full, so its rendered box can be narrower than its
+    // viewBox. Convert to viewBox units first, or every click lands in the
+    // wrong cell on a narrow viewport. Guard the zero-size case: a
+    // display:none element reports a 0x0 rect, and dividing by it gives
+    // Infinity coordinates.
+    const scaleX = box.width === 0 ? 1 : w / box.width;
+    const scaleY = box.height === 0 ? 1 : h / box.height;
+    return screenToGrid(
+      { x: (e.clientX - box.left) * scaleX, y: (e.clientY - box.top) * scaleY },
+      v,
+    );
   };
 
   const gridLines = [];
