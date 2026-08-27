@@ -31,7 +31,13 @@ export function Notifications({ notices }: { notices: Notice[] }) {
 
   if (notices !== seen) {
     setSeen(notices);
-    if (notices.length > 0) setVisible(notices);
+    if (notices.length > 0) {
+      // A new batch REPLACES visible, not discards it — archive whatever is
+      // still on screen into the backlog first, the same place a manually
+      // dismissed toast or one that dwelt out ends up.
+      if (visible.length > 0) setBacklog((b) => [...visible, ...b]);
+      setVisible(notices);
+    }
   }
 
   useEffect(() => {
