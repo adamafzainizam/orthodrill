@@ -50,10 +50,19 @@ export function Toolbar({
             value={activeType}
             onChange={(e) => {
               const lineType = e.target.value as PrimitiveType;
-              // With a selection, this RETYPES it; otherwise it sets what comes next.
-              onAction(hasSelection
-                ? { type: "RETYPE_SELECTION", lineType }
-                : { type: "SET_ACTIVE_TYPE", lineType });
+              // With a selection, this RETYPES it AND updates activeType, so
+              // the control (value={activeType}) reflects what was just
+              // applied instead of visibly snapping back to the old type.
+              // Without also setting activeType, this component still
+              // cannot retype a selection TO the type that is already
+              // active: a native <select> only fires onChange when its
+              // value changes, so picking the option already shown never
+              // reaches this handler at all. That is a browser behaviour,
+              // not a bug in the dispatch below, and nothing achievable
+              // from inside this component fixes it short of replacing the
+              // <select> with controls that always fire on click.
+              if (hasSelection) onAction({ type: "RETYPE_SELECTION", lineType });
+              onAction({ type: "SET_ACTIVE_TYPE", lineType });
             }}
           >
             {TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
