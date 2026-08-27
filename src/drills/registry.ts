@@ -24,12 +24,15 @@ import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
 import type { KeyViews } from "../lib/scoring/assign.ts";
 import type { Convention } from "../lib/scoring/types.ts";
+import type { TopicId } from "../topics/topics.ts";
 
 export type Drill = {
   id: string;
   title: string;
   prompt: string;
   convention: Convention;
+  /** Which topic's sidebar and hints this exercise belongs under. */
+  topicId: TopicId;
   /** PRIVATE. The answer key in compressed form. Never serialise this. */
   solid: Solid;
 };
@@ -82,6 +85,7 @@ const CATALOGUE: Drill[] = [
       "A rectangular block with a single step cut from one end. Draw the front, "
       + "top and right-side views, and place them according to the convention shown.",
     convention: "first_angle",
+    topicId: "orthographic",
     solid: subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 }, "step"),
   },
   {
@@ -91,6 +95,7 @@ const CATALOGUE: Drill[] = [
       "A block with a rectangular notch removed from one vertical corner. Watch "
       + "which side the notch appears on in each view.",
     convention: "first_angle",
+    topicId: "orthographic",
     solid: subtractBox(block(8, 4, 4), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 4 }, "notch"),
   },
   {
@@ -101,6 +106,7 @@ const CATALOGUE: Drill[] = [
       + "one view and as a pair of hidden lines in the other two — and every "
       + "circular feature carries its centre lines.",
     convention: "third_angle",
+    topicId: "orthographic",
     solid: subtractCylinder(block(8, 6, 3), "z", 3, 3, 2, "bore"),
   },
   {
@@ -110,6 +116,7 @@ const CATALOGUE: Drill[] = [
       "A step and a through-hole on the same part. The hole is bored along the "
       + "depth axis, so it is hidden in two of the three views.",
     convention: "first_angle",
+    topicId: "orthographic",
     solid: subtractCylinder(
       subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }, "step"),
       "y", 2, 1, 1, "bore",

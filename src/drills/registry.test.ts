@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS } from "./registry.ts";
+import { getTopic } from "../topics/topics.ts";
 
 test("a known drill id resolves", () => {
   const id = DRILL_IDS[0];
@@ -114,6 +115,13 @@ test("the sheet's dimensions are even, so the quadrant dividers land on grid lin
   const g = publicHalf(getDrill(DRILL_IDS[0])!).grid;
   assert.equal(g.width % 2, 0, `sheet width ${g.width} is odd`);
   assert.equal(g.height % 2, 0, `sheet height ${g.height} is odd`);
+});
+
+test("every exercise's topicId resolves to a real topic", () => {
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    assert.notEqual(getTopic(drill.topicId), null, `${id} has an unresolvable topicId`);
+  }
 });
 
 test("the sheet is big enough for every drill's three views plus gaps", () => {
