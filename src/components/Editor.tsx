@@ -11,6 +11,7 @@ import { noticesFor, type Notice } from "@/lib/canvas/messages";
 import { submitAttempt } from "@/lib/canvas/submit";
 import type { Point } from "@/lib/canvas/coords";
 import type { IsoPrimitive } from "@/lib/geometry/isotypes";
+import type { IsoDim } from "@/lib/geometry/isodims";
 
 export type PublicDrill = {
   id: string;
@@ -19,6 +20,7 @@ export type PublicDrill = {
   convention: "first_angle" | "third_angle";
   grid: { width: number; height: number };
   isometric: readonly IsoPrimitive[];
+  dimensions: readonly IsoDim[];
 };
 
 export function Editor({ drill }: { drill: PublicDrill }) {
@@ -129,7 +131,7 @@ export function Editor({ drill }: { drill: PublicDrill }) {
       <div className="flex flex-wrap gap-6 items-start">
         <figure className="m-0">
           <figcaption className="text-xs uppercase tracking-wider opacity-70 mb-1">The part</figcaption>
-          <Pictorial primitives={drill.isometric} />
+          <Pictorial primitives={drill.isometric} dimensions={drill.dimensions} />
         </figure>
 
         <div className="flex flex-col gap-2 flex-1 min-w-[320px]">

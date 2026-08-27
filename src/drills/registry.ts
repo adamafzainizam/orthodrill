@@ -20,6 +20,7 @@
 import { block, subtractBox, subtractCylinder, type Solid } from "../lib/geometry/solid.ts";
 import { generateViews } from "../lib/geometry/views.ts";
 import { isometricView } from "../lib/geometry/isometric.ts";
+import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
 import type { KeyViews } from "../lib/scoring/assign.ts";
 import type { Convention } from "../lib/scoring/types.ts";
@@ -42,6 +43,9 @@ export type PublicDrill = {
   grid: Readonly<{ width: number; height: number }>;
   /** Readonly because it is cached and shared across requests. */
   isometric: readonly IsoPrimitive[];
+  /** Readonly for the same reason. Derived from the solid, never the solid
+   *  itself — see isodims.ts for why that is enough to be trustworthy. */
+  dimensions: readonly IsoDim[];
 };
 
 /**
@@ -154,6 +158,7 @@ export function publicHalf(drill: Drill): PublicDrill {
     convention: drill.convention,
     grid: Object.freeze(gridFor(drill.solid)),
     isometric: Object.freeze(isometricView(drill.solid)),
+    dimensions: Object.freeze(isometricDimensions(drill.solid)),
   });
   publicCache.set(drill.id, built);
   return built;
