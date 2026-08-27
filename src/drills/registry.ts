@@ -22,42 +22,83 @@ import { generateViews } from "../lib/geometry/views.ts";
 import { isometricView } from "../lib/geometry/isometric.ts";
 import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
+import { parabolaKey, type ParabolaSpec } from "../lib/geometry/parabola.ts";
 import type { KeyViews } from "../lib/scoring/assign.ts";
+import type { Primitive } from "../lib/scoring/primitives.ts";
 import type { Convention } from "../lib/scoring/types.ts";
-import type { TopicId } from "../topics/topics.ts";
+import { getTopic, type Hint, type TopicId } from "../topics/topics.ts";
 
-export type Drill = {
+/**
+ * An orthographic drill: draw front/top/side from an isometric prompt. The
+ * long-established shape, unchanged by the topics widening below.
+ */
+export type ViewsDrill = {
   id: string;
   title: string;
   prompt: string;
   convention: Convention;
-  /** Which topic's sidebar and hints this exercise belongs under. */
   topicId: TopicId;
-  /**
-   * Which scoring mode this exercise uses. Explicit rather than inferred from
-   * the presence of `solid` — inference is how the wrong branch gets taken
-   * when a mode this catalogue does not yet carry (e.g. "figure", for a
-   * single-drawing construction exercise) arrives. Every drill here is
-   * "views" today; nothing in this catalogue is figure-mode yet.
-   */
   mode: "views";
   /** PRIVATE. The answer key in compressed form. Never serialise this. */
   solid: Solid;
 };
 
-/** Exactly what the browser is allowed to see. */
-export type PublicDrill = {
+/**
+ * A single-figure construction exercise (e.g. the parabola). No convention —
+ * there is nothing to place relative to anything else — and no solid: the
+ * spec is a flat set of numbers, not a 3D model.
+ */
+export type FigureDrill = {
   id: string;
   title: string;
   prompt: string;
-  convention: Convention;
-  grid: Readonly<{ width: number; height: number }>;
-  /** Readonly because it is cached and shared across requests. */
-  isometric: readonly IsoPrimitive[];
-  /** Readonly for the same reason. Derived from the solid, never the solid
-   *  itself — see isodims.ts for why that is enough to be trustworthy. */
-  dimensions: readonly IsoDim[];
+  topicId: TopicId;
+  mode: "figure";
+  /**
+   * PRIVATE. `parabolaKey(spec)` derives the answer key with no work at all —
+   * it is a pure function anyone could run — so `spec` is exactly as
+   * sensitive as `solid` above and must never cross into `publicHalf`.
+   */
+  spec: ParabolaSpec;
 };
+
+/**
+ * Which scoring mode an exercise uses. Explicit rather than inferred from
+ * which private field is present — inference is how the wrong branch gets
+ * taken when a mode this catalogue does not yet carry arrives. `mode` is the
+ * discriminant TypeScript narrows on below, so `ViewsDrill` and `FigureDrill`
+ * must each carry a distinct literal, not just distinct shapes.
+ */
+export type Drill = ViewsDrill | FigureDrill;
+
+/** What the sidebar needs, and nothing a hint author did not write by hand. */
+export type PublicTopic = { id: TopicId; title: string; hints: Hint[] };
+
+/** Exactly what the browser is allowed to see. */
+export type PublicDrill =
+  | {
+      id: string;
+      title: string;
+      prompt: string;
+      mode: "views";
+      convention: Convention;
+      grid: Readonly<{ width: number; height: number }>;
+      /** Readonly because it is cached and shared across requests. */
+      isometric: readonly IsoPrimitive[];
+      /** Readonly for the same reason. Derived from the solid, never the
+       *  solid itself — see isodims.ts for why that is enough to be
+       *  trustworthy. */
+      dimensions: readonly IsoDim[];
+      topic: PublicTopic;
+    }
+  | {
+      id: string;
+      title: string;
+      prompt: string;
+      mode: "figure";
+      grid: Readonly<{ width: number; height: number }>;
+      topic: PublicTopic;
+    };
 
 /**
  * ONE SHEET, THE SAME FOR EVERY DRILL.
@@ -134,6 +175,23 @@ const CATALOGUE: Drill[] = [
       "y", 2, 1, 1, "bore",
     ),
   },
+  {
+    id: "parabola-rectangle-5",
+    title: "Parabola by the rectangle method",
+    prompt:
+      "Construct a parabolic arc opening upward, using the rectangle (offset) "
+      + "method with 5 equal divisions on each side. Place the vertex in the "
+      + "lower part of the sheet, leaving room on both sides and above for the "
+      + "arms to rise. Draw your rays, division marks and any other scaffolding "
+      + "with the Construction line type — the marker ignores construction "
+      + "lines and grades only the finished curve.",
+    topicId: "parabola",
+    mode: "figure",
+    // n=5, apex near the bottom edge, centred horizontally on the 48-wide
+    // sheet — the same placement `parabola.test.ts` uses to pin the "fits
+    // the sheet" property. PRIVATE: see FigureDrill's `spec` field above.
+    spec: { n: 5, originX: 24, originY: 38 },
+  },
 ];
 
 /** A Map, so an id is a whitelist key and inherited names resolve to nothing. */
@@ -165,6 +223,7 @@ export function getDrill(id: string): Drill | null {
  * nothing can start to.
  */
 const keyCache = new Map<string, KeyViews>();
+const figureKeyCache = new Map<string, Primitive[]>();
 const publicCache = new Map<string, PublicDrill>();
 
 /** One level deep is enough: these hold arrays of plain primitive records. */
@@ -173,26 +232,89 @@ function freezeViews<T extends Record<string, readonly unknown[]>>(v: T): T {
   return Object.freeze(v);
 }
 
-/** The half that may cross the wire. Built by naming fields, never by omission. */
+/**
+ * Freeze a bare array in place, keeping its declared type `T[]` rather than
+ * the `readonly T[]` `Object.freeze`'s array overload would otherwise force
+ * on every caller downstream (`scoreFigure`, `ScoringLookup`, `compareView`
+ * all take `Primitive[]`, none of them mutate it, and widening every one of
+ * them to `readonly` is a bigger ripple than this one honest cast deserves).
+ * The freeze itself is real — this only affects what TypeScript believes.
+ */
+function freezeArray<T>(arr: T[]): T[] {
+  Object.freeze(arr);
+  return arr;
+}
+
+/**
+ * The topic half the sidebar needs. Looked up by `topicId`, never carried on
+ * the drill itself — `topics.ts` is the one place a hint is authored, so a
+ * drill can only ever point at a real topic (`registry.test.ts` pins that
+ * every `topicId` resolves) rather than duplicate its title and hints.
+ */
+function publicTopic(drill: Drill): PublicTopic {
+  const topic = getTopic(drill.topicId);
+  // Cannot happen for any drill in CATALOGUE (pinned by test), but a topic
+  // lookup that silently produced `undefined` fields would be a worse bug
+  // than a loud one, so this fails clearly rather than serialising `null`s.
+  if (topic === null) throw new Error(`drill ${drill.id} points at unknown topic ${drill.topicId}`);
+  return { id: topic.id, title: topic.title, hints: topic.hints };
+}
+
+/**
+ * The half that may cross the wire. Built by naming fields, never by
+ * omission — each branch below lists exactly what a "views" or "figure"
+ * exercise is allowed to reveal, so a field added to `Drill` later does not
+ * cross the wire just by existing.
+ *
+ * A figure exercise's `spec` (the `n`/origin that `parabolaKey` turns into
+ * the exact answer with one call, per FigureDrill's docstring) never appears
+ * here, on either branch, in any form — not as a nested object, not as a
+ * `bounds` derived from it, nothing an attacker or a script could feed back
+ * into `parabolaKey` to reconstruct the key. What the student needs — which
+ * construction to draw and roughly where on the sheet to put it — is carried
+ * in `prompt`, authored as prose, not as machine-readable numbers.
+ */
 export function publicHalf(drill: Drill): PublicDrill {
   const cached = publicCache.get(drill.id);
   if (cached !== undefined) return cached;
 
-  const built: PublicDrill = Object.freeze({
-    id: drill.id,
-    title: drill.title,
-    prompt: drill.prompt,
-    convention: drill.convention,
-    grid: SHEET,
-    isometric: Object.freeze(isometricView(drill.solid)),
-    dimensions: Object.freeze(isometricDimensions(drill.solid)),
-  });
+  const built: PublicDrill = drill.mode === "figure"
+    ? Object.freeze({
+      id: drill.id,
+      title: drill.title,
+      prompt: drill.prompt,
+      mode: "figure",
+      grid: SHEET,
+      topic: publicTopic(drill),
+    })
+    : Object.freeze({
+      id: drill.id,
+      title: drill.title,
+      prompt: drill.prompt,
+      mode: "views",
+      convention: drill.convention,
+      grid: SHEET,
+      isometric: Object.freeze(isometricView(drill.solid)),
+      dimensions: Object.freeze(isometricDimensions(drill.solid)),
+      topic: publicTopic(drill),
+    });
   publicCache.set(drill.id, built);
   return built;
 }
 
-/** SERVER ONLY. The answer key, derived from the solid and cached. */
-export function answerKey(drill: Drill): KeyViews {
+/** SERVER ONLY. The answer key for a "views" exercise, derived from the solid and cached. */
+export function answerKey(drill: ViewsDrill): KeyViews;
+/** SERVER ONLY. The answer key for a "figure" exercise, derived from the spec and cached. */
+export function answerKey(drill: FigureDrill): Primitive[];
+export function answerKey(drill: Drill): KeyViews | Primitive[] {
+  if (drill.mode === "figure") {
+    const cached = figureKeyCache.get(drill.id);
+    if (cached !== undefined) return cached;
+    const built = freezeArray(parabolaKey(drill.spec));
+    figureKeyCache.set(drill.id, built);
+    return built;
+  }
+
   const cached = keyCache.get(drill.id);
   if (cached !== undefined) return cached;
 

@@ -9,9 +9,12 @@ import type { Primitive } from "../lib/scoring/primitives.ts";
 const permissive = () => createRateLimiter({ limit: 1000, windowMs: 1000 });
 const id = DRILL_IDS[0];
 
-/** The correct answer, laid out so the three views cluster apart. */
+/** The correct answer, laid out so the three views cluster apart. Only ever
+ *  called with a "views" drill id (DRILL_IDS[0], "step-block"). */
 function correctAttempt(drillId: string) {
-  const key = answerKey(getDrill(drillId)!);
+  const drill = getDrill(drillId)!;
+  if (drill.mode !== "views") throw new Error(`${drillId} is not a 'views' drill`);
+  const key = answerKey(drill);
   const shift = (ps: typeof key.front, dx: number, dy: number) =>
     ps.map((p) => p.kind === "circle"
       ? { ...p, cx: p.cx + dx, cy: p.cy + dy }
@@ -138,6 +141,33 @@ test("a well-formed figure submission to a figure exercise scores", () => {
   const body = r.body as { ok: boolean; perfect: boolean };
   assert.equal(body.ok, true);
   assert.equal(body.perfect, true);
+});
+
+// --- the real registry, no injected lookup: the default figure dispatch ---
+
+test("a well-formed figure submission to the real parabola drill scores through the default lookup", () => {
+  const figureId = DRILL_IDS.find((d) => getDrill(d)!.mode === "figure");
+  assert.notEqual(figureId, undefined, "no figure drill in the catalogue to test against");
+  const drill = getDrill(figureId!)!;
+  if (drill.mode !== "figure") throw new Error(`${figureId} is not a 'figure' drill`);
+  const key = answerKey(drill);
+
+  const r = handleScoreRequest(
+    { drillId: figureId, kind: "figure", primitives: key }, "1.2.3.4", 0, permissive(),
+  );
+  assert.equal(r.status, 200);
+  const body = r.body as { ok: boolean; perfect: boolean };
+  assert.equal(body.ok, true);
+  assert.equal(body.perfect, true);
+});
+
+test("submitting kind: views to the real parabola drill is refused with BAD_KIND", () => {
+  const figureId = DRILL_IDS.find((d) => getDrill(d)!.mode === "figure")!;
+  const r = handleScoreRequest(
+    { drillId: figureId, kind: "views", primitives: [] }, "1.2.3.4", 0, permissive(),
+  );
+  assert.equal(r.status, 400);
+  assert.equal((r.body as { reason: string }).reason, "BAD_KIND");
 });
 
 test("no response ever serialises the solid or the raw key", () => {

@@ -14,7 +14,9 @@ export default function DrillsPage() {
               {d.title}
             </Link>
             <span className="text-sm opacity-70">
-              {" "}— {d.convention === "first_angle" ? "first angle" : "third angle"}
+              {" "}— {d.mode === "views"
+                ? (d.convention === "first_angle" ? "first angle" : "third angle")
+                : "construction"}
             </span>
           </li>
         ))}

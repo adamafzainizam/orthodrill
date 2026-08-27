@@ -27,12 +27,11 @@ export type ScoreResponse = { status: number; body: unknown };
 /**
  * What the handler needs to know about an exercise in order to score it —
  * independent of how that exercise happens to be stored. `defaultLookup`
- * below wraps the drill registry, which today holds only "views" exercises;
- * the shape here also covers "figure" so the dispatch logic is written once,
- * correctly, ahead of Task 3/4 adding real figure exercises to the registry.
- * Tests inject their own lookup to exercise the "figure" branch without the
- * registry needing to carry one — a hand-rolled test fixture, not shipped
- * content (AGENTS.md §7 is about what ships).
+ * below wraps the drill registry, which now holds both "views" and "figure"
+ * exercises (Task 4 added the first "figure" one — the parabola). Tests
+ * still inject their own lookup to exercise the "figure" branch without
+ * depending on real registry content — a hand-rolled test fixture, not
+ * shipped content (AGENTS.md §7 is about what ships).
  */
 export type ScoringLookup = (id: string) =>
   | { found: false }
@@ -43,6 +42,9 @@ function defaultLookup(id: string): ReturnType<ScoringLookup> {
   // Whitelist lookup. There is no path here, so there is no path to traverse.
   const drill = getDrill(id);
   if (drill === null) return { found: false };
+  if (drill.mode === "figure") {
+    return { found: true, mode: "figure", key: answerKey(drill) };
+  }
   return { found: true, mode: "views", convention: drill.convention, key: answerKey(drill) };
 }
 
