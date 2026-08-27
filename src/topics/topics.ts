@@ -106,9 +106,9 @@ const CATALOGUE: Topic[] = [
         title: "Construction lines are working lines, not the answer",
         body:
           "The grid of offset lines and the points they locate exist to find "
-          + "the curve — they are not part of the final drawing. The graded "
-          + "shape is the smooth arc through the located points, drawn as its "
-          + "own line.",
+          + "the curve — they are not part of the final drawing. What is "
+          + "graded is the curve itself, drawn as its own line through the "
+          + "located points, not the scaffolding that found them.",
       },
       {
         title: "Number the divisions consistently on both sides",
@@ -119,12 +119,16 @@ const CATALOGUE: Topic[] = [
           + "numbering is the most common way this construction goes wrong.",
       },
       {
-        title: "The curve passes through every located point, in order",
+        title: "On this sheet, join the points with straight segments, not a smooth sweep",
         body:
-          "Connect the points with a single smooth curve, working outward "
-          + "from the vertex. Do not connect them with straight segments — the "
-          + "construction locates points ON the parabola, and the curve "
-          + "between them is still curved, not faceted.",
+          "On paper you would blend the located points into one smooth arc "
+          + "by eye. Here, draw a straight line from each point to the next, "
+          + "in order out from the vertex — that is what the marker compares "
+          + "your drawing against, point for point, so a hand-smoothed curve "
+          + "will not match it. This is a property of the tool, not of the "
+          + "geometry: more divisions make the joined segments read as a "
+          + "smoother curve on the sheet, even though every one of them is "
+          + "still a straight line underneath.",
       },
     ],
   },

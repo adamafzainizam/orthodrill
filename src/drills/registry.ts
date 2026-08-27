@@ -184,7 +184,8 @@ const CATALOGUE: Drill[] = [
       + "lower part of the sheet, leaving room on both sides and above for the "
       + "arms to rise. Draw your rays, division marks and any other scaffolding "
       + "with the Construction line type — the marker ignores construction "
-      + "lines and grades only the finished curve.",
+      + "lines and grades the curve as straight segments joining each located "
+      + "point to the next, not a hand-smoothed sweep.",
     topicId: "parabola",
     mode: "figure",
     // n=5, apex near the bottom edge, centred horizontally on the 48-wide
