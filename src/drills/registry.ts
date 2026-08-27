@@ -121,10 +121,17 @@ export const SHEET: Readonly<{ width: number; height: number }> =
   Object.freeze({ width: 48, height: 40 });
 
 /**
- * The starter progression: one feature, then two axes of asymmetry, then a
- * bore. Deliberately short — the design spec asks for 8-12 drills, and the
- * remainder is content work for the builder rather than something to invent
- * here. Each key is generated, so adding a drill is defining a solid.
+ * The progression: one feature, then two axes of asymmetry, then a bore,
+ * then a step-plus-bore combination — that was the whole catalogue until
+ * the four exercises after `stepped-plate-bore` widened it to a full 8-12
+ * range per the design spec. Each new one earns its place by teaching
+ * something the first four do not: a feature invisible in a view (so the
+ * hidden-line reasoning cannot be skipped), two features that overlap and
+ * interact rather than sitting apart, a bore on the one axis the first two
+ * don't exercise, and two corners that look mirror-symmetric but are not.
+ * Convention is deliberately split close to evenly across all eight (four
+ * first-angle, four third-angle) — see AGENTS.md §7: neither convention is
+ * "correct". Each key is generated, so adding a drill is defining a solid.
  */
 const CATALOGUE: Drill[] = [
   {
@@ -173,6 +180,92 @@ const CATALOGUE: Drill[] = [
     solid: subtractCylinder(
       subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }, "step"),
       "y", 2, 1, 1, "bore",
+    ),
+  },
+  {
+    id: "hidden-groove",
+    title: "Groove across the top",
+    prompt:
+      "A rectangular block with a groove milled straight across its top face, "
+      + "set back from the front face rather than cut into it. Draw the front, "
+      + "top and right-side views. The groove is visible wherever you are "
+      + "looking straight into it, and becomes a hidden line wherever the "
+      + "block's own material sits between your eye and it.",
+    convention: "third_angle",
+    topicId: "orthographic",
+    mode: "views",
+    // Full width (touches both side faces, so the side view sees straight
+    // through it) but set back 1 unit from the front face and 3 from the
+    // back (asymmetric, and neither margin is 0) — the front view's own
+    // material hides it completely, so it shows up there only as a hidden
+    // line, which is the entire teaching point. Verified with generateViews
+    // during authoring: front view carries exactly one hidden segment.
+    solid: subtractBox(block(8, 6, 4), { x: 0, y: 1, z: 2, w: 8, d: 2, h: 2 }, "groove"),
+  },
+  {
+    id: "near-mirror-notches",
+    title: "Two corner notches, not the same",
+    prompt:
+      "A block with a notch cut from each of its two front corners. The two "
+      + "notches are not identical — look carefully rather than assuming "
+      + "symmetry. Draw the front, top and right-side views exactly as the "
+      + "part is shaped, including any hidden lines that a difference "
+      + "between the corners produces in a view where it is not directly "
+      + "visible.",
+    convention: "first_angle",
+    topicId: "orthographic",
+    mode: "views",
+    // Same footprint on both corners (w=2,d=2), but the left notch runs the
+    // full height and the right one only halfway. A student who assumes
+    // mirror symmetry gets the right corner wrong in every view; the top
+    // view is the sharpest test, since the shallow notch never reaches the
+    // top face and therefore reads as hidden lines, not an outline.
+    solid: subtractBox(
+      subtractBox(block(8, 6, 4), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 4 }, "left-notch"),
+      { x: 6, y: 0, z: 0, w: 2, d: 2, h: 2 }, "right-notch",
+    ),
+  },
+  {
+    id: "bore-along-length",
+    title: "Block bored along its length",
+    prompt:
+      "A rectangular block with a round hole drilled straight through, along "
+      + "its length rather than through its thickness. Draw the front, top "
+      + "and right-side views, remembering every circular feature carries "
+      + "its centre lines, and that the circle itself appears in only one of "
+      + "the three views.",
+    convention: "third_angle",
+    topicId: "orthographic",
+    mode: "views",
+    // The existing two bores use axis "z" (circle in the top view) and axis
+    // "y" (circle in the front view). This one uses axis "x", so the circle
+    // appears in the SIDE view instead — a case nothing else in the
+    // catalogue exercises. Offset on both plane axes and clear of every
+    // face (no tangency), so nothing about its position is symmetric.
+    solid: subtractCylinder(block(6, 8, 7), "x", 3, 3, 2, "bore"),
+  },
+  {
+    id: "step-and-notch",
+    title: "A step cut into by a notch",
+    prompt:
+      "A block with a step reducing its height over one end, and a corner "
+      + "notch cut into that same end — deep enough to remove material the "
+      + "step alone would have left behind. Draw the front, top and "
+      + "right-side views, reasoning through where each cut actually leaves "
+      + "material and where it does not.",
+    convention: "third_angle",
+    topicId: "orthographic",
+    mode: "views",
+    // The notch's footprint overlaps the step's: part of it re-removes
+    // material the step already took (a no-op there) and part of it cuts
+    // deeper, down to the base, where the step alone would have left a
+    // shelf. `validateSolid` only rejects overlapping CYLINDERS, never
+    // overlapping boxes, so this compound cut is legal — and it is the
+    // reason "one cut removes part of another" cannot be modelled with a
+    // single subtractBox call.
+    solid: subtractBox(
+      subtractBox(block(9, 6, 4), { x: 6, y: 0, z: 2, w: 3, d: 6, h: 2 }, "step"),
+      { x: 7, y: 0, z: 0, w: 2, d: 2, h: 4 }, "notch",
     ),
   },
   {
