@@ -40,8 +40,9 @@ export function handleScoreRequest(
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return fail(400, "BAD_REQUEST");
   }
-  const { drillId, primitives } = body as Record<string, unknown>;
+  const { drillId, kind, primitives } = body as Record<string, unknown>;
   if (typeof drillId !== "string") return fail(400, "BAD_DRILL_ID");
+  if (kind !== "views") return fail(400, "BAD_KIND");
 
   // Whitelist lookup. There is no path here, so there is no path to traverse.
   const drill = getDrill(drillId);

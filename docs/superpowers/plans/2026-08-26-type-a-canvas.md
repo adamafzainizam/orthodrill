@@ -953,7 +953,14 @@ test("a wrong line type is reported separately from a missing line", () => {
 
 test("wrong placement is its own notice, distinct from view content", () => {
   const r = result({});
-  r.ok && (r.placement = { correct: false, expected: { top: "below", side: "left" }, actual: { top: "above", side: "left" }, matchesOtherConvention: "third_angle" });
+  if (r.ok) {
+    r.placement = {
+      correct: false,
+      expected: { top: "below", side: "left" },
+      actual: { top: "above", side: "left" },
+      matchesOtherConvention: "third_angle",
+    };
+  }
   const n = noticesFor(r);
   assert.ok(n.some((x) => /placement|convention|angle/i.test(x.text)));
 });
@@ -1151,7 +1158,17 @@ export function Sheet({
 
   const toGrid = (e: React.MouseEvent<SVGSVGElement>): Point => {
     const box = e.currentTarget.getBoundingClientRect();
-    return screenToGrid({ x: e.clientX - box.left, y: e.clientY - box.top }, v);
+    // The SVG is max-w-full, so its rendered box can be narrower than its
+    // viewBox. Convert to viewBox units first, or every click lands in the
+    // wrong cell on a narrow viewport. Guard the zero-size case: a
+    // display:none element reports a 0x0 rect, and dividing by it gives
+    // Infinity coordinates.
+    const scaleX = box.width === 0 ? 1 : w / box.width;
+    const scaleY = box.height === 0 ? 1 : h / box.height;
+    return screenToGrid(
+      { x: (e.clientX - box.left) * scaleX, y: (e.clientY - box.top) * scaleY },
+      v,
+    );
   };
 
   const gridLines = [];
@@ -1218,33 +1235,49 @@ export function Sheet({
 
 - [ ] **Step 2: Add the feedback and ink colour tokens**
 
-In `src/app/globals.css`, inside the existing `:root` block, add:
+`src/app/globals.css` currently defines only `--background` and `--foreground`, and
+already has a `@media (prefers-color-scheme: dark)` block. Add ALL of the tokens
+below — every one is referenced by a component in Task 6 or Task 7, and a missing
+token renders as an invalid colour rather than an error.
+
+Inside the existing `:root` block, add:
 
 ```css
+  /* The drawing surface. Fixed in both themes: a technical drawing is black
+     ink on white paper, and pinning the paper means the ink never has to flip. */
   --paper: #ffffff;
   --grid: #e6eae3;
   --ink: #15191a;
   --centre: #b0261c;
+
+  /* Chrome around the drawing, which DOES follow the theme. */
+  --card: #f7f9f5;
+  --rule: #c6cdc4;
+
+  /* Interaction and feedback tones, kept clear of the centre-line red. */
   --select: #1f6feb;
+  --ok: #2f6b45;
   --miss: #b8860b;
   --bad: #c02626;
   --warn: #c2740a;
 ```
 
-And in the dark block (create `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { … } }` if the file has none), redefine only these:
+Inside the existing `@media (prefers-color-scheme: dark) { :root { … } }` block,
+redefine ONLY the tokens whose role changes on a dark ground — the paper and its
+ink deliberately do not:
 
 ```css
-  --paper: #ffffff;
-  --grid: #e6eae3;
-  --ink: #15191a;
-  --centre: #b0261c;
+  --card: #1c2124;
+  --rule: #333b3d;
   --select: #4c8dff;
+  --ok: #7fc79b;
   --miss: #d9a520;
   --bad: #e05252;
   --warn: #e0921f;
 ```
 
-The sheet stays white ink-on-paper in both themes: technical drawings are black on white, and keeping the paper fixed means the ink tokens never need to flip.
+**Do not redefine `--paper`, `--grid`, `--ink` or `--centre` in the dark block.**
+They are the drawing itself, and they stay put.
 
 - [ ] **Step 3: Verify it renders**
 

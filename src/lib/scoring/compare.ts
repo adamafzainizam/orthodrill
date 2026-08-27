@@ -13,6 +13,9 @@ import {
 } from "./primitives.ts";
 import type { ViewDiff, WrongType } from "./types.ts";
 
+/** The offset `toOrigin` removed, so a caller can put a primitive back. */
+type Anchored = { primitives: Primitive[]; anchor: { dx: number; dy: number } };
+
 /**
  * Shift a view so it starts at the origin, ANCHORED ON THE OBJECT rather than
  * on everything drawn.
@@ -28,21 +31,22 @@ import type { ViewDiff, WrongType } from "./types.ts";
  * Every primitive, centre lines included, is still translated by the same
  * offset; only the choice of anchor changes.
  */
-function toOrigin(ps: Primitive[]): Primitive[] {
+function toOrigin(ps: Primitive[]): Anchored {
   const object = ps.filter((p) => p.type !== "centre");
-  // A view of nothing but centre lines has no object to anchor on; fall back
-  // to anchoring on itself so it still normalises rather than vanishing.
   const box = boundingBox(object.length > 0 ? object : ps);
-  if (box === null) return [];
-  return ps.map((p) => translate(p, -box.minX, -box.minY));
+  if (box === null) return { primitives: [], anchor: { dx: 0, dy: 0 } };
+  return {
+    primitives: ps.map((p) => translate(p, -box.minX, -box.minY)),
+    anchor: { dx: box.minX, dy: box.minY },
+  };
 }
 
 export function compareView(attempt: Primitive[], key: Primitive[]): ViewDiff {
   const a = toOrigin(attempt);
   const k = toOrigin(key);
 
-  const attemptByPos = new Map(a.map((p) => [positionKey(p), p]));
-  const keyByPos = new Map(k.map((p) => [positionKey(p), p]));
+  const attemptByPos = new Map(a.primitives.map((p) => [positionKey(p), p]));
+  const keyByPos = new Map(k.primitives.map((p) => [positionKey(p), p]));
 
   const correct: Primitive[] = [];
   const missing: Primitive[] = [];
@@ -60,7 +64,7 @@ export function compareView(attempt: Primitive[], key: Primitive[]): ViewDiff {
     if (!keyByPos.has(pos)) extra.push(drawn);
   }
 
-  return { correct, missing, extra, wrongType };
+  return { correct, missing, extra, wrongType, anchor: a.anchor };
 }
 
 export function isPerfect(d: ViewDiff): boolean {

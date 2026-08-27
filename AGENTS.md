@@ -64,7 +64,7 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 3. Current status
 
-**Phase:** scorer, generators, golden set and the server side are complete. The canvas is the only unbuilt piece.
+**Phase:** the Type A drill is built end to end — scorer, generators, golden set, server side and canvas. Nothing has been exercised in a browser yet.
 
 **Done:**
 - [x] Candidate chosen after `pathway-navigator` was discontinued — see that repo's `docs/post-mortem.md`
@@ -76,39 +76,41 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 - [x] The golden-set review sheet, published as a private Artifact
 - [x] All four golden parts reviewed and marked VERIFIED (2026-08-26) — by the builder against prior coursework, not an outside expert; see `docs/decision-log.md` for the residual risk
 - [x] The scoring route handler, the drill store, and the structural enforcement of §5.1 — `src/server/`, `src/drills/`, `src/app/api/`
+- [x] The Type A canvas — snap-to-grid click-click input, select/move/retype/delete, undo/redo, feedback drawn over the drawing plus notifications into a backlog
 - [x] The isometric prompt image — painter's algorithm ordered by diagonal depth, occlusion by overdraw, analytic bore ellipse (an earlier diagonal-visibility-walk design was replaced mid-implementation; see the session log)
 
-**Not started:** the canvas. Drill content is seeded with four drills; the spec asks for 8-12.
+**Not started:** the Type B reverse drill (build the solid from three views) — designed and specced, not planned or built. Drill content is seeded with four drills; the spec asks for 8-12.
 
 ---
 
 ## 4. Next up
 
-**START HERE (updated 2026-08-26, late).** **The canvas is the only unbuilt piece. Everything it talks to now exists and is verified against a running server.**
+**START HERE (updated 2026-08-27).** **Type A is built end to end. The next thing is a human at a browser, not more code.**
 
-The contract it must satisfy, all three routes live and tested:
+Nothing in the canvas has ever been clicked. The build passes, 301 tests pass, and the served HTML was checked to carry no answer key — but drawing, selection, dragging, undo, retype and submit have never been exercised by a person. That is the first task of the next session:
 
-| Route | Gives you |
-|---|---|
-| `GET /api/drills` | `{ drills: [{ id, title, convention }] }` — enough for a menu |
-| `GET /api/drills/[id]` | the public half: `{ id, title, prompt, convention, grid: {width,height}, isometric }` |
-| `POST /api/score` | `{ drillId, primitives }` in; a `ScoreResult` out |
+```bash
+npm run build && PORT=3111 npm start   # then open http://localhost:3111/drills
+```
 
-- **`isometric` is the paint program** described below and in `isometric.ts` — render it in array order, fills stroked in the background colour. Its ground must be the exact colour of those fills, so it cannot sit on a themed surface (§6).
-- **`POST /api/score` answers 200 for any legitimately scored attempt**, including `{ ok: false, reason: "WRONG_VIEW_COUNT" }`, which means the drawing was not three views — a teaching outcome, not an error. 400/404/413/429 are transport failures and mean the attempt was never scored. A 429 carries `retryAfterMs` and a `retry-after` header.
-- **Coordinates must be integers** within ±200, at most 400 primitives, radii 1–100. `validate.ts` rejects the whole attempt if any one primitive is off, and the canvas should never be able to produce such a thing in the first place.
-- **NEVER import from `src/drills/`, `src/server/`, `geometry/solid`, `geometry/views` or `scoring/score` in a client component.** A solid IS an answer key — anyone holding one runs the generator and has the views. `src/drills/isolation.test.ts` fails the build's test run if you do, and it is not advisory: it scans every file.
+Draw three views, press "Check my drawing", and confirm the feedback lands in the right place on the sheet. **The highest-risk thing to look at is feedback placement.** `ViewDiff` primitives come back origin-normalised and are repositioned client-side using the `anchor` offset the scorer now returns; if feedback appears offset from the student's actual drawing, that is where the bug is.
 
-Two follow-ups, neither blocking:
+**Open items carried out of the canvas work**, all recorded with reasoning in `.superpowers/sdd/2026-08-26-type-a-canvas/progress.md`:
 
-- **Drill content is seeded, not finished.** Four drills exist in `src/drills/registry.ts`; the spec asks for 8–12 in a difficulty progression. Adding one means defining a solid — the key is derived, never hand-written (§7).
-- **Three golden parts carry citations nobody has pulled up.** Free, external, stronger than any single review. First thing to reach for if a drill is ever reported wrong.
+- Dismissing one toast restarts the shared dwell timer for the others, so they can outlive their timeout.
+- Ctrl+clicking empty space clears the whole selection instead of leaving it alone.
+- The line-type dropdown cannot retype a selection to the type it already shows — a native `<select>` fires no `onChange` when its value does not change. Documented in `Toolbar.tsx`; needs a different control to fix properly.
+- The sheet is `role="application"` with no keyboard path to DRAW anything. Arrow keys move a selection, but a drawing cannot be started without a pointer. Worth a decision before launch.
+- Server rejections that are not network failures (`BAD_KIND`, `NO_SUCH_DRILL`) still render the generic "could not reach the marker" message. `TOO_MANY_PRIMITIVES` is no longer reachable — the reducer refuses to append past the cap.
+- `Editor.tsx` hand-duplicates `PublicDrill` from `registry.ts`. It must — importing the type would trip the isolation test — but nothing links the two shapes.
+
+**Then Type B**, the reverse drill: given three views, build the solid on an isometric grid. Designed and specced in `docs/superpowers/specs/2026-08-26-canvas-and-reverse-drill-design.md` §4, not yet planned. Its riskiest piece is generalising `isoproject.ts` to four viewpoints — a wrong sign there yields a picture that is perfectly self-consistent and perfectly mirrored, which is the same failure class the golden set exists to catch, so it needs the same treatment.
+
+**Drill content is still seeded, not finished.** Four drills; the spec asks for 8–12. Adding one means defining a solid — the key is derived, never hand-written (§7).
+
+**Three golden parts carry citations nobody has pulled up.** Free, external, stronger than any single review. First thing to reach for if a drill is ever reported wrong.
 
 The review sheet stays published — regenerate with `npm run verify:sheet`, and **re-publish `verification-sheet.artifact.html` passing `url: https://claude.ai/code/artifact/6eb96803-3639-4378-b05e-0b5b45e24c8c`**, or the reviewer's link goes stale.
-
-Build order is **scorer → generator → canvas**, and it is deliberate. The canvas is the tempting starting point and the wrong one: building it first would fix the interfaces by accident rather than by design. The scaffold, the scorer and the views generator are done; the rest follows in this order.
-
-1. **The canvas.** Snap-to-grid primitive input, then feedback rendering. It is also the renderer for `isometricView`'s output (`src/lib/geometry/isometric.ts`), which is an ORDERED back-to-front paint program, not a set of primitives: render every `IsoFace` as an opaque fill in the page background colour AND stroke it in that same colour to seal its own boundary, then render the `IsoLine`/`IsoEllipse` entries that follow it, in array order. Reordering, filtering or deduplicating the array corrupts the picture — occlusion happens entirely by later fills overdrawing earlier strokes, not by any visibility computation the renderer needs to redo.
 
 **Views generator: DONE 2026-08-24, golden set SIGNED OFF 2026-08-26.** `src/lib/geometry/` turns a base block plus ordered subtractive operations into front/top/side views with correct hidden-line classification and analytic circular bores — see the decision log entry of the same date for what the adversarial review found. The four golden fixtures in `src/lib/geometry/fixtures/golden.ts` are all asymmetric, but only the L-block's front view is pinned by hand-derived coordinates — the other three are pinned only by asymmetry, citation, non-emptiness and run-to-run stability, all of which are mirror-invariant and therefore regression-only (see the file header in `golden.test.ts`). All four were reviewed and passed by the builder on 2026-08-26 against prior coursework; no cited source has been pulled up to confirm them independently, and three of the four could still be. `npm run verify:sheet` renders them for review. Shipping drills was gated on that sign-off, and no longer is.
 
@@ -150,6 +152,10 @@ Empty for this repo so far. **Inherited from `pathway-navigator` and expected to
 - Next.js **masks errors thrown out of a server action** in production builds. Return typed results; never throw for validation failures.
 
 **Found in this repo:**
+
+- **`isolation.test.ts` reads DIRECT imports only — it cannot see a key handed across a component boundary as a prop.** The checker looks at each file's own `"use client"` marker and its own import statements. It never walks the import graph. While only `app/api/` was allowed to hold a `Drill`, "server component holds the key and passes it to a client component" was structurally impossible; widening `ALLOWED` to all of `app/` (needed so a page could render server-side) made it possible, and the guard cannot see it. `<Editor drill={drill} />` with a full `Drill` instead of `publicHalf(drill)` would pass every test in the file and serialise the solid into the RSC payload. *What actually stops it today:* TypeScript — `Drill` has no `grid` or `isometric`, so assigning it where a `PublicDrill` is expected is a compile error. **That means a cast on that seam removes the last protection**, which is why `as PublicDrill` was deleted from the drill page rather than left as harmless-looking noise. `lib/` and `drills/` have the same blind spot and always did. *If you add a page that loads a drill:* pass `publicHalf(drill)`, never `drill`, and do not reach for a cast to make a type complaint go away — the complaint is the guard.
+
+- **`src/lib/canvas/submit.ts` performs network I/O, inside a directory §8 says is pure and I/O-free.** A deliberate, recorded exception rather than an oversight: `fetchImpl` is injected, so the module is testable without a server or a browser, which is what the purity rule exists to protect. It is recorded here because an unrecorded exception is how the next session learns the wrong rule. Everything else under `src/lib/` remains genuinely I/O-free; do not treat this as a precedent without a reason as good.
 
 - **`gh` DOES reach this repo — the 2026-08-24 session log entry saying it cannot is wrong, and it cost three features their PRs.** A `GITHUB_TOKEN` env var is set deliberately for the builder's separate Hermes project, it takes precedence over `gh`'s stored keyring credentials, and it has no access to this private repo — all of that is true, and it produces `Could not resolve to a Repository`, which reads exactly like "no access" and was recorded as such. *Fix:* scope the variable out for the single command — `GITHUB_TOKEN= gh pr create ...` — and `gh` falls back to the keyring account, which has `repo` scope and full access. This is NOT the same as clearing or overriding the token: the empty assignment applies to one process, and every other process, including anything Hermes runs, still sees it. Verified 2026-08-26 with `repo view` and `pr list`. *Symptom of the belief, not the bug:* work merging straight to `main` with no PR, because the web UI is a manual step that is easy to skip — `feat/generator`, `feat/isometric` and `chore/verification-sheet-artifact` all landed that way, against §2.5. Only the scorer (PRs #1, #2) was ever reviewed as a PR.
 
@@ -219,3 +225,4 @@ Append a short entry per working session. Newest at the bottom.
 | 2026-08-26 | Claude (Claude Code) | Noticed by the builder: no PR existed for this work, or for the two features before it. Root cause was a wrong belief recorded in this file on 2026-08-24 — that `gh` cannot reach the repo. It can: `GITHUB_TOKEN= gh <cmd>` scopes the Hermes token out for one process and `gh` falls back to the keyring account, which has full access. Corrected in §6. No PR could be opened retroactively for the merged work — its commits are already ancestors of `main`, so a PR would have an empty diff. §2.5's PR step applies from the canvas onward. |
 | 2026-08-26 | Claude (Claude Code) | Recorded the builder's attribution preference as constraint §2.7: commits carry his name only, no AI co-author trailer. Checked what was actually on GitHub first — every commit is already authored by him and the contributors list shows one name, because `noreply@anthropic.com` maps to no GitHub account. What remains is trailer TEXT in the messages of 26 of 84 commits, which is a commit-message matter rather than a contributors-graph one. Removing it retroactively needs a history rewrite and a force-push, and was offered rather than done. Also opened PR #3 — the first since the scorer — which verified the §2.5 command sequence works end to end. |
 | 2026-08-26 | Claude (Claude Code) | Built the server side, TDD throughout: attempt validation, a rate limiter, the drill store, and the three API routes. The realisation that shaped it — **the solid IS the answer key**, since anyone holding one runs `generateViews` and has the views exactly — which rules out shipping drills to the client and computing the pictorial there, and is why the public half is served from a route. `src/drills/isolation.test.ts` enforces that structurally, with positive controls, and immediately caught both `src/server/score.ts` and its own transitive blind spot. Every §7 hazard now has a test: whitelist ids with no path to traverse, rebuilt-not-passed-through primitives under caps, rate limiting ahead of validation, body size capped by header AND by what is read. Verified against a running server: a correct attempt scores perfect with correct first-angle placement, the public half serialises no solid, traversal ids 404, malformed JSON 400, the 31st submission in a minute 429 with `retry-after`. Found and fixed a second glob bug — `npm test` was scoped to `src/lib`, so the new tests were silently not running (§6). 250 tests, lint, typecheck and build clean. |
+| 2026-08-27 | Claude (Claude Code) | Built the Type A canvas, subagent-driven from a written plan: a fresh implementer per task, a spec-and-quality review after each, and a fix loop. Eight tasks. The scorer gained a per-view `anchor` — `ViewDiff` primitives are origin-normalised, so without it feedback could not be drawn over the student's own work at all. Then the pure canvas core (coords, bounded undo history, the editor reducer holding every drawing operation, score-to-sentences), then the SVG sheet and the components, then the wiring. **The reviews earned their place: of five fixes, four were defects in the PLAN rather than in the implementers' work.** The sharpest was the sheet's click mapping — `max-w-full` means the browser scales the SVG down on a narrow viewport while the handler still assumed one CSS pixel per grid unit, so every click would have landed in the wrong cell with nothing to catch it. Also fixed: an unbounded circle radius the server would have rejected, a lint warning, notices silently dropped at mount, and keyboard shortcuts hijacking the toolbar's `<select>` so Backspace deleted the drawing. Both plan defects were corrected in the plan text too. One implementer deliberately deviated from the plan — `setState` inside `useEffect` violates a real Next 16 lint rule — and in rewriting it found a genuine latent bug in the plan's version where a dismissed toast was re-added to the backlog. 301 tests, lint, typecheck and build clean. **Nothing has been clicked in a browser yet; that is the next session's first job.** |

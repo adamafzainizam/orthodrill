@@ -27,8 +27,16 @@ const SRC = fileURLToPath(new URL("../", import.meta.url));
  */
 const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/isoedges|scoring\/score|scoring\/assign)/;
 
-/** Directories permitted to reach for them. Never a client component. */
-const ALLOWED = /^(app[\\/]api[\\/]|lib[\\/]|drills[\\/]|server[\\/])/;
+/**
+ * Directories permitted to reach for them. Never a client component.
+ *
+ * Widened from `app/api/` to all of `app/`: a server component (e.g. a page
+ * that awaits `params` and renders server-side) is exactly as safe as a route
+ * handler — neither ships its imports to the browser. The `"use client"`
+ * check above is what actually guards the boundary; this regex only decides
+ * whether SERVER code is in a directory allowed to hold it.
+ */
+const ALLOWED = /^(app[\\/]|lib[\\/]|drills[\\/]|server[\\/])/;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -69,18 +77,27 @@ test("the checker catches a violation — positive control", () => {
   );
 });
 
-test("the checker catches a server-side leak outside a route handler", () => {
+test("the checker catches a server-side leak outside any allowed directory", () => {
+  // ALLOWED now covers all of app/ (a server component is as safe as a route
+  // handler — see the widened regex above), so this can no longer use an
+  // app/ path as its offending example. components/ is not, and was never,
+  // in ALLOWED, so a non-client file there is still a genuine leak.
   const offending = `import { answerKey } from "../drills/registry.ts";\n`;
   assert.notEqual(
-    violation("app/page.tsx", offending),
+    violation("components/Header.tsx", offending),
     null,
-    "a page component importing the registry must not pass",
+    "a non-client file outside every allowed directory must not pass",
   );
 });
 
 test("a route handler importing the registry is allowed", () => {
   const legitimate = `import { getDrill } from "../../../drills/registry.ts";\n`;
   assert.equal(violation("app/api/score/route.ts", legitimate), null);
+});
+
+test("a client-marked page under app/ is still caught", () => {
+  const offending = `"use client";\nimport { getDrill } from "@/drills/registry";\n`;
+  assert.notEqual(violation("app/drills/[id]/page.tsx", offending), null);
 });
 
 test("the checker catches a client component reaching server code transitively", () => {

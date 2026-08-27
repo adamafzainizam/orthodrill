@@ -3,6 +3,24 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* The drawing surface. Fixed in both themes: a technical drawing is black
+     ink on white paper, and pinning the paper means the ink never has to flip. */
+  --paper: #ffffff;
+  --grid: #e6eae3;
+  --ink: #15191a;
+  --centre: #b0261c;
+
+  /* Chrome around the drawing, which DOES follow the theme. */
+  --card: #f7f9f5;
+  --rule: #c6cdc4;
+
+  /* Interaction and feedback tones, kept clear of the centre-line red. */
+  --select: #1f6feb;
+  --ok: #2f6b45;
+  --miss: #b8860b;
+  --bad: #c02626;
+  --warn: #c2740a;
 }
 
 @theme inline {
@@ -16,6 +34,14 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    --card: #1c2124;
+    --rule: #333b3d;
+    --select: #4c8dff;
+    --ok: #7fc79b;
+    --miss: #d9a520;
+    --bad: #e05252;
+    --warn: #e0921f;
   }
 }
 
