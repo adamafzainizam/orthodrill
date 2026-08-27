@@ -49,16 +49,24 @@ export type PublicDrill = {
 };
 
 /**
- * Room for the three views plus the gaps a student leaves between them. The
- * scorer clusters at DEFAULT_CLUSTER_GAP, so the grid has to be comfortably
- * larger than that or two views would be read as one.
+ * ONE SHEET, THE SAME FOR EVERY DRILL.
+ *
+ * It used to be derived per part, which gave every drill a slightly different
+ * canvas — 40x38, 42x38, 44x39, 44x40. Two things were wrong with that. A
+ * student had to reacquaint themselves with the drawing area on every
+ * exercise, which is friction in the one place the tool should feel familiar.
+ * And a derived height could come out ODD: `plate-with-bore` was 44x39, so the
+ * quadrant divider sat at 19.5 — half a unit off, between grid lines, which
+ * reads exactly as a canvas that does not line up with its own grid.
+ *
+ * BOTH DIMENSIONS MUST STAY EVEN so the dividers land on grid lines, and both
+ * must stay large enough for the biggest part's three views plus the gaps a
+ * student leaves between them. The scorer clusters at DEFAULT_CLUSTER_GAP, so
+ * the sheet has to be comfortably larger than that or two views read as one.
+ * `registry.test.ts` pins all three properties.
  */
-const VIEW_GAP = 10;
-
-function gridFor(solid: Solid): { width: number; height: number } {
-  const { w, d, h } = solid.base;
-  return { width: w + d + VIEW_GAP * 3, height: h + d + VIEW_GAP * 3 };
-}
+export const SHEET: Readonly<{ width: number; height: number }> =
+  Object.freeze({ width: 48, height: 40 });
 
 /**
  * The starter progression: one feature, then two axes of asymmetry, then a
@@ -156,7 +164,7 @@ export function publicHalf(drill: Drill): PublicDrill {
     title: drill.title,
     prompt: drill.prompt,
     convention: drill.convention,
-    grid: Object.freeze(gridFor(drill.solid)),
+    grid: SHEET,
     isometric: Object.freeze(isometricView(drill.solid)),
     dimensions: Object.freeze(isometricDimensions(drill.solid)),
   });
