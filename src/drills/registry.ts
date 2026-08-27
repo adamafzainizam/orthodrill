@@ -22,31 +22,83 @@ import { generateViews } from "../lib/geometry/views.ts";
 import { isometricView } from "../lib/geometry/isometric.ts";
 import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
+import { parabolaKey, type ParabolaSpec } from "../lib/geometry/parabola.ts";
 import type { KeyViews } from "../lib/scoring/assign.ts";
+import type { Primitive } from "../lib/scoring/primitives.ts";
 import type { Convention } from "../lib/scoring/types.ts";
+import { getTopic, type Hint, type TopicId } from "../topics/topics.ts";
 
-export type Drill = {
+/**
+ * An orthographic drill: draw front/top/side from an isometric prompt. The
+ * long-established shape, unchanged by the topics widening below.
+ */
+export type ViewsDrill = {
   id: string;
   title: string;
   prompt: string;
   convention: Convention;
+  topicId: TopicId;
+  mode: "views";
   /** PRIVATE. The answer key in compressed form. Never serialise this. */
   solid: Solid;
 };
 
-/** Exactly what the browser is allowed to see. */
-export type PublicDrill = {
+/**
+ * A single-figure construction exercise (e.g. the parabola). No convention —
+ * there is nothing to place relative to anything else — and no solid: the
+ * spec is a flat set of numbers, not a 3D model.
+ */
+export type FigureDrill = {
   id: string;
   title: string;
   prompt: string;
-  convention: Convention;
-  grid: Readonly<{ width: number; height: number }>;
-  /** Readonly because it is cached and shared across requests. */
-  isometric: readonly IsoPrimitive[];
-  /** Readonly for the same reason. Derived from the solid, never the solid
-   *  itself — see isodims.ts for why that is enough to be trustworthy. */
-  dimensions: readonly IsoDim[];
+  topicId: TopicId;
+  mode: "figure";
+  /**
+   * PRIVATE. `parabolaKey(spec)` derives the answer key with no work at all —
+   * it is a pure function anyone could run — so `spec` is exactly as
+   * sensitive as `solid` above and must never cross into `publicHalf`.
+   */
+  spec: ParabolaSpec;
 };
+
+/**
+ * Which scoring mode an exercise uses. Explicit rather than inferred from
+ * which private field is present — inference is how the wrong branch gets
+ * taken when a mode this catalogue does not yet carry arrives. `mode` is the
+ * discriminant TypeScript narrows on below, so `ViewsDrill` and `FigureDrill`
+ * must each carry a distinct literal, not just distinct shapes.
+ */
+export type Drill = ViewsDrill | FigureDrill;
+
+/** What the sidebar needs, and nothing a hint author did not write by hand. */
+export type PublicTopic = { id: TopicId; title: string; hints: Hint[] };
+
+/** Exactly what the browser is allowed to see. */
+export type PublicDrill =
+  | {
+      id: string;
+      title: string;
+      prompt: string;
+      mode: "views";
+      convention: Convention;
+      grid: Readonly<{ width: number; height: number }>;
+      /** Readonly because it is cached and shared across requests. */
+      isometric: readonly IsoPrimitive[];
+      /** Readonly for the same reason. Derived from the solid, never the
+       *  solid itself — see isodims.ts for why that is enough to be
+       *  trustworthy. */
+      dimensions: readonly IsoDim[];
+      topic: PublicTopic;
+    }
+  | {
+      id: string;
+      title: string;
+      prompt: string;
+      mode: "figure";
+      grid: Readonly<{ width: number; height: number }>;
+      topic: PublicTopic;
+    };
 
 /**
  * ONE SHEET, THE SAME FOR EVERY DRILL.
@@ -82,6 +134,8 @@ const CATALOGUE: Drill[] = [
       "A rectangular block with a single step cut from one end. Draw the front, "
       + "top and right-side views, and place them according to the convention shown.",
     convention: "first_angle",
+    topicId: "orthographic",
+    mode: "views",
     solid: subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 }, "step"),
   },
   {
@@ -91,6 +145,8 @@ const CATALOGUE: Drill[] = [
       "A block with a rectangular notch removed from one vertical corner. Watch "
       + "which side the notch appears on in each view.",
     convention: "first_angle",
+    topicId: "orthographic",
+    mode: "views",
     solid: subtractBox(block(8, 4, 4), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 4 }, "notch"),
   },
   {
@@ -101,6 +157,8 @@ const CATALOGUE: Drill[] = [
       + "one view and as a pair of hidden lines in the other two — and every "
       + "circular feature carries its centre lines.",
     convention: "third_angle",
+    topicId: "orthographic",
+    mode: "views",
     solid: subtractCylinder(block(8, 6, 3), "z", 3, 3, 2, "bore"),
   },
   {
@@ -110,10 +168,30 @@ const CATALOGUE: Drill[] = [
       "A step and a through-hole on the same part. The hole is bored along the "
       + "depth axis, so it is hidden in two of the three views.",
     convention: "first_angle",
+    topicId: "orthographic",
+    mode: "views",
     solid: subtractCylinder(
       subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }, "step"),
       "y", 2, 1, 1, "bore",
     ),
+  },
+  {
+    id: "parabola-rectangle-5",
+    title: "Parabola by the rectangle method",
+    prompt:
+      "Construct a parabolic arc opening upward, using the rectangle (offset) "
+      + "method with 5 equal divisions on each side. Place the vertex in the "
+      + "lower part of the sheet, leaving room on both sides and above for the "
+      + "arms to rise. Draw your rays, division marks and any other scaffolding "
+      + "with the Construction line type — the marker ignores construction "
+      + "lines and grades the curve as straight segments joining each located "
+      + "point to the next, not a hand-smoothed sweep.",
+    topicId: "parabola",
+    mode: "figure",
+    // n=5, apex near the bottom edge, centred horizontally on the 48-wide
+    // sheet — the same placement `parabola.test.ts` uses to pin the "fits
+    // the sheet" property. PRIVATE: see FigureDrill's `spec` field above.
+    spec: { n: 5, originX: 24, originY: 38 },
   },
 ];
 
@@ -146,6 +224,7 @@ export function getDrill(id: string): Drill | null {
  * nothing can start to.
  */
 const keyCache = new Map<string, KeyViews>();
+const figureKeyCache = new Map<string, Primitive[]>();
 const publicCache = new Map<string, PublicDrill>();
 
 /** One level deep is enough: these hold arrays of plain primitive records. */
@@ -154,26 +233,89 @@ function freezeViews<T extends Record<string, readonly unknown[]>>(v: T): T {
   return Object.freeze(v);
 }
 
-/** The half that may cross the wire. Built by naming fields, never by omission. */
+/**
+ * Freeze a bare array in place, keeping its declared type `T[]` rather than
+ * the `readonly T[]` `Object.freeze`'s array overload would otherwise force
+ * on every caller downstream (`scoreFigure`, `ScoringLookup`, `compareView`
+ * all take `Primitive[]`, none of them mutate it, and widening every one of
+ * them to `readonly` is a bigger ripple than this one honest cast deserves).
+ * The freeze itself is real — this only affects what TypeScript believes.
+ */
+function freezeArray<T>(arr: T[]): T[] {
+  Object.freeze(arr);
+  return arr;
+}
+
+/**
+ * The topic half the sidebar needs. Looked up by `topicId`, never carried on
+ * the drill itself — `topics.ts` is the one place a hint is authored, so a
+ * drill can only ever point at a real topic (`registry.test.ts` pins that
+ * every `topicId` resolves) rather than duplicate its title and hints.
+ */
+function publicTopic(drill: Drill): PublicTopic {
+  const topic = getTopic(drill.topicId);
+  // Cannot happen for any drill in CATALOGUE (pinned by test), but a topic
+  // lookup that silently produced `undefined` fields would be a worse bug
+  // than a loud one, so this fails clearly rather than serialising `null`s.
+  if (topic === null) throw new Error(`drill ${drill.id} points at unknown topic ${drill.topicId}`);
+  return { id: topic.id, title: topic.title, hints: topic.hints };
+}
+
+/**
+ * The half that may cross the wire. Built by naming fields, never by
+ * omission — each branch below lists exactly what a "views" or "figure"
+ * exercise is allowed to reveal, so a field added to `Drill` later does not
+ * cross the wire just by existing.
+ *
+ * A figure exercise's `spec` (the `n`/origin that `parabolaKey` turns into
+ * the exact answer with one call, per FigureDrill's docstring) never appears
+ * here, on either branch, in any form — not as a nested object, not as a
+ * `bounds` derived from it, nothing an attacker or a script could feed back
+ * into `parabolaKey` to reconstruct the key. What the student needs — which
+ * construction to draw and roughly where on the sheet to put it — is carried
+ * in `prompt`, authored as prose, not as machine-readable numbers.
+ */
 export function publicHalf(drill: Drill): PublicDrill {
   const cached = publicCache.get(drill.id);
   if (cached !== undefined) return cached;
 
-  const built: PublicDrill = Object.freeze({
-    id: drill.id,
-    title: drill.title,
-    prompt: drill.prompt,
-    convention: drill.convention,
-    grid: SHEET,
-    isometric: Object.freeze(isometricView(drill.solid)),
-    dimensions: Object.freeze(isometricDimensions(drill.solid)),
-  });
+  const built: PublicDrill = drill.mode === "figure"
+    ? Object.freeze({
+      id: drill.id,
+      title: drill.title,
+      prompt: drill.prompt,
+      mode: "figure",
+      grid: SHEET,
+      topic: publicTopic(drill),
+    })
+    : Object.freeze({
+      id: drill.id,
+      title: drill.title,
+      prompt: drill.prompt,
+      mode: "views",
+      convention: drill.convention,
+      grid: SHEET,
+      isometric: Object.freeze(isometricView(drill.solid)),
+      dimensions: Object.freeze(isometricDimensions(drill.solid)),
+      topic: publicTopic(drill),
+    });
   publicCache.set(drill.id, built);
   return built;
 }
 
-/** SERVER ONLY. The answer key, derived from the solid and cached. */
-export function answerKey(drill: Drill): KeyViews {
+/** SERVER ONLY. The answer key for a "views" exercise, derived from the solid and cached. */
+export function answerKey(drill: ViewsDrill): KeyViews;
+/** SERVER ONLY. The answer key for a "figure" exercise, derived from the spec and cached. */
+export function answerKey(drill: FigureDrill): Primitive[];
+export function answerKey(drill: Drill): KeyViews | Primitive[] {
+  if (drill.mode === "figure") {
+    const cached = figureKeyCache.get(drill.id);
+    if (cached !== undefined) return cached;
+    const built = freezeArray(parabolaKey(drill.spec));
+    figureKeyCache.set(drill.id, built);
+    return built;
+  }
+
   const cached = keyCache.get(drill.id);
   if (cached !== undefined) return cached;
 
@@ -181,3 +323,76 @@ export function answerKey(drill: Drill): KeyViews {
   keyCache.set(drill.id, built);
   return built;
 }
+
+/**
+ * A worked METHOD DIAGRAM for the parabola topic: a small figure showing how
+ * the rectangle method locates a point, not an answer to any exercise.
+ *
+ * DELIBERATELY AT A DIFFERENT n FROM ANY EXERCISE. The seeded parabola drill
+ * (`parabola-rectangle-5` above) uses n=5; this diagram uses n=DIAGRAM_N=3.
+ * Do NOT change this to "helpfully" match whichever exercise is on screen —
+ * that would turn a textbook illustration of the METHOD into the answer key
+ * for the INSTANCE, exactly the leak `publicHalf` is written to avoid. If a
+ * second figure exercise is ever added at n=3, this diagram still must not
+ * be changed to match it; pick a value that matches no shipped exercise.
+ *
+ * Reuses `parabolaKey` for the curve itself (same function, different spec —
+ * n=3 here is not secret; only a specific EXERCISE's spec is) and derives the
+ * rectangle/division/ray/offset construction lines algebraically alongside
+ * it. The derivation: a ray from the apex to the i-th mark on a side divided
+ * into n EQUAL parts (at height i*n above the apex) crosses the vertical
+ * raised from the i-th mark on the half-width (also divided into n equal
+ * parts, at distance i from the apex) at height i*n * (i/n) = i² — exactly
+ * `parabolaKey`'s point(k=i) = (i, -i²). Worth re-deriving by hand before
+ * touching either half of this function; the two must keep agreeing or the
+ * diagram stops matching the thing it explains.
+ */
+const DIAGRAM_N = 3;
+
+function buildParabolaMethodDiagram(): Primitive[] {
+  const n = DIAGRAM_N;
+  const originX = n;
+  const originY = n * n;
+  const spec: ParabolaSpec = { n, originX, originY };
+
+  const seg = (x1: number, y1: number, x2: number, y2: number, type: Primitive["type"]): Primitive =>
+    ({ kind: "segment", type, x1, y1, x2, y2 });
+
+  const primitives: Primitive[] = [
+    // The enclosing rectangle: 2n wide, n^2 tall, apex at the mid-point of its base.
+    seg(originX - n, originY, originX + n, originY, "construction"),
+    seg(originX - n, originY - n * n, originX + n, originY - n * n, "construction"),
+    seg(originX - n, originY, originX - n, originY - n * n, "construction"),
+    seg(originX + n, originY, originX + n, originY - n * n, "construction"),
+    // The axis of symmetry, through the apex.
+    seg(originX, originY, originX, originY - n * n, "centre"),
+  ];
+
+  for (const sign of [1, -1] as const) {
+    const edgeX = originX + sign * n;
+    for (let i = 1; i <= n; i++) {
+      const markY = originY - i * n;
+      // Ray from the apex to the i-th equal division of the side.
+      primitives.push(seg(originX, originY, edgeX, markY, "construction"));
+      // Vertical raised from the i-th equal division of the half-width, up
+      // to where it meets that ray — the located point.
+      const pointX = originX + sign * i;
+      const pointY = originY - i * i;
+      primitives.push(seg(pointX, originY, pointX, pointY, "construction"));
+    }
+  }
+
+  // The curve itself: straight segments joining consecutive located points,
+  // exactly as the student is asked to draw it (see parabola.ts).
+  primitives.push(...parabolaKey(spec));
+
+  return primitives;
+}
+
+/**
+ * PUBLIC, unlike `answerKey` above: this never varies per drill and reveals
+ * nothing about any exercise's spec — see the docstring above. Computed once
+ * at module load (deterministic and cheap) and frozen, like the isometric
+ * pictorial's cached output, so every request shares the same array.
+ */
+export const PARABOLA_METHOD_DIAGRAM: readonly Primitive[] = Object.freeze(buildParabolaMethodDiagram());

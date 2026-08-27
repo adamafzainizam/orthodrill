@@ -45,8 +45,9 @@ export type ValidationResult =
 // "construction" is accepted deliberately: the canvas strips construction
 // lines before submit, but that filter must not be the ONLY thing standing
 // between a student and a rejected attempt. If it ever breaks, a construction
-// line reaching here must be harmless rather than fatal — scoreAttempt strips
-// it again at its own entry point, which is the load-bearing strip.
+// line reaching here must be harmless rather than fatal — scoreViews and
+// scoreFigure strip it again at their own entry point, which is the
+// load-bearing strip (both share one helper, so the rule cannot diverge).
 const TYPES: readonly string[] = ["visible", "hidden", "centre", "construction"];
 
 /** A coordinate must be a real integer inside the bound — the grid snaps. */

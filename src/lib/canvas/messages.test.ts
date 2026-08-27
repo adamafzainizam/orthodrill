@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { noticesFor } from "./messages.ts";
-import type { ScoreResult } from "../scoring/score.ts";
+import type { FigureScoreResult, ScoreResult } from "../scoring/score.ts";
 
 const emptyDiff = { correct: [], missing: [], extra: [], wrongType: [], anchor: { dx: 0, dy: 0 } };
 const line = { kind: "segment", type: "visible", x1: 0, y1: 0, x2: 1, y2: 0 } as const;
@@ -66,5 +66,48 @@ test("a wrong view count explains itself rather than blaming the drawing", () =>
 
 test("every notice carries a stable unique id, so a list can key on it", () => {
   const n = noticesFor(result({ front: { missing: [line] }, top: { extra: [line] } }));
+  assert.equal(new Set(n.map((x) => x.id)).size, n.length);
+});
+
+// --- figure results: one diff, no placement, no per-view labels ---
+
+const figureResult = (over: object = {}, perfect = false): FigureScoreResult => ({
+  ok: true,
+  perfect,
+  diff: { ...emptyDiff, ...over },
+});
+
+test("a perfect figure says so and says nothing else", () => {
+  const n = noticesFor(figureResult({}, true));
+  assert.equal(n.length, 1);
+  assert.equal(n[0].tone, "good");
+});
+
+test("a figure's missing segments are reported without a view label", () => {
+  const n = noticesFor(figureResult({ missing: [line, line] }));
+  assert.equal(n.length, 1);
+  assert.match(n[0].text, /missing/i);
+  assert.match(n[0].text, /2/);
+  assert.doesNotMatch(n[0].text, /front|top|side|view/i);
+  assert.equal(n[0].tone, "bad");
+});
+
+test("a figure's extra segments and wrong-type segments are separate notices", () => {
+  const n = noticesFor(figureResult({
+    extra: [line],
+    wrongType: [{ expected: line, drawn: { ...line, type: "hidden" } }],
+  }));
+  assert.equal(n.length, 2);
+  assert.ok(n.some((x) => /drawn that should not be there/i.test(x.text)));
+  assert.ok(n.some((x) => /line type/i.test(x.text)));
+});
+
+test("a figure never mentions placement or a convention", () => {
+  const n = noticesFor(figureResult({ missing: [line] }));
+  assert.ok(!n.some((x) => /placement|convention|angle/i.test(x.text)));
+});
+
+test("a figure's notices carry stable unique ids too", () => {
+  const n = noticesFor(figureResult({ missing: [line], extra: [line] }));
   assert.equal(new Set(n.map((x) => x.id)).size, n.length);
 });

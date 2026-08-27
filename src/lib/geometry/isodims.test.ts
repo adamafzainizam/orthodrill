@@ -62,9 +62,10 @@ test("positive control: the interior-point predicate actually rejects an interio
   assert.ok(!pointStrictlyInside(bbox, -1, 5), "a point outside must not read as inside");
 });
 
-test("every drill's solid produces dimensions", () => {
+test("every 'views' drill's solid produces dimensions", () => {
   for (const id of listDrillIds()) {
     const drill = getDrill(id)!;
+    if (drill.mode !== "views") continue;
     const dims = isometricDimensions(drill.solid);
     assert.ok(dims.length > 0, `${id} produced no dimensions`);
   }
@@ -207,9 +208,10 @@ test("output is deterministic: the same solid twice gives an identical result", 
   assert.deepEqual(isometricDimensions(a), isometricDimensions(b));
 });
 
-test("every drill's dimensions are deterministic run to run", () => {
+test("every 'views' drill's dimensions are deterministic run to run", () => {
   for (const id of listDrillIds()) {
     const drill = getDrill(id)!;
+    if (drill.mode !== "views") continue;
     assert.deepEqual(isometricDimensions(drill.solid), isometricDimensions(drill.solid));
   }
 });

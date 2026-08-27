@@ -25,7 +25,7 @@ const SRC = fileURLToPath(new URL("../", import.meta.url));
  * file importing `server/score.ts` is caught without the checker having to
  * resolve the import graph.
  */
-const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/isoedges|scoring\/score|scoring\/assign)/;
+const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/isoedges|geometry\/parabola|scoring\/score|scoring\/assign)/;
 
 /**
  * Directories permitted to reach for them. Never a client component.
@@ -98,6 +98,19 @@ test("a route handler importing the registry is allowed", () => {
 test("a client-marked page under app/ is still caught", () => {
   const offending = `"use client";\nimport { getDrill } from "@/drills/registry";\n`;
   assert.notEqual(violation("app/drills/[id]/page.tsx", offending), null);
+});
+
+test("the checker catches a client component importing the parabola generator directly", () => {
+  // parabolaKey(spec) derives a figure's answer key with one call, exactly as
+  // generateViews(solid) does for a views exercise — this is the Task 4
+  // addition to SERVER_ONLY, and it needs its own positive control rather
+  // than riding along on the generic one above.
+  const offending = `"use client";\nimport { parabolaKey } from "../lib/geometry/parabola.ts";\n`;
+  assert.notEqual(
+    violation("components/Sidebar.tsx", offending),
+    null,
+    "a client component importing the parabola generator must be caught",
+  );
 });
 
 test("the checker catches a client component reaching server code transitively", () => {
