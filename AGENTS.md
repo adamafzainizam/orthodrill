@@ -176,6 +176,10 @@ Add project-specific gotchas here as they are found, with enough detail that the
 
 ## 7. Content authoring discipline
 
+- **Every exercise must give the student something to LOOK at.** Stated by the builder 2026-08-27, after the parabola worksheet shipped as an empty grid beside a long column of prose: *users always need visual guidance and feedback, not walls of text. Text with visuals is fine; no visuals at all is cruel.* This is a drawing tool — a student who cannot picture what is being asked cannot begin, and a wall of instructions raises the barrier the tool exists to lower. For a projection drill the dimensioned pictorial serves. For a construction, a **worked method diagram drawn at different numbers from the exercise** — it teaches the method without solving the instance, exactly as a textbook figure does.
+- **The limit matters as much as the rule: this is not hand-holding.** Do not walk a student through their own problem. The visual up front shows what is being asked; the notifications after submission show what went wrong. Help is earned by attempting, not given in advance.
+
+
 - **Never hand-write an answer key** if the generator can produce it. Hand-authored keys are the fallback for when the generator cannot express a part, not the default.
 - **A drill is not published until its key is verified** — by the generator's property tests, or by a human for golden-set parts.
 - **Cite the convention.** When a drill depends on a rule (hidden lines dashed, first- vs third-angle placement), the reference belongs with the drill. Same discipline as provenance on a data row: a claim without a source is a guess.
