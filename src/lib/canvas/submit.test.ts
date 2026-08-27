@@ -19,6 +19,21 @@ test("a submission posts the drill id and the primitives", async () => {
   assert.match(seen!.body, /"kind":"views"/);
 });
 
+test("construction primitives are not present in the posted body", async () => {
+  let seen: { body: string } | null = null;
+  const fake = (async (_url: string, init: RequestInit) => {
+    seen = { body: String(init.body) };
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  await submitAttempt("step-block", [
+    { kind: "segment", type: "visible", x1: 0, y1: 0, x2: 1, y2: 0 },
+    { kind: "segment", type: "construction", x1: 0, y1: 0, x2: 9, y2: 9 },
+  ], fake);
+
+  assert.doesNotMatch(seen!.body, /construction/);
+});
+
 test("a scored result is returned as-is", async () => {
   const result = await submitAttempt("step-block", [], ok({ ok: false, reason: "WRONG_VIEW_COUNT", found: 0 }) as unknown as typeof fetch);
   assert.deepEqual(result, { ok: false, reason: "WRONG_VIEW_COUNT", found: 0 });

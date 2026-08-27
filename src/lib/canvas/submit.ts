@@ -18,10 +18,14 @@ export async function submitAttempt(
   fetchImpl: typeof fetch = fetch,
 ): Promise<ScoreResult | SubmitFailure> {
   try {
+    // Belt and braces: the LOAD-BEARING strip is scoreAttempt's, at the
+    // server's one entry point (score.ts). This one just avoids posting
+    // scaffolding the server would discard anyway.
+    const scoreable = primitives.filter((p) => p.type !== "construction");
     const response = await fetchImpl("/api/score", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ drillId, kind: "views", primitives }),
+      body: JSON.stringify({ drillId, kind: "views", primitives: scoreable }),
     });
     return (await response.json()) as ScoreResult | SubmitFailure;
   } catch {
