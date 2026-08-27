@@ -1,7 +1,9 @@
 "use client";
 
+import { useCallback, useEffect, useRef } from "react";
 import { gridToScreen, screenToGrid, type Point, type Viewport } from "@/lib/canvas/coords";
 import { mitreLine } from "@/lib/canvas/quadrants";
+import type { Action, Drag, Tool } from "@/lib/canvas/editor";
 import type { Primitive, PrimitiveType } from "@/lib/scoring/primitives";
 import type { ViewDiff } from "@/lib/scoring/types";
 
@@ -49,15 +51,17 @@ function place(p: Primitive, anchor: { dx: number; dy: number }): Primitive {
 }
 
 export function Sheet({
-  grid, drawing, selection, pending, cursor, feedback, onGridClick, onGridMove,
+  grid, tool, drawing, selection, pending, drag, cursor, feedback, onAction, onGridMove,
 }: {
   grid: { width: number; height: number };
+  tool: Tool;
   drawing: Primitive[];
   selection: number[];
   pending: Point | null;
+  drag: Drag | null;
   cursor: Point | null;
   feedback: FeedbackOverlay | null;
-  onGridClick: (p: Point, additive: boolean) => void;
+  onAction: (a: Action) => void;
   onGridMove: (p: Point) => void;
 }) {
   const v = VIEWPORT;
@@ -65,18 +69,67 @@ export function Sheet({
   const h = grid.height * v.cell + v.padding * 2;
   const chosen = new Set(selection);
 
-  const toGrid = (e: React.MouseEvent<SVGSVGElement>): Point => {
-    const box = e.currentTarget.getBoundingClientRect();
+  const svgRef = useRef<SVGSVGElement>(null);
+  // The point of the most recent mousedown, in grid units, while the button
+  // is still held and no drag has been recognised yet. Null once released or
+  // once DRAG_BEGIN has fired for this press. A ref, not state: it drives an
+  // imperative decision (click vs. drag) made inside event handlers, not
+  // anything rendered.
+  const downAt = useRef<Point | null>(null);
+  // Whether the current press has already turned into a recognised drag —
+  // separate from `drag` (the reducer's state) so a mouseup can tell "no
+  // drag happened, treat this as a click" apart from "a drag happened and
+  // moved back to its start", which the reducer's `drag` alone can't say
+  // once DRAG_COMMIT has cleared it.
+  const dragging = useRef(false);
+
+  const clientToGrid = useCallback((clientX: number, clientY: number): Point => {
+    const box = svgRef.current?.getBoundingClientRect();
+    if (box === undefined) return { x: 0, y: 0 };
     // The SVG is max-w-full, so its rendered box can be narrower than its
     // viewBox. Convert to viewBox units first, or every click lands in the
     // wrong cell on a narrow viewport.
     const scaleX = box.width === 0 ? 1 : w / box.width;
     const scaleY = box.height === 0 ? 1 : h / box.height;
     return screenToGrid(
-      { x: (e.clientX - box.left) * scaleX, y: (e.clientY - box.top) * scaleY },
-      v,
+      { x: (clientX - box.left) * scaleX, y: (clientY - box.top) * scaleY },
+      VIEWPORT,
     );
-  };
+  }, [w, h]);
+
+  // Window-level listeners, not just the SVG's own onMouseMove/onMouseUp: a
+  // drag that leaves the sheet before the button is released must still be
+  // tracked and committed, or the button-up outside the SVG never reaches it
+  // and both `dragging` and the reducer's `drag` are left stale.
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (downAt.current === null) return;
+      const at = clientToGrid(e.clientX, e.clientY);
+      if (!dragging.current) {
+        if (at.x === downAt.current.x && at.y === downAt.current.y) return;
+        dragging.current = true;
+        onAction({ type: "DRAG_BEGIN", at: downAt.current });
+      }
+      onAction({ type: "DRAG_UPDATE", at });
+    };
+    const onUp = (e: MouseEvent) => {
+      if (downAt.current === null) return;
+      const additive = e.ctrlKey || e.metaKey;
+      if (dragging.current) {
+        onAction({ type: "DRAG_COMMIT", additive });
+      } else {
+        onAction({ type: "CLICK_GRID", at: downAt.current, additive });
+      }
+      downAt.current = null;
+      dragging.current = false;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [onAction, clientToGrid]);
 
   const gridLines = [];
   for (let x = 0; x <= grid.width; x++) {
@@ -105,12 +158,37 @@ export function Sheet({
   const mitreA = mitre ? gridToScreen({ x: mitre.x1, y: mitre.y1 }, v) : null;
   const mitreB = mitre ? gridToScreen({ x: mitre.x2, y: mitre.y2 }, v) : null;
 
+  // The rubber-band rectangle, purely a rendering of `drag` — the reducer
+  // decides what it selects, on DRAG_COMMIT; this just shows it in progress.
+  const marquee = tool === "select" && drag
+    ? {
+      minX: Math.min(drag.start.x, drag.current.x), minY: Math.min(drag.start.y, drag.current.y),
+      maxX: Math.max(drag.start.x, drag.current.x), maxY: Math.max(drag.start.y, drag.current.y),
+    }
+    : null;
+
+  // A live preview of a move-in-progress: the selection redrawn at its
+  // dragged offset. Also rendering only — the drawing itself is unchanged
+  // until DRAG_COMMIT shifts it in one step.
+  const moveDelta = tool === "move" && drag
+    ? { dx: drag.current.x - drag.start.x, dy: drag.current.y - drag.start.y }
+    : null;
+
   return (
     <svg
+      ref={svgRef}
       width={w} height={h} viewBox={`0 0 ${w} ${h}`}
       className="max-w-full h-auto touch-none select-none bg-[var(--paper)]"
-      onClick={(e) => onGridClick(toGrid(e), e.ctrlKey || e.metaKey)}
-      onMouseMove={(e) => onGridMove(toGrid(e))}
+      onMouseDown={(e) => {
+        // Only the primary button starts a click or drag — the previous
+        // `onClick` handler this replaces only ever fired for that button,
+        // and a raw mousedown/mouseup pair fires for any button unless
+        // guarded, which would let a right-click draw or drag.
+        if (e.button !== 0) return;
+        downAt.current = clientToGrid(e.clientX, e.clientY);
+        dragging.current = false;
+      }}
+      onMouseMove={(e) => onGridMove(clientToGrid(e.clientX, e.clientY))}
       role="application"
       aria-label="Drawing sheet"
     >
@@ -154,10 +232,31 @@ export function Sheet({
             // Construction lines are thin and light — scaffolding, not ink —
             // so they read as working lines even when unselected.
             strokeWidth: chosen.has(i) ? 3 : p.type === "construction" ? 1 : 2,
+            // While a move drag is live, the real primitive fades so the
+            // dragged preview below reads as what will actually land.
+            opacity: moveDelta && chosen.has(i) ? 0.3 : 1,
             fill: "none",
           })}
         </g>
       ))}
+
+      {moveDelta && selection.map((i) => (
+        <g key={`drag${i}`}>
+          {primitivePath(place(drawing[i], moveDelta), v, {
+            stroke: "var(--select)", strokeWidth: 3, strokeDasharray: "4 4", fill: "none", opacity: 0.8,
+          })}
+        </g>
+      ))}
+
+      {marquee && (
+        <rect
+          x={gridToScreen({ x: marquee.minX, y: marquee.minY }, v).x}
+          y={gridToScreen({ x: marquee.minX, y: marquee.minY }, v).y}
+          width={(marquee.maxX - marquee.minX) * v.cell}
+          height={(marquee.maxY - marquee.minY) * v.cell}
+          fill="var(--select)" fillOpacity={0.1} stroke="var(--select)" strokeWidth={1} strokeDasharray="4 4"
+        />
+      )}
 
       {pending !== null && cursor !== null && (
         <line

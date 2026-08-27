@@ -58,6 +58,15 @@ export function Editor({ drill }: { drill: PublicDrill }) {
         const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
         const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
         dispatch({ type: "MOVE_SELECTION", dx, dy });
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        // Single-key tool shortcuts. Deliberately excluded from firing under
+        // any modifier — "no modifier" per the plan, and it also keeps Ctrl+C
+        // (copy), Cmd+L, etc. untouched. The form-control guard above already
+        // stops these from firing while the line-type <select> or any other
+        // control has focus.
+        const tool = e.key === "s" ? "select" : e.key === "l" ? "line"
+          : e.key === "c" ? "circle" : e.key === "g" ? "move" : null;
+        if (tool !== null) dispatch({ type: "SET_TOOL", tool });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -137,12 +146,14 @@ export function Editor({ drill }: { drill: PublicDrill }) {
           <div className="overflow-x-auto">
             <Sheet
               grid={drill.grid}
+              tool={state.tool}
               drawing={drawing(state)}
               selection={state.selection}
               pending={state.pending}
+              drag={state.drag}
               cursor={cursor}
               feedback={feedback}
-              onGridClick={(p, additive) => dispatch({ type: "CLICK_GRID", at: p, additive })}
+              onAction={onAction}
               onGridMove={setCursor}
             />
           </div>

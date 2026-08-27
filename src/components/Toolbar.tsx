@@ -3,10 +3,11 @@
 import type { Action, Tool } from "@/lib/canvas/editor";
 import type { PrimitiveType } from "@/lib/scoring/primitives";
 
-const TOOLS: { id: Tool; label: string }[] = [
-  { id: "select", label: "Select" },
-  { id: "line", label: "Line" },
-  { id: "circle", label: "Circle" },
+const TOOLS: { id: Tool; label: string; key: string }[] = [
+  { id: "select", label: "Select", key: "s" },
+  { id: "line", label: "Line", key: "l" },
+  { id: "circle", label: "Circle", key: "c" },
+  { id: "move", label: "Move", key: "g" },
 ];
 
 const TYPES: { id: PrimitiveType; label: string }[] = [
@@ -38,6 +39,8 @@ export function Toolbar({
             <button
               key={t.id} type="button" className={button}
               aria-pressed={tool === t.id}
+              title={`${t.label} (${t.key.toUpperCase()})`}
+              aria-keyshortcuts={t.key}
               style={tool === t.id ? { background: "var(--select)", color: "#fff" } : undefined}
               onClick={() => onAction({ type: "SET_TOOL", tool: t.id })}
             >{t.label}</button>
@@ -84,6 +87,8 @@ export function Toolbar({
 
       <p className="text-xs opacity-60">
         Select a line or circle, then use the arrow keys to nudge it into place.
+        Shortcuts: S select, L line, C circle, G move — drag on the sheet to
+        rubber-band select, or drag with Move to move the selection.
       </p>
     </div>
   );
