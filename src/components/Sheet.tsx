@@ -1,6 +1,7 @@
 "use client";
 
 import { gridToScreen, screenToGrid, type Point, type Viewport } from "@/lib/canvas/coords";
+import { mitreLine } from "@/lib/canvas/quadrants";
 import type { Primitive, PrimitiveType } from "@/lib/scoring/primitives";
 import type { ViewDiff } from "@/lib/scoring/types";
 
@@ -89,6 +90,21 @@ export function Sheet({
     gridLines.push(<line key={`h${y}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="stroke-[var(--grid)]" strokeWidth={1} />);
   }
 
+  // Quadrant dividers and the mitre line are a VISUAL AID ONLY -- they help
+  // the student lay the sheet out, exactly the way a draughtsman's own
+  // construction lines would. Neither is a primitive: they are never added
+  // to `drawing` and never reach the scorer. `mitreLine` looks at CONTENT
+  // (which quadrant the student's own primitives occupy) purely to find the
+  // one empty quadrant to draw in -- it never decides which view belongs
+  // where. See `src/lib/canvas/quadrants.ts`.
+  const midX = gridToScreen({ x: grid.width / 2, y: 0 }, v).x;
+  const midY = gridToScreen({ x: 0, y: grid.height / 2 }, v).y;
+  const topLeft = gridToScreen({ x: 0, y: 0 }, v);
+  const bottomRight = gridToScreen({ x: grid.width, y: grid.height }, v);
+  const mitre = mitreLine(drawing, grid);
+  const mitreA = mitre ? gridToScreen({ x: mitre.x1, y: mitre.y1 }, v) : null;
+  const mitreB = mitre ? gridToScreen({ x: mitre.x2, y: mitre.y2 }, v) : null;
+
   return (
     <svg
       width={w} height={h} viewBox={`0 0 ${w} ${h}`}
@@ -99,6 +115,20 @@ export function Sheet({
       aria-label="Drawing sheet"
     >
       <g>{gridLines}</g>
+
+      {/* Quadrant dividers: clearer than the grid, quieter than the drawing.
+          Drawn under the feedback overlay and the student's ink (see below). */}
+      <g>
+        <line x1={midX} y1={topLeft.y} x2={midX} y2={bottomRight.y} stroke="var(--quadrant)" strokeWidth={1} />
+        <line x1={topLeft.x} y1={midY} x2={bottomRight.x} y2={midY} stroke="var(--quadrant)" strokeWidth={1} />
+      </g>
+
+      {/* The mitre line in the sheet's one empty quadrant, styled exactly like
+          the student's own construction lines so it reads as scaffolding,
+          not as ink they drew. Chrome only: never part of `drawing`. */}
+      {mitre && mitreA && mitreB && (
+        <line x1={mitreA.x} y1={mitreA.y} x2={mitreB.x} y2={mitreB.y} stroke="var(--construction)" strokeWidth={1} />
+      )}
 
       {/* Feedback sits UNDER the student's ink, so their own drawing stays readable. */}
       {feedback?.views.map((d, vi) => (
