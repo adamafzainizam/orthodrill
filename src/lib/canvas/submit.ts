@@ -8,26 +8,29 @@
  * `fetchImpl` is injected so this is testable without a server or a browser.
  */
 import type { Primitive } from "../scoring/primitives.ts";
-import type { ScoreResult } from "../scoring/score.ts";
+import type { FigureScoreResult, ScoreResult } from "../scoring/score.ts";
+
+export type SubmitKind = "views" | "figure";
 
 export type SubmitFailure = { ok: false; reason: string };
 
 export async function submitAttempt(
   drillId: string,
+  kind: SubmitKind,
   primitives: Primitive[],
   fetchImpl: typeof fetch = fetch,
-): Promise<ScoreResult | SubmitFailure> {
+): Promise<ScoreResult | FigureScoreResult | SubmitFailure> {
   try {
-    // Belt and braces: the LOAD-BEARING strip is scoreViews's, at the
-    // server's one entry point (score.ts). This one just avoids posting
-    // scaffolding the server would discard anyway.
+    // Belt and braces: the LOAD-BEARING strip is scoreViews's/scoreFigure's
+    // shared helper, at the server's one entry point (score.ts). This one
+    // just avoids posting scaffolding the server would discard anyway.
     const scoreable = primitives.filter((p) => p.type !== "construction");
     const response = await fetchImpl("/api/score", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ drillId, kind: "views", primitives: scoreable }),
+      body: JSON.stringify({ drillId, kind, primitives: scoreable }),
     });
-    return (await response.json()) as ScoreResult | SubmitFailure;
+    return (await response.json()) as ScoreResult | FigureScoreResult | SubmitFailure;
   } catch {
     return { ok: false, reason: "NETWORK" };
   }
