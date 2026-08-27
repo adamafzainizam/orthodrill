@@ -12,6 +12,7 @@ import {
   initHistory, push, redo as redoHistory, undo as undoHistory, type History,
 } from "./history.ts";
 import type { Primitive, PrimitiveType } from "../scoring/primitives.ts";
+import { MAX_PRIMITIVES } from "../scoring/validate.ts";
 
 export type Tool = "line" | "circle" | "select";
 
@@ -92,6 +93,11 @@ function shift(p: Primitive, dx: number, dy: number): Primitive {
 function clickWhileDrawing(s: EditorState, at: Point): EditorState {
   const from = s.pending;
   if (from === null) return { ...s, pending: at };
+
+  // validate.ts rejects a whole attempt over MAX_PRIMITIVES (400); the UI must
+  // not be able to produce what the server would refuse. Refuse the append
+  // and drop the pending anchor rather than leaving a dangling first click.
+  if (drawing(s).length >= MAX_PRIMITIVES) return { ...s, pending: null };
 
   if (s.tool === "line") {
     // A zero-length segment is not a line; validate.ts refuses it, so it must

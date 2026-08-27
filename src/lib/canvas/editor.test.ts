@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { initEditor, reduce, drawing, type EditorState } from "./editor.ts";
+import { initHistory } from "./history.ts";
+import { MAX_PRIMITIVES } from "../scoring/validate.ts";
+import type { Primitive } from "../scoring/primitives.ts";
 
 const run = (actions: Parameters<typeof reduce>[1][]): EditorState =>
   actions.reduce((s, a) => reduce(s, a), initEditor());
@@ -171,6 +174,25 @@ test("switching tools abandons a half-drawn primitive", () => {
     { type: "SET_TOOL", tool: "circle" },
   ]);
   assert.equal(s.pending, null);
+});
+
+test("a drawing at MAX_PRIMITIVES refuses to grow, and clears the pending anchor", () => {
+  // validate.ts rejects an attempt over MAX_PRIMITIVES server-side (400); the
+  // reducer must not be able to produce what the server would refuse. Built
+  // directly rather than by dispatching 400 pairs of clicks.
+  const full: Primitive[] = Array.from({ length: MAX_PRIMITIVES }, (_, i) => ({
+    kind: "segment", type: "visible", x1: 0, y1: i, x2: 1, y2: i,
+  }));
+  const atCap: EditorState = {
+    history: initHistory(full),
+    tool: "line",
+    activeType: "visible",
+    selection: [],
+    pending: { x: 0, y: 0 },
+  };
+  const after = reduce(atCap, { type: "CLICK_GRID", at: { x: 5, y: 5 }, additive: false });
+  assert.equal(drawing(after).length, MAX_PRIMITIVES);
+  assert.equal(after.pending, null);
 });
 
 test("the reducer never mutates the state it is given", () => {
