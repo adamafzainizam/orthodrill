@@ -54,7 +54,15 @@ export function Sheet({
 
   const toGrid = (e: React.MouseEvent<SVGSVGElement>): Point => {
     const box = e.currentTarget.getBoundingClientRect();
-    return screenToGrid({ x: e.clientX - box.left, y: e.clientY - box.top }, v);
+    // The SVG is max-w-full, so its rendered box can be narrower than its
+    // viewBox. Convert to viewBox units first, or every click lands in the
+    // wrong cell on a narrow viewport.
+    const scaleX = box.width === 0 ? 1 : w / box.width;
+    const scaleY = box.height === 0 ? 1 : h / box.height;
+    return screenToGrid(
+      { x: (e.clientX - box.left) * scaleX, y: (e.clientY - box.top) * scaleY },
+      v,
+    );
   };
 
   const gridLines = [];
