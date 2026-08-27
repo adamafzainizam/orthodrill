@@ -30,6 +30,15 @@ export function Editor({ drill }: { drill: PublicDrill }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // The toolbar has real form controls. Without this, Backspace with the
+      // line-type select focused silently deletes part of the drawing.
+      const target = e.target as HTMLElement | null;
+      if (target !== null) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || target.isContentEditable) {
+          return;
+        }
+      }
       if (e.key === "Escape") dispatch({ type: "CANCEL" });
       else if (e.key === "Delete" || e.key === "Backspace") dispatch({ type: "DELETE_SELECTION" });
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
