@@ -189,6 +189,7 @@ test("a drawing at MAX_PRIMITIVES refuses to grow, and clears the pending anchor
     activeType: "visible",
     selection: [],
     pending: { x: 0, y: 0 },
+    drag: null,
   };
   const after = reduce(atCap, { type: "CLICK_GRID", at: { x: 5, y: 5 }, additive: false });
   assert.equal(drawing(after).length, MAX_PRIMITIVES);
@@ -199,4 +200,160 @@ test("the reducer never mutates the state it is given", () => {
   const before = initEditor();
   reduce(before, { type: "SET_TOOL", tool: "line" });
   assert.equal(before.tool, "select");
+});
+
+// --- rubber-band select (drag in "select" mode) ---------------------------
+
+test("dragging a rectangle in select mode selects a primitive wholly inside it", () => {
+  const s = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 2, y: 2 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 4, y: 2 }, additive: false },
+    { type: "SET_TOOL", tool: "select" },
+    { type: "DRAG_BEGIN", at: { x: 0, y: 0 } },
+    { type: "DRAG_UPDATE", at: { x: 10, y: 10 } },
+    { type: "DRAG_COMMIT", additive: false },
+  ]);
+  assert.deepEqual(s.selection, [0]);
+  assert.equal(s.drag, null);
+});
+
+test("a primitive wholly outside the rectangle is not selected", () => {
+  const s = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 20, y: 20 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 24, y: 20 }, additive: false },
+    { type: "SET_TOOL", tool: "select" },
+    { type: "DRAG_BEGIN", at: { x: 0, y: 0 } },
+    { type: "DRAG_UPDATE", at: { x: 10, y: 10 } },
+    { type: "DRAG_COMMIT", additive: false },
+  ]);
+  assert.deepEqual(s.selection, []);
+});
+
+// PIN: a primitive only PARTLY inside the rectangle is NOT selected. Wholly
+// enclosed is the rule — every endpoint (both ends of a segment, or the
+// circle's full extent) must fall within the rectangle. This is the
+// conventional choice (matches how most drawing tools rubber-band select)
+// and is simpler to reason about and test than intersection, which would
+// have to special-case tangencies and crossing lines. Deliberate, not
+// incidental — see also the plan's Task 3 write-up.
+test("a primitive only partly inside the rectangle is not selected", () => {
+  const s = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 5, y: 5 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 15, y: 5 }, additive: false }, // crosses the rectangle's right edge
+    { type: "SET_TOOL", tool: "select" },
+    { type: "DRAG_BEGIN", at: { x: 0, y: 0 } },
+    { type: "DRAG_UPDATE", at: { x: 10, y: 10 } },
+    { type: "DRAG_COMMIT", additive: false },
+  ]);
+  assert.deepEqual(s.selection, []);
+});
+
+test("an additive rectangle drag adds to the existing selection instead of replacing it", () => {
+  const drawn = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 1, y: 0 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 20, y: 20 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 21, y: 20 }, additive: false },
+    { type: "SET_TOOL", tool: "select" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+  ]);
+  assert.deepEqual(drawn.selection, [0]);
+  const after = reduce(reduce(reduce(drawn,
+    { type: "DRAG_BEGIN", at: { x: 19, y: 19 } }),
+    { type: "DRAG_UPDATE", at: { x: 22, y: 21 } }),
+    { type: "DRAG_COMMIT", additive: true });
+  assert.deepEqual(after.selection.sort(), [0, 1]);
+});
+
+test("a rectangle that encloses nothing clears the selection (non-additive)", () => {
+  const drawn = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 1, y: 0 }, additive: false },
+    { type: "SET_TOOL", tool: "select" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+  ]);
+  assert.deepEqual(drawn.selection, [0]);
+  const after = reduce(reduce(reduce(drawn,
+    { type: "DRAG_BEGIN", at: { x: 50, y: 50 } }),
+    { type: "DRAG_UPDATE", at: { x: 60, y: 60 } }),
+    { type: "DRAG_COMMIT", additive: false });
+  assert.deepEqual(after.selection, []);
+});
+
+test("a rectangle that encloses nothing leaves the selection alone (additive)", () => {
+  const drawn = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 1, y: 0 }, additive: false },
+    { type: "SET_TOOL", tool: "select" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+  ]);
+  assert.deepEqual(drawn.selection, [0]);
+  const after = reduce(reduce(reduce(drawn,
+    { type: "DRAG_BEGIN", at: { x: 50, y: 50 } }),
+    { type: "DRAG_UPDATE", at: { x: 60, y: 60 } }),
+    { type: "DRAG_COMMIT", additive: true });
+  assert.deepEqual(after.selection, [0]);
+});
+
+// --- move tool drag ---------------------------------------------------
+
+test("a move drag commits exactly one history entry", () => {
+  const drawn = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 4, y: 0 }, additive: false },
+    { type: "SET_TOOL", tool: "select" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+  ]);
+  const depthBefore = drawn.history.past.length;
+  const s = reduce(drawn, { type: "SET_TOOL", tool: "move" });
+  const dragged = reduce(reduce(reduce(reduce(reduce(s,
+    { type: "DRAG_BEGIN", at: { x: 0, y: 0 } }),
+    { type: "DRAG_UPDATE", at: { x: 1, y: 0 } }),
+    { type: "DRAG_UPDATE", at: { x: 2, y: 0 } }),
+    { type: "DRAG_UPDATE", at: { x: 3, y: 0 } }),
+    { type: "DRAG_COMMIT", additive: false });
+  assert.equal(dragged.history.past.length, depthBefore + 1);
+  assert.deepEqual(drawing(dragged), [
+    { kind: "segment", type: "visible", x1: 3, y1: 0, x2: 7, y2: 0 },
+  ]);
+  const undone = reduce(dragged, { type: "UNDO" });
+  assert.deepEqual(drawing(undone), [
+    { kind: "segment", type: "visible", x1: 0, y1: 0, x2: 4, y2: 0 },
+  ]);
+});
+
+test("a move drag with an empty selection changes nothing", () => {
+  const s = run([
+    { type: "SET_TOOL", tool: "line" },
+    { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false },
+    { type: "CLICK_GRID", at: { x: 4, y: 0 }, additive: false },
+    { type: "SET_TOOL", tool: "move" },
+  ]);
+  const depthBefore = s.history.past.length;
+  const dragged = reduce(reduce(reduce(s,
+    { type: "DRAG_BEGIN", at: { x: 0, y: 0 } }),
+    { type: "DRAG_UPDATE", at: { x: 5, y: 5 } }),
+    { type: "DRAG_COMMIT", additive: false });
+  assert.equal(dragged.history.past.length, depthBefore);
+  assert.deepEqual(drawing(dragged), drawing(s));
+});
+
+test("switching tools mid-drag abandons the drag rather than leaving stale drag state", () => {
+  const s = run([
+    { type: "SET_TOOL", tool: "select" },
+    { type: "DRAG_BEGIN", at: { x: 0, y: 0 } },
+    { type: "DRAG_UPDATE", at: { x: 5, y: 5 } },
+    { type: "SET_TOOL", tool: "line" },
+  ]);
+  assert.equal(s.drag, null);
+  // And a stray commit after the tool switch must not act on the abandoned drag.
+  const after = reduce(s, { type: "DRAG_COMMIT", additive: false });
+  assert.deepEqual(after, s);
 });
