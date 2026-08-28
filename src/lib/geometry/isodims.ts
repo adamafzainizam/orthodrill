@@ -9,8 +9,9 @@
  *
  * WHAT GETS DIMENSIONED, derived straight from the solid so it can never
  * disagree with the answer key:
- *   - the base block's overall width (x), depth (y) and height (z) — always
- *     exactly three dimensions, one per axis;
+ *   - the base block's overall width (x), depth (y) and height (z), EXCEPT on
+ *     an axis whose ops already emit a chain spanning it end to end — giving
+ *     both is over-dimensioning; see axisIsSpanned;
  *   - each BoxOp: a SIZE dimension along any axis it does not span fully
  *     (an axis it does span fully needs no dimension — the overall figure
  *     already says so), and, on that axis, a POSITION dimension locating its
@@ -271,6 +272,54 @@ const BOX_FIELD: Record<Axis, { pos: "x" | "y" | "z"; size: "w" | "d" | "h"; bas
   z: { pos: "z", size: "h", base: "h" },
 };
 
+
+/**
+ * Do the dimensions a solid's ops will emit already span an axis end to end?
+ *
+ * If so the overall dimension for that axis is REDUNDANT and is not drawn.
+ * Giving both the overall and the chain that makes it up is over-dimensioning:
+ * conventional practice is one or the other, and on a busy part the pair
+ * crowd each other and leave the reader working out which is which. Dropping
+ * the overall is the right half to lose, because the chain also locates the
+ * feature, which the overall cannot do.
+ *
+ * "Spans" means the union of the emitted intervals reaches from 0 to the base
+ * size with no gap. Overlapping intervals still count: the reader can see both
+ * ends, which is all the overall would have told them. A hole's position
+ * (0 -> centre) reaches only one end, so it never suppresses an overall.
+ *
+ * Mirrors the emission rules below exactly. If those change, this changes with
+ * them, or a part loses a dimension it needed.
+ */
+function axisIsSpanned(axis: Axis, solid: Solid): boolean {
+  const f = BOX_FIELD[axis];
+  const baseSize = solid.base[f.base];
+  const intervals: [number, number][] = [];
+
+  for (const op of solid.ops) {
+    if (op.kind === "box") {
+      const start = op.box[f.pos];
+      const size = op.box[f.size];
+      if (size === baseSize) continue; // emits nothing on this axis
+      if (start !== 0) intervals.push([0, start]);
+      intervals.push([start, start + size]);
+    } else {
+      const [pu, pv] = planeAxes(op.axis);
+      if (axis === pu) intervals.push([0, op.u]);
+      if (axis === pv) intervals.push([0, op.v]);
+    }
+  }
+
+  if (intervals.length === 0) return false;
+  intervals.sort((a, b) => a[0] - b[0]);
+  let reached = 0;
+  for (const [from, to] of intervals) {
+    if (from > reached) return false; // a gap: the chain does not span
+    reached = Math.max(reached, to);
+  }
+  return reached >= baseSize;
+}
+
 /**
  * Generate every dimension for a solid: three overall dimensions, then one
  * group per op, in `solid.ops` order — the same order the solid itself is
@@ -283,9 +332,15 @@ export function isometricDimensions(solid: Solid): IsoDim[] {
   const next = (axis: Axis): number => stagger[axis]++;
 
   const dims: IsoDim[] = [];
-
   const AXES: Axis[] = ["x", "y", "z"];
+
+  // Which axes already carry a chain that spans them, and so need no overall.
+  const spanned: Record<Axis, boolean> = {
+    x: axisIsSpanned("x", solid), y: axisIsSpanned("y", solid), z: axisIsSpanned("z", solid),
+  };
+
   for (const axis of AXES) {
+    if (spanned[axis]) continue;
     const size = base[BOX_FIELD[axis].base];
     dims.push(axisDim(axis, base, bbox, 0, size, next(axis), fmtLinear(size)));
   }
