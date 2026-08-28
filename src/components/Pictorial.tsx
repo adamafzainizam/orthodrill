@@ -27,6 +27,21 @@ import type { IsoDim } from "@/lib/geometry/isodims";
 const PAPER = "#ffffff";
 const INK = "#111";
 const DIM_INK = "#1a5fb4";
+/** Font size of a dimension figure, in px. Must match the <text> below. */
+const LABEL_SIZE = 11;
+
+/**
+ * Estimated width of a label, in MODEL units.
+ *
+ * 0.62em per character is a generous average for digits in a sans face; the
+ * diameter prefix is wider than a digit, so it is counted as two. Over-
+ * estimating is the safe direction.
+ */
+function labelWidthUnits(label: string): number {
+  const chars = label.length + (label.includes("\u2300") ? 1 : 0);
+  return (chars * LABEL_SIZE * 0.62) / SCALE;
+}
+
 const SCALE = 22;
 const PAD = 16;
 
@@ -44,9 +59,23 @@ export function Pictorial(
     else { xs.push(p.cx - p.rx, p.cx + p.rx); ys.push(p.cy - p.rx, p.cy + p.rx); }
   }
   for (const d of dimensions) {
-    xs.push(d.line.x1, d.line.x2, d.extension[0].x1, d.extension[0].x2, d.extension[1].x1, d.extension[1].x2, d.labelAt.x);
-    ys.push(d.line.y1, d.line.y2, d.extension[0].y1, d.extension[0].y2, d.extension[1].y1, d.extension[1].y2, d.labelAt.y);
+    xs.push(d.line.x1, d.line.x2, d.extension[0].x1, d.extension[0].x2, d.extension[1].x1, d.extension[1].x2);
+    ys.push(d.line.y1, d.line.y2, d.extension[0].y1, d.extension[0].y2, d.extension[1].y1, d.extension[1].y2);
     for (const arrow of d.arrows) for (const [ax, ay] of arrow) { xs.push(ax); ys.push(ay); }
+
+    // A LABEL IS TEXT, and its width is in no coordinate. Including only its
+    // anchor point let a figure anchored near an edge run off the paper and
+    // render on the page background instead — visible on `near-mirror-notches`
+    // before this was fixed. There are no font metrics here, so the extent is
+    // estimated and deliberately generous: extra white margin costs nothing,
+    // a clipped figure is a bug.
+    const halfW = labelWidthUnits(d.label) / 2;
+    const halfH = (LABEL_SIZE / SCALE) * 0.75;
+    const centreX = d.labelAnchor === "start" ? d.labelAt.x + halfW
+      : d.labelAnchor === "end" ? d.labelAt.x - halfW
+      : d.labelAt.x;
+    xs.push(centreX - halfW, centreX + halfW);
+    ys.push(d.labelAt.y - halfH, d.labelAt.y + halfH);
   }
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
