@@ -87,16 +87,19 @@ test("a box op's cut is sized and located along every axis it does not fully spa
   // The d axis is fully spanned (4 == base.d), so it needs no dimension at
   // all. The x and z axes are each partially spanned, and neither starts at
   // its axis's origin, so each contributes a position AND a size figure:
-  //   overall:      60 mm (w), 40 mm (d), 40 mm (h)
-  //   x: position   40 mm (0..4), size 20 mm (w=2)
-  //   z: position   20 mm (0..2), size 20 mm (h=2)
-  // -> one 60, three 40s, three 20s, seven dimensions total.
+  //   x: position   40 mm (0..4), size 20 mm (w=2)  -> these two span x,
+  //   z: position   20 mm (0..2), size 20 mm (h=2)  -> and these two span z,
+  // so the overall width and height are redundant and are NOT drawn. Only the
+  // depth keeps its overall, because the step spans that axis and emits
+  // nothing there for a chain.
+  //   overall:      40 mm (d)
+  // -> two 40s (the depth and x's position), three 20s, no 60, five total.
   const solid = subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 });
   const dims = isometricDimensions(solid);
-  assert.equal(dims.length, 7);
+  assert.equal(dims.length, 5);
   const labels = dims.map((d) => d.label);
-  assert.equal(labels.filter((l) => l === "60").length, 1);
-  assert.equal(labels.filter((l) => l === "40").length, 3);
+  assert.equal(labels.filter((l) => l === "60").length, 0, "the redundant overall width was drawn");
+  assert.equal(labels.filter((l) => l === "40").length, 2);
   assert.equal(labels.filter((l) => l === "20").length, 3);
 });
 
@@ -175,9 +178,10 @@ test("REGRESSION: no label sits on its own dimension line", () => {
 });
 
 test("REGRESSION: successive dimensions sharing an axis are staggered far enough apart to read", () => {
-  // stepped-plate-bore's solid has four z-family dimensions (overall height,
-  // the step's position and size, and the bore's z-locating figure) — the
-  // exact case a real render showed running together. Identify the z-family
+  // stepped-plate-bore's solid has three z-family dimensions: the step's
+  // position and size, plus the bore's z-locating figure. (The overall height
+  // is no longer drawn — the step's position and size already span that axis.)
+  // This is the exact case a real render showed running together. Identify the z-family
   // by its anchor (only z produces "end") and check the pushed coordinate
   // (line.x1, since z's family pushes projected u) is spread out enough that
   // two ~11px-tall labels at adjacent offsets cannot overlap. 0.5 projection
@@ -186,7 +190,7 @@ test("REGRESSION: successive dimensions sharing an axis are staggered far enough
     subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }), "y", 2, 1, 1,
   );
   const zFamily = isometricDimensions(solid).filter((d) => d.labelAnchor === "end");
-  assert.equal(zFamily.length, 4, "expected all four z-family dimensions for this solid");
+  assert.equal(zFamily.length, 3, "expected all three z-family dimensions for this solid");
   const offsets = zFamily.map((d) => d.line.x1).sort((a, b) => a - b);
   for (let i = 1; i < offsets.length; i++) {
     assert.ok(
@@ -214,4 +218,45 @@ test("every 'views' drill's dimensions are deterministic run to run", () => {
     if (drill.mode !== "views") continue;
     assert.deepEqual(isometricDimensions(drill.solid), isometricDimensions(drill.solid));
   }
+});
+
+test("an overall dimension is dropped when a chain already spans that axis", () => {
+  // step-block: the step cuts x 4..6 of a 6-wide base, so the op emits 0->4
+  // and 4->6. Those already tell the reader the part is 6 wide, and drafting
+  // practice is to give the chain or the overall, not both.
+  const s = subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 });
+  const dims = isometricDimensions(s);
+  const spans = (label: string) => dims.filter((d) => d.label === label).length;
+
+  // 60 is the overall width AND nothing else on this part, so it must be gone.
+  assert.equal(spans("60"), 0, "the redundant overall width was still emitted");
+  // The chain that replaced it is still there.
+  assert.equal(spans("40") >= 1, true, "the 0->4 position dimension went missing");
+  assert.equal(spans("20") >= 1, true, "the 4->6 size dimension went missing");
+});
+
+test("an overall dimension is KEPT on an axis with no chain to replace it", () => {
+  // The step spans this part's depth fully, so nothing is emitted on that axis
+  // and the overall is the only thing saying how deep the part is. Base depth
+  // of 5 makes "50" unique among the labels, so it can be identified without
+  // the dimension needing to carry its axis.
+  const s = subtractBox(block(6, 5, 4), { x: 4, y: 0, z: 2, w: 2, d: 5, h: 2 });
+  const labels = isometricDimensions(s).map((d) => d.label);
+  assert.equal(labels.filter((l) => l === "50").length, 1, "the overall depth went missing");
+});
+
+test("a plain block keeps all three overall dimensions", () => {
+  // Nothing cuts it, so there is no chain anywhere and all three are needed.
+  const dims = isometricDimensions(block(6, 4, 3));
+  assert.equal(dims.length, 3);
+  assert.deepEqual(dims.map((d) => d.label).sort(), ["30", "40", "60"]);
+});
+
+test("a hole's position does not make the overall redundant", () => {
+  // A bore at u=3 emits 0->3, which reaches neither end of the plate, so the
+  // overall dimension is still the only thing giving its size.
+  const s = subtractCylinder(block(8, 6, 3), "z", 3, 3, 2);
+  const dims = isometricDimensions(s);
+  assert.equal(dims.filter((d) => d.label === "80").length, 1, "overall width was wrongly dropped");
+  assert.equal(dims.filter((d) => d.label === "60").length, 1, "overall depth was wrongly dropped");
 });
