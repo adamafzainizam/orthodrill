@@ -227,6 +227,32 @@ body {
 }
 
 /*
+ * BACKLIGHT. Backlight.tsx writes --bl-x/--bl-y (cursor position inside the
+ * control) and --bl-on (0..1, falling off with distance). The highlight sits
+ * UNDER the label via a pseudo-element, so text contrast is untouched.
+ */
+[data-backlit] {
+  position: relative;
+  isolation: isolate;
+  --bl-on: 0;
+}
+[data-backlit]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--bl-on);
+  transition: opacity var(--dur-fade) var(--ease-press);
+  background: radial-gradient(
+    12rem circle at var(--bl-x, 50%) var(--bl-y, 50%),
+    color-mix(in srgb, var(--select) 26%, transparent),
+    transparent 70%
+  );
+}
+
+/*
  * ACCESSIBILITY SIGNALS — three independent preferences, each honoured on its
  * own terms rather than collapsed into one "accessible mode".
  */
@@ -241,6 +267,10 @@ body {
     scroll-behavior: auto !important;
   }
   .pressable:active:not(:disabled) { transform: none; }
+  /* A light that chases the cursor is movement. Reduced motion gets a plain
+     hover state instead: still feedback, just not something that follows. */
+  [data-backlit]::before { transition: none; background: none; }
+  [data-backlit]:hover { background: var(--bg-hover); }
 }
 
 /* Frostier, not blurrier: raise the opacity and drop the blur entirely. */

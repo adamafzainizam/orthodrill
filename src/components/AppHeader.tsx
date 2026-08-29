@@ -14,7 +14,7 @@ import Link from "next/link";
  */
 export type Crumb = { label: string; href?: string };
 
-export function AppHeader({ trail = [] }: { trail?: Crumb[] }) {
+export function AppHeader({ trail = [], back }: { trail?: Crumb[]; back?: string }) {
   return (
     <header
       className="chrome-layer sticky top-0 z-40 border-b"
@@ -26,8 +26,22 @@ export function AppHeader({ trail = [] }: { trail?: Crumb[] }) {
     >
       <nav
         aria-label="Breadcrumb"
-        className="mx-auto flex max-w-[1600px] items-center gap-2 px-6 py-3"
+        className="mx-auto flex max-w-[1600px] items-center gap-3 px-6 py-3"
       >
+        {/* A breadcrumb tells you where you are; it does not read as a way
+            OUT to everyone. An explicit Back control does, and costs one
+            link. It points at the parent, not at browser history, so it
+            lands somewhere predictable however the reader arrived. */}
+        {back !== undefined && (
+          <Link
+            href={back}
+            className="pressable t-small inline-flex items-center gap-1 rounded-[var(--radius-sm)] border px-2.5 py-1 no-underline"
+            style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", color: "var(--text-secondary)" }}
+          >
+            <span aria-hidden="true">←</span> Back
+          </Link>
+        )}
+
         <Link href="/topics" className="pressable t-title no-underline" style={{ color: "var(--text-primary)" }}>
           orthodrill
         </Link>

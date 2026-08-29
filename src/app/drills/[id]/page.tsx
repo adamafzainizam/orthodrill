@@ -59,6 +59,7 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <AppHeader
+        back={`/topics/${pub.topic.id}`}
         trail={[
           { label: pub.topic.title, href: `/topics/${pub.topic.id}` },
           { label: pub.title },

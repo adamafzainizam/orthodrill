@@ -1,5 +1,6 @@
 "use client";
 
+import { Backlight } from "./Backlight";
 import type { Action, Tool } from "@/lib/canvas/editor";
 import type { PrimitiveType } from "@/lib/scoring/primitives";
 
@@ -41,7 +42,7 @@ export function Toolbar({
   const actionStyle = { background: "var(--bg-raised)", borderColor: "var(--border-subtle)", color: "var(--text-secondary)" };
 
   return (
-    <div
+    <Backlight
       className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-lg)] border p-2"
       style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
     >
@@ -53,6 +54,7 @@ export function Toolbar({
           {TOOLS.map((t) => (
             <button
               key={t.id} type="button"
+              data-backlit
               className="pressable t-small px-3 py-1.5 rounded-[var(--radius-sm)] font-medium"
               aria-pressed={tool === t.id}
               title={`${t.label} (${t.key.toUpperCase()})`}
@@ -95,13 +97,13 @@ export function Toolbar({
         <div aria-hidden="true" className="h-5 w-px" style={{ background: "var(--border-subtle)" }} />
 
         <div className="flex gap-1">
-          <button type="button" className={action} style={actionStyle} disabled={!canUndo}
+          <button type="button" data-backlit className={action} style={actionStyle} disabled={!canUndo}
             title="Undo (Ctrl+Z)" aria-keyshortcuts="Control+Z"
             onClick={() => onAction({ type: "UNDO" })}>Undo</button>
-          <button type="button" className={action} style={actionStyle} disabled={!canRedo}
+          <button type="button" data-backlit className={action} style={actionStyle} disabled={!canRedo}
             title="Redo (Ctrl+Y)" aria-keyshortcuts="Control+Y"
             onClick={() => onAction({ type: "REDO" })}>Redo</button>
-          <button type="button" className={action} style={actionStyle} disabled={!hasSelection}
+          <button type="button" data-backlit className={action} style={actionStyle} disabled={!hasSelection}
             title="Delete selection (Del)" aria-keyshortcuts="Delete"
             onClick={() => onAction({ type: "DELETE_SELECTION" })}>Delete</button>
         </div>
@@ -115,6 +117,7 @@ export function Toolbar({
 
         <button
           type="button"
+          data-backlit
           className="pressable t-small ml-auto px-4 py-1.5 rounded-[var(--radius-sm)] font-semibold disabled:opacity-50"
           style={{ background: "var(--select)", color: "#fff", boxShadow: "var(--shadow-xs)" }}
           disabled={submitting}
@@ -122,6 +125,6 @@ export function Toolbar({
         >
           {submitting ? "Checking…" : "Check my drawing"}
         </button>
-    </div>
+    </Backlight>
   );
 }
