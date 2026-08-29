@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { gridToScreen, screenToGrid, type Point, type Viewport } from "@/lib/canvas/coords";
 import { mitreLine } from "@/lib/canvas/quadrants";
-import type { Action, Drag, Tool } from "@/lib/canvas/editor";
+import { pendingPrimitive, type Action, type Drag, type Tool } from "@/lib/canvas/editor";
 import type { Primitive, PrimitiveType } from "@/lib/scoring/primitives";
 import type { ViewDiff } from "@/lib/scoring/types";
 
@@ -51,7 +51,7 @@ function place(p: Primitive, anchor: { dx: number; dy: number }): Primitive {
 }
 
 export function Sheet({
-  grid, mode, tool, drawing, selection, pending, drag, cursor, feedback, onAction, onGridMove,
+  grid, mode, tool, activeType, drawing, selection, pending, drag, cursor, feedback, onAction, onGridMove,
 }: {
   grid: { width: number; height: number };
   /**
@@ -67,6 +67,7 @@ export function Sheet({
   tool: Tool;
   drawing: Primitive[];
   selection: number[];
+  activeType: PrimitiveType;
   pending: Point | null;
   drag: Drag | null;
   cursor: Point | null;
@@ -274,13 +275,32 @@ export function Sheet({
         />
       )}
 
-      {pending !== null && cursor !== null && (
-        <line
-          x1={gridToScreen(pending, v).x} y1={gridToScreen(pending, v).y}
-          x2={gridToScreen(cursor, v).x} y2={gridToScreen(cursor, v).y}
-          stroke="var(--select)" strokeWidth={2} strokeDasharray="4 4" opacity={0.7}
-        />
-      )}
+      {pending !== null && cursor !== null && (() => {
+        // The ghost comes from the SAME function that will commit it, so the
+        // preview cannot drift from what lands — `radiusFrom` rounds and
+        // clamps, and a preview computed here independently would lie at both
+        // ends of that range.
+        const ghost = pendingPrimitive(tool, activeType, pending, cursor);
+        const a = gridToScreen(pending, v);
+        const b = gridToScreen(cursor, v);
+        return (
+          <g pointerEvents="none">
+            {/* The radius line stays for the circle tool: it is how you see
+                WHERE the edge point is, which the circle alone does not show. */}
+            <line
+              x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+              stroke="var(--select)" strokeWidth={2} strokeDasharray="4 4" opacity={0.7}
+            />
+            {ghost?.kind === "circle" && (
+              <circle
+                cx={a.x} cy={a.y} r={ghost.r * v.cell}
+                fill="none" stroke="var(--select)" strokeWidth={2}
+                strokeDasharray="4 4" opacity={0.7}
+              />
+            )}
+          </g>
+        );
+      })()}
     </svg>
   );
 }

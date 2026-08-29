@@ -138,6 +138,29 @@ function shift(p: Primitive, dx: number, dy: number): Primitive {
     : { ...p, cx: p.cx + dx, cy: p.cy + dy };
 }
 
+/**
+ * The primitive a second click would commit, or null if it would commit
+ * nothing.
+ *
+ * THE POINT OF THIS FUNCTION IS THAT IT HAS TWO CALLERS. `clickWhileDrawing`
+ * commits its result and `Sheet` previews it, so the preview cannot drift from
+ * what lands — `radiusFrom` rounds AND clamps to [1, MAX_RADIUS], so a preview
+ * computed independently would lie at both ends of that range.
+ */
+export function pendingPrimitive(
+  tool: Tool, type: PrimitiveType, from: Point, to: Point,
+): Primitive | null {
+  if (tool === "line") {
+    // A zero-length segment is not a line; validate.ts refuses it.
+    if (from.x === to.x && from.y === to.y) return null;
+    return { kind: "segment", type, x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+  }
+  if (tool === "circle") {
+    return { kind: "circle", type, cx: from.x, cy: from.y, r: radiusFrom(from, to) };
+  }
+  return null;
+}
+
 function clickWhileDrawing(s: EditorState, at: Point): EditorState {
   const from = s.pending;
   if (from === null) return { ...s, pending: at };
@@ -147,22 +170,11 @@ function clickWhileDrawing(s: EditorState, at: Point): EditorState {
   // and drop the pending anchor rather than leaving a dangling first click.
   if (drawing(s).length >= MAX_PRIMITIVES) return { ...s, pending: null };
 
-  if (s.tool === "line") {
-    // A zero-length segment is not a line; validate.ts refuses it, so it must
-    // never become drawable here either.
-    if (from.x === at.x && from.y === at.y) return { ...s, pending: null };
-    const segment: Primitive = {
-      kind: "segment", type: s.activeType,
-      x1: from.x, y1: from.y, x2: at.x, y2: at.y,
-    };
-    return { ...commit(s, [...drawing(s), segment]), pending: null };
-  }
-
-  const circle: Primitive = {
-    kind: "circle", type: s.activeType,
-    cx: from.x, cy: from.y, r: radiusFrom(from, at),
-  };
-  return { ...commit(s, [...drawing(s), circle]), pending: null };
+  const primitive = pendingPrimitive(s.tool, s.activeType, from, at);
+  // null means the click commits nothing (a zero-length line, or a tool that
+  // does not draw); drop the anchor rather than leaving it dangling.
+  if (primitive === null) return { ...s, pending: null };
+  return { ...commit(s, [...drawing(s), primitive]), pending: null };
 }
 
 /**

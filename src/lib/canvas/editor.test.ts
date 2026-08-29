@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { initEditor, reduce, drawing, type EditorState } from "./editor.ts";
+import { initEditor, reduce, drawing, pendingPrimitive, type EditorState } from "./editor.ts";
 import { initHistory } from "./history.ts";
-import { MAX_PRIMITIVES } from "../scoring/validate.ts";
+import { MAX_PRIMITIVES, MAX_RADIUS } from "../scoring/validate.ts";
 import type { Primitive } from "../scoring/primitives.ts";
 
 const run = (actions: Parameters<typeof reduce>[1][]): EditorState =>
@@ -356,4 +356,34 @@ test("switching tools mid-drag abandons the drag rather than leaving stale drag 
   // And a stray commit after the tool switch must not act on the abandoned drag.
   const after = reduce(s, { type: "DRAG_COMMIT", additive: false });
   assert.deepEqual(after, s);
+});
+
+test("the circle preview is EXACTLY the circle that commits, including at both radius clamps", () => {
+  const cases: Array<[{ x: number; y: number }, { x: number; y: number }]> = [
+    [{ x: 10, y: 10 }, { x: 10, y: 10 }],   // zero drag -> clamps up to r = 1
+    [{ x: 10, y: 10 }, { x: 13, y: 10 }],   // ordinary
+    [{ x: 10, y: 10 }, { x: 14, y: 13 }],   // 3-4-5, rounds to exactly 5
+    [{ x: 10, y: 10 }, { x: 12, y: 13 }],   // hypot 3.606 -> rounds to 4
+    [{ x: 0, y: 0 }, { x: 180, y: 0 }],     // beyond MAX_RADIUS -> clamps down
+  ];
+  for (const [from, to] of cases) {
+    const preview = pendingPrimitive("circle", "visible", from, to);
+    const s = run([
+      { type: "SET_TOOL", tool: "circle" },
+      { type: "CLICK_GRID", at: from, additive: false },
+      { type: "CLICK_GRID", at: to, additive: false },
+    ]);
+    assert.deepEqual([preview], drawing(s), `preview diverged for ${JSON.stringify([from, to])}`);
+  }
+  const clamped = pendingPrimitive("circle", "visible", { x: 0, y: 0 }, { x: 180, y: 0 });
+  assert.equal(clamped?.kind === "circle" ? clamped.r : -1, MAX_RADIUS);
+});
+
+test("the line preview is null exactly when the click would commit nothing", () => {
+  assert.equal(pendingPrimitive("line", "visible", { x: 4, y: 4 }, { x: 4, y: 4 }), null);
+  assert.deepEqual(pendingPrimitive("line", "hidden", { x: 4, y: 4 }, { x: 9, y: 4 }), {
+    kind: "segment", type: "hidden", x1: 4, y1: 4, x2: 9, y2: 4,
+  });
+  assert.equal(pendingPrimitive("select", "visible", { x: 0, y: 0 }, { x: 3, y: 3 }), null);
+  assert.equal(pendingPrimitive("move", "visible", { x: 0, y: 0 }, { x: 3, y: 3 }), null);
 });

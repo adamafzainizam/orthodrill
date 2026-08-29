@@ -183,6 +183,7 @@ export function Editor({ drill }: { drill: PublicDrill }) {
             grid={drill.grid}
             mode={drill.mode}
             tool={state.tool}
+            activeType={state.activeType}
             drawing={drawing(state)}
             selection={state.selection}
             pending={state.pending}
