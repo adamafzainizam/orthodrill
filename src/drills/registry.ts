@@ -528,4 +528,45 @@ function buildParabolaMethodDiagram(): Primitive[] {
  * at module load (deterministic and cheap) and frozen, like the isometric
  * pictorial's cached output, so every request shares the same array.
  */
+/**
+ * A small illustrative three-view figure for the orthographic topic's card.
+ *
+ * ILLUSTRATIVE, NEVER AN ANSWER. Built from a solid that is deliberately not
+ * any exercise's — the same rule the parabola method diagram follows: show a
+ * student what the topic looks like without solving anything they will be
+ * asked. Computed once at module load, server-side, and it reaches the client
+ * only as plain primitives, exactly as the pictorial's paint program does.
+ *
+ * The three views are laid out in first angle purely so the picture reads as
+ * a real sheet; nothing scores it, and the topic card is not the place to
+ * teach placement.
+ */
+function buildOrthographicPreview(): Primitive[] {
+  const views = generateViews(subtractBox(block(4, 3, 3), { x: 2, y: 0, z: 2, w: 2, d: 3, h: 1 }));
+
+  const shift = (ps: readonly Primitive[], dx: number, dy: number): Primitive[] =>
+    ps.map((q) => (q.kind === "circle"
+      ? { ...q, cx: q.cx + dx, cy: q.cy + dy }
+      : { ...q, x1: q.x1 + dx, y1: q.y1 + dy, x2: q.x2 + dx, y2: q.y2 + dy }));
+
+  const GAP = 2;
+  return [
+    ...shift(views.front, 0, 0),
+    ...shift(views.top, 0, 3 + GAP),
+    ...shift(views.side, -(3 + GAP), 0),
+  ];
+}
+
+export const ORTHOGRAPHIC_PREVIEW: readonly Primitive[] = Object.freeze(buildOrthographicPreview());
+
+/**
+ * What each topic shows on its card. A topic with no preview renders none
+ * rather than borrowing another topic's, which would teach the wrong thing.
+ */
+export function topicPreview(topicId: string): readonly Primitive[] | null {
+  if (topicId === "orthographic") return ORTHOGRAPHIC_PREVIEW;
+  if (topicId === "parabola") return PARABOLA_METHOD_DIAGRAM;
+  return null;
+}
+
 export const PARABOLA_METHOD_DIAGRAM: readonly Primitive[] = Object.freeze(buildParabolaMethodDiagram());

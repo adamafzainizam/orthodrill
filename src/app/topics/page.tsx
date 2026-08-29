@@ -1,24 +1,84 @@
 import Link from "next/link";
+import { AppHeader } from "@/components/AppHeader";
+import { Backlight } from "@/components/Backlight";
+import { DriftingFigures } from "@/components/DriftingFigures";
+import { MethodDiagram } from "@/components/MethodDiagram";
 import { TOPIC_IDS, getTopic } from "@/topics/topics";
+import { getDrill, listDrillIds, topicPreview } from "@/drills/registry";
 
+/**
+ * The topic chooser, as SECTIONS rather than a list of text cards.
+ *
+ * A topic is a kind of drawing, so the fastest way to say what one is, is to
+ * show one. Each section carries an illustrative figure built server-side
+ * from a solid or spec that is deliberately not any exercise's — it shows
+ * what the topic looks like without solving anything a student will be asked.
+ */
 export default function TopicsPage() {
   const topics = TOPIC_IDS.map((id) => getTopic(id)!);
+  // Resolved here rather than inside the component, for the same reason the
+  // front page does it: registry is server-only.
+  const driftFigures = TOPIC_IDS
+    .map((id) => topicPreview(id))
+    .filter((f): f is NonNullable<typeof f> => f !== null);
+  const countFor = (topicId: string) =>
+    listDrillIds().map((d) => getDrill(d)!).filter((d) => d.topicId === topicId).length;
 
   return (
-    <main className="p-6 max-w-3xl mx-auto flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Choose a topic</h1>
-      <ul className="flex flex-col gap-4">
-        {topics.map((t) => (
-          <li key={t.id}>
-            <Link href={`/topics/${t.id}`} className="underline text-lg">
-              {t.title}
-            </Link>
-            <p className="text-sm opacity-70 max-w-[65ch]">{t.blurb}</p>
-          </li>
-        ))}
-      </ul>
-      {/* Reserved ad slot. Menus and the landing page only, never an exercise page. */}
-      <div className="h-[90px] w-full max-w-[728px] mx-auto" aria-hidden="true" />
-    </main>
+    <>
+      {/* Drift belongs on the menus, NOT on an exercise page: a moving
+          background behind a drawing surface competes with the one thing the
+          student is trying to concentrate on. Fewer figures here than on the
+          front page, because the cards already carry their own. */}
+      <DriftingFigures figures={driftFigures} count={4} />
+      <AppHeader back="/" />
+      <main className="mx-auto flex max-w-[1100px] flex-col gap-8 px-6 py-10">
+        <div>
+          <h1 className="t-display">Choose a topic</h1>
+          <p className="t-body mt-1.5 max-w-[60ch]" style={{ color: "var(--text-secondary)" }}>
+            Each one drills a different part of technical drawing, and marks what you draw.
+          </p>
+        </div>
+
+        <Backlight className="flex flex-col gap-5">
+          {topics.map((t) => {
+            const preview = topicPreview(t.id);
+            const count = countFor(t.id);
+            return (
+              <section key={t.id}>
+                <Link
+                  href={`/topics/${t.id}`}
+                  data-backlit
+                  className="grid gap-6 rounded-[var(--radius-lg)] border p-5 no-underline sm:grid-cols-[1fr_14rem] sm:items-center"
+                  style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
+                >
+                  <div className="flex flex-col gap-2">
+                    <h2 className="t-title" style={{ color: "var(--text-primary)" }}>{t.title}</h2>
+                    <p className="t-small max-w-[52ch]">{t.blurb}</p>
+                    <p className="t-label mt-1">
+                      {count} {count === 1 ? "exercise" : "exercises"}
+                    </p>
+                  </div>
+
+                  {preview !== null && (
+                    /* The figure is decoration for the link's purposes — the
+                       heading and blurb already name the topic — so it is
+                       hidden from assistive tech rather than read out as a
+                       wall of coordinates. It blends into the card rather
+                       than sitting on it as a framed image. */
+                    <div aria-hidden="true" className="justify-self-center opacity-90">
+                      <MethodDiagram primitives={preview} caption="" variant="blend" />
+                    </div>
+                  )}
+                </Link>
+              </section>
+            );
+          })}
+        </Backlight>
+
+        {/* Reserved ad slot. Menus and the landing page only, never an exercise page. */}
+        <div className="h-[90px] w-full max-w-[728px] mx-auto" aria-hidden="true" />
+      </main>
+    </>
   );
 }

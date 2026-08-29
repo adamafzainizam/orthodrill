@@ -26,6 +26,24 @@ const STROKE: Record<PrimitiveType, string> = {
   construction: "var(--construction)",
 };
 
+/*
+ * BLEND variant. Drawn straight onto whatever surface hosts it, in the text
+ * palette rather than in ink, so a preview reads as part of its card instead
+ * of a white photograph pasted on top of one.
+ *
+ * Safe here and NOT safe in Pictorial.tsx, for a reason worth stating: this
+ * component renders plain segments and circles, which have no fills. The
+ * pictorial renders an ordered PAINT PROGRAM whose opaque face fills must
+ * match the ground EXACTLY — that overdraw is its entire hidden-line
+ * mechanism, so it cannot be made transparent (AGENTS.md §6).
+ */
+const BLEND_STROKE: Record<PrimitiveType, string> = {
+  visible: "var(--text-secondary)",
+  hidden: "var(--text-tertiary)",
+  centre: "var(--centre)",
+  construction: "var(--text-tertiary)",
+};
+
 const DASH: Record<PrimitiveType, string | undefined> = {
   visible: undefined,
   hidden: "6 4",
@@ -40,7 +58,15 @@ const WIDTH: Record<PrimitiveType, number> = {
   construction: 1,
 };
 
-export function MethodDiagram({ primitives, caption }: { primitives: readonly Primitive[]; caption: string }) {
+export function MethodDiagram({
+  primitives, caption, variant = "paper",
+}: {
+  primitives: readonly Primitive[];
+  caption: string;
+  /** `paper` for reference material a student studies; `blend` for a preview
+   *  that should sit quietly on its host surface. */
+  variant?: "paper" | "blend";
+}) {
   if (primitives.length === 0) return null;
 
   const xs: number[] = [];
@@ -56,13 +82,29 @@ export function MethodDiagram({ primitives, caption }: { primitives: readonly Pr
   const w = (maxX - minX) * SCALE + PAD * 2;
   const h = (maxY - minY) * SCALE + PAD * 2;
 
+  const blend = variant === "blend";
+  const palette = blend ? BLEND_STROKE : STROKE;
+
   return (
     <figure className="m-0">
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}
-        className="max-w-full h-auto border border-[var(--rule)]"
-        style={{ background: "var(--paper)" }} role="img" aria-label={caption}>
+        className={blend ? "max-w-full h-auto" : "max-w-full h-auto border border-[var(--rule)]"}
+        style={blend
+          ? {
+            background: "transparent",
+            opacity: 0.92,
+            // Dissolve at the edges so the figure has no boundary to read as
+            // a pasted-on image. The gradient is sized LARGER than the box
+            // (125%) so only the far corners reach transparency: a
+            // closest-side mask ate the outer views of a wide figure and
+            // left it looking like fragments rather than a drawing.
+            maskImage: "radial-gradient(125% 125% at 50% 50%, #000 58%, transparent 100%)",
+            WebkitMaskImage: "radial-gradient(125% 125% at 50% 50%, #000 58%, transparent 100%)",
+          }
+          : { background: "var(--paper)" }}
+        role="img" aria-label={caption}>
         {primitives.map((p, i) => {
-          const stroke = STROKE[p.type];
+          const stroke = palette[p.type];
           const dash = DASH[p.type];
           const strokeWidth = WIDTH[p.type];
           if (p.kind === "circle") {
@@ -73,7 +115,7 @@ export function MethodDiagram({ primitives, caption }: { primitives: readonly Pr
             stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dash} />;
         })}
       </svg>
-      <figcaption className="text-xs mt-1 opacity-70">{caption}</figcaption>
+      {caption !== "" && <figcaption className="t-small mt-1.5">{caption}</figcaption>}
     </figure>
   );
 }

@@ -18,18 +18,44 @@
 
 ## 1. What this project is
 
-A browser drill for **orthographic projection**. Given an isometric view of a part, the student draws the front, top and side views; the app scores the attempt and says specifically what is wrong.
+**A browser tool for practising technical drawing, across topics.** The student draws on a snapping grid; the app knows the answer, marks the attempt, and says specifically what is wrong.
+
+**It began as an orthographic projection drill and outgrew that on 2026-08-27.** The scoring engine never cared what the primitives depicted — it diffs typed lines and circles on a grid — so the product is the MARKING, and topics are content. Orthographic projection and parabola construction ship today; the roadmap is §1.1.
 
 **The gap it fills.** The market splits cleanly and leaves this open:
 
 - *Drawing tools* (SimpleDraw, Planner 5D, SmartDraw) let you create drawings. They do not know what a correct answer is and cannot mark anything.
 - *Courses* (ICA Institute, CourseCareers, VDCI) give feedback by human critique — expensive, scheduled, and unavailable at 1am the night before an assessment.
 
-Nothing found gives automated, immediate, specific feedback on a projection attempt. That is the product.
+Nothing found gives automated, immediate, specific feedback on a technical drawing attempt. That is the product.
+
+### 1.1 Topics, and the three tiers
+
+**The scoring model requires INTEGER grid coordinates** — `validate.ts` rejects anything else and the canvas snaps. That single fact sorts every candidate topic, and it was MEASURED before any of it was designed (spec `2026-08-27-topics-platform-design.md` §2):
+
+| Construction | Points landing on the lattice |
+|---|---|
+| Tangent from an external point to a circle | **0 of 162** configurations tried |
+| Ellipse, concentric-circles method | 4 of 12 — only the axis endpoints |
+| Parabola, rectangle method | **all**, exactly |
+| Perpendicular bisector, even endpoints | **all**, exactly |
+
+**Tier 1 — buildable now, lattice-exact.** Orthographic projection (shipped, 8 exercises), parabola by the rectangle method (shipped, 3), oblique, the Type B reverse drill, and straightedge constructions such as bisectors and equal divisions. Each needs a generator, hints, and a method diagram or pictorial — nothing else.
+
+**Tier 2 — blocked on a scoring decision, not on content.** Tangents, ellipses, curve fitting: anything whose correct answer is irrational. A snap grid cannot express the answer, so these need TOLERANCE-based comparison, which does not exist and should not be added casually — "close enough" is exactly the sort of judgement that silently teaches the wrong thing, and it deserves the scrutiny §5.2 gave the generator.
+
+**Tier 3 — needs a different notion of correct entirely.** Building, electrical, interior, planning. A correct schematic is not a unique set of primitives; many arrangements are right. Scoring that is a research problem, not a feature. Out of scope until Tiers 1 and 2 exist.
+
+**Do not add a topic to Tier 1 without re-running the lattice check on it.** That check is cheap, and it is the difference between a topic that ships in a day and weeks spent discovering the model cannot express its answer.
 
 **Global, English-only, deliberately.** Technical drawing is international. This is not a Malaysian site — that was considered and rejected, because unlike its predecessor there is nothing locally specific about the subject, and Malaysia-local ad traffic has a low RPM ceiling. Local GMI students remain the **test** audience; they are not the market.
 
-**Full design and reasoning:** `docs/superpowers/specs/2026-08-20-orthographic-drill-design.md`. Read it before changing anything structural.
+**Full design and reasoning**, in the order they were written — later ones extend rather than replace:
+- `2026-08-20-orthographic-drill-design.md` — the original product, scorer and generator.
+- `2026-08-26-canvas-and-reverse-drill-design.md` — the canvas, and the Type B reverse drill (specced, not built).
+- `2026-08-27-topics-platform-design.md` — the scope expansion, the tier model, and the lattice premise check.
+
+Read the relevant one before changing anything structural.
 
 ---
 
@@ -64,7 +90,9 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 ## 3. Current status
 
-**Phase:** a two-topic platform. Orthographic projection and parabola construction both work end to end, with topic-specific hint sidebars. The Type A drill was confirmed working by a person. The builder drew all three views on the canvas, in first angle, with construction lines, and scored perfect — content and placement both. The design spec's §10 success criterion is met for the builder; it has not yet been met by a student who has never seen the app.
+**Phase:** a two-topic platform with a designed UI. See §1.1 for the topic roadmap and what gates each tier.
+
+**Phase detail:** a two-topic platform. Orthographic projection and parabola construction both work end to end, with topic-specific hint sidebars. The Type A drill was confirmed working by a person. The builder drew all three views on the canvas, in first angle, with construction lines, and scored perfect — content and placement both. The design spec's §10 success criterion is met for the builder; it has not yet been met by a student who has never seen the app.
 
 **Catalogue is now inside the spec's 8-12 range: 11 exercises (8 orthographic, 3 parabola), up from 5.** Four new orthographic solids (`hidden-groove`, `near-mirror-notches`, `bore-along-length`, `step-and-notch`) and two new parabola specs (`n=4`, `n=6`) were added on `feat/more-exercises`, 2026-08-28. Each new orthographic exercise teaches something the first four didn't (see §4). Convention is now even across orthographic — 4 first-angle, 4 third-angle. None of the eight are golden-set fixtures — they lean on the already-VERIFIED generator rather than being individually citation-checked — but every pictorial was rendered and read as a student (§4 below has the finding this caught), and a new test (`registry.test.ts`) now enforces the asymmetry requirement §7 always stated but nothing checked before.
 
@@ -194,6 +222,8 @@ Add project-specific gotchas here as they are found, with enough detail that the
 - **The limit matters as much as the rule: this is not hand-holding.** Do not walk a student through their own problem. The visual up front shows what is being asked; the notifications after submission show what went wrong. Help is earned by attempting, not given in advance.
 
 
+- **A new topic owes four things, and ships when it has all four:** a GENERATOR (keys derived, never hand-written), authored HINTS for its sidebar, a METHOD DIAGRAM or pictorial so the exercise is not text alone, and a PREVIEW figure for the topic chooser and the front page. The preview and the method diagram must be built from a solid or spec that is deliberately NOT any exercise's — illustrative, never an answer. The parabola diagram uses `n = 3` while its exercises use 4, 5 and 6; the orthographic preview uses a solid no drill uses.
+- **Run the lattice check before committing to a topic** (§1.1). If its correct answers do not land on integer grid points, it is Tier 2 and needs scoring work first, not content work.
 - **Never hand-write an answer key** if the generator can produce it. Hand-authored keys are the fallback for when the generator cannot express a part, not the default.
 - **A drill is not published until its key is verified** — by the generator's property tests, or by a human for golden-set parts.
 - **Cite the convention.** When a drill depends on a rule (hidden lines dashed, first- vs third-angle placement), the reference belongs with the drill. Same discipline as provenance on a data row: a claim without a source is a guess.
@@ -209,15 +239,21 @@ Add project-specific gotchas here as they are found, with enough detail that the
 ├── README.md              ← public-facing description
 ├── docs/
 │   ├── decision-log.md    ← dated record of non-trivial choices + reasoning
-│   └── superpowers/specs/ ← the approved design spec
+│   └── superpowers/
+│       ├── specs/         ← approved designs, oldest first (see §1)
+│       └── plans/         ← implementation plans, executed
 └── src/
-    ├── app/               ← Next.js App Router; the scoring route handler
+    ├── app/               ← Next.js App Router; pages and the scoring routes
     ├── lib/
     │   ├── scoring/       ← PURE. set diff, view resolution, verdicts
-    │   └── geometry/      ← PURE. features → projected views
-    ├── components/        ← the canvas
+    │   ├── geometry/      ← PURE. solids → views, isometric, dimensions, parabola
+    │   └── canvas/        ← PURE. coords, history, the editor reducer, notices
+    ├── components/        ← the canvas, and the UI shell
+    ├── topics/            ← PUBLIC. topic titles, blurbs, authored hints
     └── drills/            ← public halves + private keys, files not a database
 ```
+
+**`src/topics/` is public and `src/drills/` is not.** Hints and titles are shown to students, so `topics/` is safe to import from a client component. `drills/` holds the solids and specs, which ARE the answer keys, and `isolation.test.ts` enforces that only server code touches it.
 
 **Keep `src/lib/` pure and free of I/O.** This is what made mutation testing tractable in `campus-marketplace` and unit testing trivial in `pathway-navigator`. Same pattern applies here, and it is what lets the scorer be tested without a browser.
 
@@ -249,3 +285,4 @@ Append a short entry per working session. Newest at the bottom.
 | 2026-08-27 | Claude (Claude Code) | **The drill scored a real attempt correctly, twice, and the second was perfect.** The builder drew all three views with construction lines and a mitre line; the first attempt came back "views are placed as third-angle projection, but this drill asks for the other convention" — every view correct, arrangement in the wrong convention, and the app named which convention he had actually used. He rearranged to first angle and got "every view is correct, and they are placed correctly". Two things this confirms that no test could: the construction-line strip works on a real sheet whose lines cross every view, and scoring placement separately from content earns its keep — the first attempt was a genuinely useful piece of teaching rather than a bare wrong. §10's success criterion is met for the builder. It is NOT yet met for a student who has never seen the app, which is the version of the test that matters, because the builder knows what the app expects. |
 | 2026-08-27 | Claude (Claude Code) | Turned the single drill into a topics platform, and proved it with a second topic that shares nothing with the first. **A premise check came first and reshaped the whole plan:** scoring needs integer coordinates, so the question that could kill whole topics was whether their answers land on lattice points. Measured — tangent points on the lattice in **0 of 162** configurations, ellipse points 4 of 12, parabola by the rectangle method exact. So tangents and ellipses cannot be drawn on a snap grid at all; that is the model failing to express the answer, not a content problem, and it sorted the requested topics into three tiers by what they actually need. Built: the topic model with authored hints, `scoreFigure` alongside `scoreViews` sharing one construction-strip, the lattice-exact parabola generator, the sidebar, and the parabola exercise end to end. Two bugs worth remembering — an independent derivation in the generator's tests caught a real indexing error, and a sidebar hint told students to draw a smooth curve when the key is straight segments, which would have failed them for following the app's own advice. The second is recorded in §6 as a new hazard class: authored prose is graded content that nothing verifies. 384 tests, lint, typecheck and build clean. |
 | 2026-08-28 | Claude (Claude Code) | Expanded the catalogue from 5 to 11 exercises, into the spec's 8-12 range, on `feat/more-exercises`. Four new orthographic solids, each teaching something the first four didn't: `hidden-groove` (a feature set back from the front face, so it never breaks that view's outline and reads only as a hidden line), `near-mirror-notches` (two same-footprint corner notches at different heights, so assuming mirror symmetry gets the shallow one wrong), `bore-along-length` (a through-hole on the x axis, so the circle lands in the side view — the one axis the existing two bores, y and z, don't cover), and `step-and-notch` (a corner notch whose box overlaps a step's, so one cut removes material the other alone would have left — `validateSolid` only rejects overlapping cylinders, never overlapping boxes, which is what makes this legal to model at all). Two new parabola specs at `n=4` and `n=6`, clear of `DIAGRAM_N=3`. Every prompt was checked against "would a student who followed this exactly produce the key?" before shipping (documented per-exercise in the session's own report, not repeated here). Added the asymmetry test §7 always implied but nothing enforced — writing its positive control first (a plain, feature-less block) caught a real bug in a naive copy of `golden.test.ts`'s mirror-key helpers, now in §6. Every new pictorial was rendered with headless Chrome and read as a student before shipping, not just tested. Two commits, both reviewed against `npm test && npm run lint && npm run typecheck && npm run build` clean. 386 tests. |
+| 2026-08-27 | Claude (Claude Code) | UI revamp, and the scope expansion written down. **The UI thesis is STUDIO DARK: quiet near-black chrome that recedes, with the drawing sheet as the one bright elevated surface.** Build against it. Concretely: a design token scale rather than ad-hoc values, size-specific tracking (one global letter-spacing is always wrong somewhere), press feedback on pointer-DOWN, and a proximity backlight whose falloff is by distance so the control you are reaching for brightens before you arrive. Three structural fixes behind the paint: there was no way out of an exercise page (breadcrumb plus an explicit Back, pointing at the parent rather than at history); the toolbar gave a MODE, an ACTION and a COMMIT one identical costume; and the hints were the same wall of text the parabola worksheet had, relocated into a sidebar (each now collapses on its own, titles as the scannable layer). `/` was still the Next boilerplate — it is now a thin landing, and both its copy and its figures are DERIVED FROM THE TOPIC LIST rather than written out, because the old copy promised orthographic projection specifically and had quietly gone stale. Previews blend into their surface via a mask; safe only because `MethodDiagram` draws fill-less segments, where `Pictorial`'s opaque face fills must match the ground exactly or hidden-line removal breaks (§6). Recorded the tier model and the lattice check in §1.1, and what a new topic owes in §7. 390 tests, lint, typecheck and build clean. |
