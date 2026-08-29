@@ -40,10 +40,19 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
     )
     : pub.topic.id === "parabola"
       ? (
-        <MethodDiagram
-          primitives={PARABOLA_METHOD_DIAGRAM}
-          caption="Worked example: the rectangle method (n = 3) — illustrates the method only, not this exercise's answer."
-        />
+        /* Same card as the pictorial above: the two are siblings — the
+           reference material for their respective topics — and should read
+           as the same kind of thing. */
+        <section
+          className="rounded-[var(--radius-lg)] border p-3"
+          style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <p className="t-label mb-2">The method</p>
+          <MethodDiagram
+            primitives={PARABOLA_METHOD_DIAGRAM}
+            caption="Worked example: the rectangle method (n = 3) — illustrates the method only, not this exercise's answer."
+          />
+        </section>
       )
       : null;
 

@@ -150,11 +150,13 @@ export function Editor({ drill }: { drill: PublicDrill }) {
   return (
     <div className="flex flex-col gap-4">
       <header>
-        <h1 className="text-2xl font-semibold">{drill.title}</h1>
-        <p className="max-w-[65ch] mt-1">{drill.prompt}</p>
+        <h1 className="t-display">{drill.title}</h1>
+        <p className="t-body mt-1.5 max-w-[62ch]" style={{ color: "var(--text-secondary)" }}>{drill.prompt}</p>
         {drill.mode === "views" && (
-          <p className="text-sm mt-1 opacity-70">
-            Convention: {drill.convention === "first_angle" ? "first angle" : "third angle"}
+          /* The convention governs where every view goes, so it is a
+             standing fact about this exercise rather than a footnote. */
+          <p className="t-label mt-2.5">
+            {drill.convention === "first_angle" ? "First angle" : "Third angle"} projection
           </p>
         )}
       </header>

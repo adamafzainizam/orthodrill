@@ -29,28 +29,47 @@ export function Toolbar({
   onAction: (a: Action) => void;
   onSubmit: () => void;
 }) {
-  const button = "px-3 py-1.5 text-sm border border-[var(--rule)] rounded disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--select)]";
+  /*
+   * THREE KINDS OF CONTROL, THREE TREATMENTS. Choosing a tool sets a MODE and
+   * reads as a segmented control — exactly one lit at a time. Undo, redo and
+   * delete are ACTIONS and stay quiet. Checking the drawing is the COMMIT and
+   * is the only filled button on the bar. They used to be one row of
+   * identical grey boxes, which told the reader nothing about which was which.
+   */
+  const action =
+    "pressable t-small px-2.5 py-1.5 rounded-[var(--radius-sm)] border disabled:opacity-35 disabled:cursor-not-allowed";
+  const actionStyle = { background: "var(--bg-raised)", borderColor: "var(--border-subtle)", color: "var(--text-secondary)" };
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-2 p-2 border border-[var(--rule)] rounded">
-        <div className="flex gap-1" role="group" aria-label="Tool">
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-lg)] border p-2"
+      style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
+    >
+        <div
+          className="flex gap-0.5 rounded-[var(--radius-md)] p-0.5"
+          role="group" aria-label="Tool"
+          style={{ background: "var(--bg-active)" }}
+        >
           {TOOLS.map((t) => (
             <button
-              key={t.id} type="button" className={button}
+              key={t.id} type="button"
+              className="pressable t-small px-3 py-1.5 rounded-[var(--radius-sm)] font-medium"
               aria-pressed={tool === t.id}
               title={`${t.label} (${t.key.toUpperCase()})`}
               aria-keyshortcuts={t.key}
-              style={tool === t.id ? { background: "var(--select)", color: "#fff" } : undefined}
+              style={tool === t.id
+                ? { background: "var(--select)", color: "#fff", boxShadow: "var(--shadow-xs)" }
+                : { background: "transparent", color: "var(--text-secondary)" }}
               onClick={() => onAction({ type: "SET_TOOL", tool: t.id })}
             >{t.label}</button>
           ))}
         </div>
 
-        <label className="text-sm flex items-center gap-1.5">
-          Line type
+        <label className="t-small flex items-center gap-2" style={{ color: "var(--text-tertiary)" }}>
+          Line
           <select
-            className={button}
+            className="pressable t-small px-2 py-1.5 rounded-[var(--radius-sm)] border"
+            style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", color: "var(--text-primary)" }}
             value={activeType}
             onChange={(e) => {
               const lineType = e.target.value as PrimitiveType;
@@ -73,23 +92,36 @@ export function Toolbar({
           </select>
         </label>
 
-        <button type="button" className={button} disabled={!canUndo}
-          onClick={() => onAction({ type: "UNDO" })}>Undo</button>
-        <button type="button" className={button} disabled={!canRedo}
-          onClick={() => onAction({ type: "REDO" })}>Redo</button>
-        <button type="button" className={button} disabled={!hasSelection}
-          onClick={() => onAction({ type: "DELETE_SELECTION" })}>Delete</button>
+        <div aria-hidden="true" className="h-5 w-px" style={{ background: "var(--border-subtle)" }} />
 
-        <button type="button" className={`${button} ml-auto`} disabled={submitting} onClick={onSubmit}>
+        <div className="flex gap-1">
+          <button type="button" className={action} style={actionStyle} disabled={!canUndo}
+            title="Undo (Ctrl+Z)" aria-keyshortcuts="Control+Z"
+            onClick={() => onAction({ type: "UNDO" })}>Undo</button>
+          <button type="button" className={action} style={actionStyle} disabled={!canRedo}
+            title="Redo (Ctrl+Y)" aria-keyshortcuts="Control+Y"
+            onClick={() => onAction({ type: "REDO" })}>Redo</button>
+          <button type="button" className={action} style={actionStyle} disabled={!hasSelection}
+            title="Delete selection (Del)" aria-keyshortcuts="Delete"
+            onClick={() => onAction({ type: "DELETE_SELECTION" })}>Delete</button>
+        </div>
+
+        {/* Drag and arrow-key nudging are the two things a newcomer will not
+            guess, and they are not on any control to carry a title. One short
+            line, not the paragraph this used to be. */}
+        <p className="t-small hidden xl:block" style={{ color: "var(--text-tertiary)" }}>
+          Drag to select · arrows nudge
+        </p>
+
+        <button
+          type="button"
+          className="pressable t-small ml-auto px-4 py-1.5 rounded-[var(--radius-sm)] font-semibold disabled:opacity-50"
+          style={{ background: "var(--select)", color: "#fff", boxShadow: "var(--shadow-xs)" }}
+          disabled={submitting}
+          onClick={onSubmit}
+        >
           {submitting ? "Checking…" : "Check my drawing"}
         </button>
-      </div>
-
-      <p className="text-xs opacity-60">
-        Select a line or circle, then use the arrow keys to nudge it into place.
-        Shortcuts: S select, L line, C circle, G move — drag on the sheet to
-        rubber-band select, or drag with Move to move the selection.
-      </p>
     </div>
   );
 }

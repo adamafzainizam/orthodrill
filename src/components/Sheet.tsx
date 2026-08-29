@@ -190,7 +190,8 @@ export function Sheet({
     <svg
       ref={svgRef}
       width={w} height={h} viewBox={`0 0 ${w} ${h}`}
-      className="max-w-full h-auto touch-none select-none bg-[var(--paper)]"
+      className="max-w-full h-auto touch-none select-none rounded-[var(--radius-lg)]"
+      style={{ background: "var(--paper)", boxShadow: "var(--shadow-paper)" }}
       onMouseDown={(e) => {
         // Only the primary button starts a click or drag — the previous
         // `onClick` handler this replaces only ever fired for that button,
