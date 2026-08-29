@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { AppHeader } from "@/components/AppHeader";
 import { Editor } from "@/components/Editor";
 import { Pictorial } from "@/components/Pictorial";
 import { MethodDiagram } from "@/components/MethodDiagram";
@@ -29,10 +30,13 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
   // nothing here rather than showing the wrong worked example.
   const reference = pub.mode === "views"
     ? (
-      <div>
-        <p className="text-xs uppercase tracking-wider opacity-70 mb-1">The part</p>
+      <section
+        className="rounded-[var(--radius-lg)] border p-3"
+        style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
+      >
+        <p className="t-label mb-2">The part</p>
         <Pictorial primitives={pub.isometric} dimensions={pub.dimensions} />
-      </div>
+      </section>
     )
     : pub.topic.id === "parabola"
       ? (
@@ -44,7 +48,14 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
       : null;
 
   return (
-    <main className="p-6 max-w-[1440px] mx-auto">
+    <>
+      <AppHeader
+        trail={[
+          { label: pub.topic.title, href: `/topics/${pub.topic.id}` },
+          { label: pub.title },
+        ]}
+      />
+      <main className="p-6 max-w-[1600px] mx-auto">
       {/* flex-col on a narrow viewport stacks the right column BELOW the
           drawing, so it never takes horizontal space away from the sheet —
           the thing that actually matters here. The sheet wants ~1000px of
@@ -52,11 +63,12 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
           than a typical max-w-6xl content column. */}
       <div className="flex flex-col lg:flex-row lg:items-start gap-6">
         <div className="flex-1 min-w-0"><Editor drill={pub} /></div>
-        <div className="w-full lg:w-80 lg:shrink-0 flex flex-col gap-4">
+        <div className="w-full lg:w-[21rem] lg:shrink-0 flex flex-col gap-4">
           {reference}
           <Sidebar topic={pub.topic} />
         </div>
       </div>
-    </main>
+      </main>
+    </>
   );
 }
