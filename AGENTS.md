@@ -41,12 +41,14 @@ Nothing found gives automated, immediate, specific feedback on a technical drawi
 | Perpendicular bisector, even endpoints | **all**, exactly |
 | Oblique, all three types, authored on the type's depth step | **27104 of 27104**, each |
 | Oblique receding angle, anything but 45° | irrational step; only `tan 45° = 1` works |
+| A drawn LINE at 60° or 30° (isometric) | nearest is 60.2551° — no lattice pair is at 60° |
+| ROTATING a shape by anything but 0/90/180/270 | **4 of 360** whole degrees preserve the lattice |
 | Oblique through-hole, bored on x or z | rim is an **ellipse** (2.618:1), not expressible |
 | Oblique through-hole, bored on y | rim is a circle, but its silhouette tangents are **0 of 450** |
 
 **Tier 1 — buildable now, lattice-exact.** Orthographic projection (shipped, 8 exercises), parabola by the rectangle method (shipped, 3), **oblique in all three types — cavalier, cabinet and general — on box-only solids** (measured 2026-08-29), the Type B reverse drill, and straightedge constructions such as bisectors and equal divisions. Each needs a generator, hints, and a method diagram or pictorial — nothing else.
 
-**Tier 2 — blocked on a scoring decision, not on content.** Tangents, ellipses, curve fitting, **and through-holes drawn in oblique**: anything whose correct answer is irrational. A snap grid cannot express the answer, so these need TOLERANCE-based comparison, which does not exist and should not be added casually — "close enough" is exactly the sort of judgement that silently teaches the wrong thing, and it deserves the scrutiny §5.2 gave the generator.
+**Tier 2 — blocked on a scoring decision, not on content.** Tangents, ellipses, curve fitting, through-holes drawn in oblique, **and isometric DRAWING**: anything whose correct answer is irrational. Isometric joined this tier on 2026-08-29 — `tan 60° = √3`, so no pair of lattice points sits at 60° and the nearest approach within 12 units is 60.2551°. This does NOT block the Type B reverse drill, which asks a student to READ an isometric, not draw one. A snap grid cannot express the answer, so these need TOLERANCE-based comparison, which does not exist and should not be added casually — "close enough" is exactly the sort of judgement that silently teaches the wrong thing, and it deserves the scrutiny §5.2 gave the generator.
 
 **Tier 3 — needs a different notion of correct entirely.** Building, electrical, interior, planning. A correct schematic is not a unique set of primitives; many arrangements are right. Scoring that is a research problem, not a feature. Out of scope until Tiers 1 and 2 exist.
 
