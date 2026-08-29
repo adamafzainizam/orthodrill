@@ -183,3 +183,32 @@ That is not a content problem to author around — the model cannot express the 
 
 **One constraint that must survive every future visual change:** `Pictorial.tsx` paints its face fills in exactly the ground colour, and that overdraw IS its hidden-line mechanism. It cannot be made translucent or placed on a themed surface. `MethodDiagram` renders fill-less segments and CAN, which is why previews blend and pictorials do not. The two look similar and obey different rules; both are commented in-source.
 
+
+## 2026-08-29 — the oblique lattice check, and the finding the prediction missed
+
+**Run before any oblique code was written**, as §1.1 and §2.4 require. The handoff of 2026-08-27 predicted that cavalier oblique is lattice-exact when the receding axis steps one grid unit per unit of depth. A prediction is not a measurement, and this project does not build on those.
+
+**Measured.** Oblique projects `(x, y, z)` to `(x + k·y, z + k·y)`, with the depth factor `k = 1` for cavalier and `k = 1/2` for cabinet.
+
+| What was measured | Result |
+|---|---|
+| Cavalier, every cell corner of blocks up to 6×6×6 | **19683 of 19683** on the lattice |
+| Cabinet, same sweep | 10935 of 19683 |
+| Cabinet, even depths only | **343 of 343** |
+| Cabinet, odd depths only | **0 of 294** |
+| Through-hole rim, bored along y (the receding axis) | major/minor = 1.000000 — a **circle** |
+| Through-hole rim, bored along x or z | major/minor = 2.618034 — an **ellipse** |
+| Bore silhouette tangent points along the 45° receding axis | **0 of 450** on the lattice |
+
+**The prediction was right about boxes and silent about the thing that actually bites.** Cavalier is exact for all box geometry, and cabinet's dividing line is exactly the predicted parity. Neither of those is the finding.
+
+**The finding is that oblique cannot express a through-hole.** Two independent reasons, either of which is sufficient:
+
+- **A bore on x or z projects to an ellipse.** Its rim lies in a receding plane, so the only axis whose rim stays a true circle is y, the receding axis itself. `circle` is the only curved primitive we have, so an ellipse is not expressible — the same wall the tangent and ellipse topics hit, reached from a different direction.
+- **Even the y bore fails.** Its rim survives as a circle, but the silhouette lines joining the front rim to the back rim are tangent to that circle along the 45° receding direction, and those tangent points land at `c ± r/√2` — irrational for every radius and centre tried, 0 of 450. So the feature cannot be outlined exactly even where its rim can be drawn.
+
+**Decision: oblique ships Tier 1, restricted to box-only solids. Cylinders in oblique are Tier 2.** The restriction is affordable — 5 of the 8 orthographic exercises are already box-only, and those solids are directly reusable as oblique subjects, so the topic has content without inventing any.
+
+**Decision: cavalier, not cabinet.** Cabinet halves the receding depth, which is why it looks less distorted and why textbooks often prefer it — but it is lattice-exact only for even depths, so it would silently constrain every exercise's depth to an even number and make an odd-depth solid unscoreable rather than merely wrong. Cavalier has no such coupling. The distortion is a teaching point the topic can name rather than a defect to design around.
+
+**What this cost:** one throwaway script and about twenty minutes. What it saved is the version of this session where a bore is added to an oblique exercise in week two and the ellipse is discovered by a student.
