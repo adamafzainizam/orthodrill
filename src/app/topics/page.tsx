@@ -53,9 +53,10 @@ export default function TopicsPage() {
                     /* The figure is decoration for the link's purposes — the
                        heading and blurb already name the topic — so it is
                        hidden from assistive tech rather than read out as a
-                       wall of coordinates. */
-                    <div aria-hidden="true" className="justify-self-center">
-                      <MethodDiagram primitives={preview} caption="" />
+                       wall of coordinates. It blends into the card rather
+                       than sitting on it as a framed image. */
+                    <div aria-hidden="true" className="justify-self-center opacity-90">
+                      <MethodDiagram primitives={preview} caption="" variant="blend" />
                     </div>
                   )}
                 </Link>

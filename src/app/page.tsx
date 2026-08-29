@@ -44,14 +44,14 @@ export default function Home() {
           </div>
 
           {/* One drawing, so the claim above is shown rather than asserted.
-              Illustrative only — not any exercise's answer. */}
-          <div
-            className="rounded-[var(--radius-lg)] border p-4"
-            style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-md)" }}
-          >
+              Illustrative only — not any exercise's answer. Unframed and
+              blended into the page: at this size it is atmosphere, and a
+              hard white panel would shout over the sentence it supports. */}
+          <div aria-hidden="true" className="justify-self-center">
             <MethodDiagram
               primitives={ORTHOGRAPHIC_PREVIEW}
-              caption="Three views of one part — the shape of an orthographic exercise."
+              caption=""
+              variant="blend"
             />
           </div>
         </div>
