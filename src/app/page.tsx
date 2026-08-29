@@ -20,17 +20,20 @@ import { topicPreview } from "@/drills/registry";
  * what the tool covers.
  */
 export default function Home() {
-  // Named from the topic list so the sentence below cannot go stale.
-  const named = TOPIC_IDS
-    .filter((id) => topicPreview(id) !== null)
-    .map((id) => getTopic(id)!.title);
+  // Resolved HERE, not inside the component: `drills/registry` holds the
+  // answer keys, so only server code under app/ may reach it.
+  const withPreview = TOPIC_IDS
+    .map((id) => ({ title: getTopic(id)!.title, figure: topicPreview(id) }))
+    .filter((t) => t.figure !== null);
+  const named = withPreview.map((t) => t.title);
+  const figures = withPreview.map((t) => t.figure!);
 
   return (
     <>
       {/* The topic figures live here now, as drifting texture behind the
           whole page, rather than as a column of illustrations competing with
           the sentence beside them. */}
-      <DriftingFigures />
+      <DriftingFigures figures={figures} />
       <AppHeader />
       {/* Centred in what is left below the header, so the page does not
           trail off into a void beneath the hero. */}

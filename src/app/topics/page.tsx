@@ -16,6 +16,11 @@ import { getDrill, listDrillIds, topicPreview } from "@/drills/registry";
  */
 export default function TopicsPage() {
   const topics = TOPIC_IDS.map((id) => getTopic(id)!);
+  // Resolved here rather than inside the component, for the same reason the
+  // front page does it: registry is server-only.
+  const driftFigures = TOPIC_IDS
+    .map((id) => topicPreview(id))
+    .filter((f): f is NonNullable<typeof f> => f !== null);
   const countFor = (topicId: string) =>
     listDrillIds().map((d) => getDrill(d)!).filter((d) => d.topicId === topicId).length;
 
@@ -25,7 +30,7 @@ export default function TopicsPage() {
           background behind a drawing surface competes with the one thing the
           student is trying to concentrate on. Fewer figures here than on the
           front page, because the cards already carry their own. */}
-      <DriftingFigures count={4} />
+      <DriftingFigures figures={driftFigures} count={4} />
       <AppHeader back="/" />
       <main className="mx-auto flex max-w-[1100px] flex-col gap-8 px-6 py-10">
         <div>

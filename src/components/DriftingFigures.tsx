@@ -1,6 +1,5 @@
 import { MethodDiagram } from "./MethodDiagram";
-import { TOPIC_IDS, getTopic } from "@/topics/topics";
-import { topicPreview } from "@/drills/registry";
+import type { Primitive } from "@/lib/scoring/primitives";
 
 /**
  * An ambient layer of technical drawings drifting across the page.
@@ -18,6 +17,13 @@ import { topicPreview } from "@/drills/registry";
  * actually needs — "unpredictable to a reader", not "unpredictable to the
  * renderer".
  *
+ * FIGURES ARRIVE AS PROPS, never fetched here. `drills/registry` holds the
+ * solids and specs, which ARE the answer keys, so only server code under
+ * `app/` may touch it — `isolation.test.ts` caught an earlier version of this
+ * file importing it directly and was right to. The caller resolves the
+ * figures and hands over plain primitives, exactly as `Pictorial` receives
+ * its paint program.
+ *
  * Pure CSS animation, so this stays a server component with no JavaScript
  * shipped for it at all. `prefers-reduced-motion` freezes the drift and keeps
  * the scatter (see globals.css): a full-width moving background is exactly
@@ -31,11 +37,12 @@ function scatter(seed: number): number {
   return x - Math.floor(x);
 }
 
-export function DriftingFigures({ count = 7 }: { count?: number }) {
-  const figures = TOPIC_IDS
-    .map((id) => ({ id, figure: topicPreview(id), title: getTopic(id)!.title }))
-    .filter((f) => f.figure !== null);
-
+export function DriftingFigures({
+  figures, count = 7,
+}: {
+  figures: readonly (readonly Primitive[])[];
+  count?: number;
+}) {
   if (figures.length === 0) return null;
 
   return (
@@ -67,7 +74,7 @@ export function DriftingFigures({ count = 7 }: { count?: number }) {
               animationDelay: `${delay.toFixed(1)}s`,
             }}
           >
-            <MethodDiagram primitives={pick.figure!} caption="" variant="blend" />
+            <MethodDiagram primitives={pick} caption="" variant="blend" />
           </div>
         );
       })}
