@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef } from "react";
 import { gridToScreen, screenToGrid, type Point, type Viewport } from "@/lib/canvas/coords";
 import { mitreLine } from "@/lib/canvas/quadrants";
 import { headingOf, interactionsWith, isExactAngle, type Interaction } from "@/lib/canvas/angles";
-import { pendingPrimitive, type Action, type Drag, type Tool } from "@/lib/canvas/editor";
+import {
+  pendingPrimitive, quarterTurnsBetween, type Action, type Drag, type Tool,
+} from "@/lib/canvas/editor";
+import { defaultRotateBase, rotatePrimitive } from "@/lib/canvas/transform";
 import type { Primitive, PrimitiveType } from "@/lib/scoring/primitives";
 import type { ViewDiff } from "@/lib/scoring/types";
 
@@ -75,7 +78,7 @@ function place(p: Primitive, anchor: { dx: number; dy: number }): Primitive {
 }
 
 export function Sheet({
-  grid, mode, tool, activeType, drawing, selection, pending, drag, cursor, feedback, onAction, onGridMove,
+  grid, mode, tool, activeType, drawing, selection, pending, drag, rotateBase, cursor, feedback, onAction, onGridMove,
 }: {
   grid: { width: number; height: number };
   /**
@@ -94,6 +97,7 @@ export function Sheet({
   activeType: PrimitiveType;
   pending: Point | null;
   drag: Drag | null;
+  rotateBase: Point | null;
   cursor: Point | null;
   feedback: FeedbackOverlay | null;
   onAction: (a: Action) => void;
@@ -211,6 +215,13 @@ export function Sheet({
     ? { dx: drag.current.x - drag.start.x, dy: drag.current.y - drag.start.y }
     : null;
 
+  // The rotate base point, and the quarter turn a drag is currently pointing
+  // at. Rendering only — the reducer does the actual work, and it uses the
+  // SAME `quarterTurnsBetween`, so the preview cannot disagree with what lands.
+  const rotating = tool === "rotate" && selection.length > 0;
+  const base = rotating ? (rotateBase ?? defaultRotateBase(drawing, selection)) : null;
+  const rotateTurns = base && drag ? quarterTurnsBetween(drag.start, drag.current, base) : 0;
+
   // The angle readout. Rendering only: an Interaction never enters `drawing`,
   // so its frequently-fractional crossing point cannot reach validate.ts.
   // Lines only -- a circle has no heading, and the angle of its radius drag
@@ -291,7 +302,7 @@ export function Sheet({
             strokeWidth: chosen.has(i) ? 3 : p.type === "construction" ? 1 : 2,
             // While a move drag is live, the real primitive fades so the
             // dragged preview below reads as what will actually land.
-            opacity: moveDelta && chosen.has(i) ? 0.3 : 1,
+            opacity: (moveDelta || rotateTurns !== 0) && chosen.has(i) ? 0.3 : 1,
             fill: "none",
           })}
         </g>
@@ -381,6 +392,25 @@ export function Sheet({
           </g>
         );
       })()}
+
+      {base && (() => {
+        const c = gridToScreen(base, v);
+        return (
+          <g pointerEvents="none">
+            <circle cx={c.x} cy={c.y} r={6} fill="none" stroke="var(--select)" strokeWidth={2} />
+            <circle cx={c.x} cy={c.y} r={1.5} fill="var(--select)" />
+          </g>
+        );
+      })()}
+
+      {base && rotateTurns !== 0 && selection.map((i) => (
+        <g key={`rot${i}`} pointerEvents="none">
+          {primitivePath(rotatePrimitive(drawing[i], base, rotateTurns), v, {
+            stroke: "var(--select)", strokeWidth: 3, strokeDasharray: "4 4",
+            fill: "none", opacity: 0.8,
+          })}
+        </g>
+      ))}
     </svg>
   );
 }

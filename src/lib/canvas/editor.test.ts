@@ -464,3 +464,51 @@ test("copying nothing, and pasting nothing, are both no-ops that keep what is he
   // An empty clipboard makes PASTE a no-op.
   assert.deepEqual(drawing(reduce(initEditor(), { type: "PASTE" })), []);
 });
+
+test("rotate turns the selection about the default base and commits one entry", () => {
+  const s = run([
+    ...twoLines, ...selectAll,
+    { type: "ROTATE_SELECTION", quarterTurns: 1 },
+  ]);
+  for (const p of drawing(s)) {
+    if (p.kind !== "segment") continue;
+    for (const n of [p.x1, p.y1, p.x2, p.y2]) assert.equal(Number.isInteger(n), true);
+  }
+  assert.deepEqual(drawing(reduce(s, { type: "UNDO" })), drawing(run(twoLines)));
+});
+
+test("a clicked base point overrides the default, and changing tools clears it", () => {
+  const s = run([
+    ...twoLines,
+    { type: "SET_TOOL", tool: "rotate" },
+    { type: "CLICK_GRID", at: { x: 2, y: 2 }, additive: false },
+  ]);
+  assert.deepEqual(s.rotateBase, { x: 2, y: 2 });
+  assert.equal(reduce(s, { type: "SET_TOOL", tool: "line" }).rotateBase, null);
+});
+
+test("rotate with no selection does nothing at all", () => {
+  const before = run(twoLines);
+  const after = reduce(before, { type: "ROTATE_SELECTION", quarterTurns: 1 });
+  assert.equal(after, before);
+});
+
+test("a whole turn is a no-op and never reaches the history", () => {
+  const s = run([...twoLines, ...selectAll]);
+  const depth = s.history.past.length;
+  const after = reduce(s, { type: "ROTATE_SELECTION", quarterTurns: 4 });
+  assert.equal(after.history.past.length, depth);
+});
+
+test("mirror flips the selection and one repeat restores it", () => {
+  const once = run([...twoLines, ...selectAll, { type: "MIRROR_SELECTION", axis: "h" }]);
+  const twice = reduce(once, { type: "MIRROR_SELECTION", axis: "h" });
+  assert.deepEqual(drawing(twice), drawing(run(twoLines)));
+  // POSITIVE CONTROL: the first flip must actually have changed something.
+  assert.notDeepEqual(drawing(once), drawing(run(twoLines)));
+});
+
+test("mirror with no selection does nothing at all", () => {
+  const before = run(twoLines);
+  assert.equal(reduce(before, { type: "MIRROR_SELECTION", axis: "v" }), before);
+});

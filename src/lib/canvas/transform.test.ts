@@ -59,7 +59,8 @@ test("THE PARITY TRAP: every rotated coordinate is an integer, for every bbox pa
     assert.equal(Number.isInteger(base.x) && Number.isInteger(base.y), true,
       `base point not integer for ${w}x${h}`);
     for (const turns of [1, 2, 3]) {
-      for (const p of box.map((q) => rotatePrimitive(q, base, turns))) {
+      const turned: Primitive[] = box.map((q) => rotatePrimitive(q, base, turns));
+      for (const p of turned) {
         if (p.kind !== "segment") continue;
         for (const n of [p.x1, p.y1, p.x2, p.y2]) {
           assert.equal(Number.isInteger(n), true, `non-integer at ${w}x${h}, ${turns} turns`);
@@ -99,7 +100,8 @@ test("MIRROR needs no base point: the bbox centre is safe for EVERY bbox", () =>
       const axis = mirrorAxis(box, idx, horizontal);
       assert.notEqual(axis, null);
       if (axis === null) continue;
-      for (const p of box.map((q) => mirrorPrimitive(q, axis, horizontal))) {
+      const flipped: Primitive[] = box.map((q) => mirrorPrimitive(q, axis, horizontal));
+      for (const p of flipped) {
         if (p.kind !== "segment") continue;
         for (const n of [p.x1, p.y1, p.x2, p.y2]) {
           assert.equal(Number.isInteger(n), true, `non-integer mirroring ${w}x${h}`);
