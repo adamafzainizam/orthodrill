@@ -63,7 +63,13 @@ export function Editor({ drill }: { drill: PublicDrill }) {
       }
       if (e.key === "Escape") dispatch({ type: "CANCEL" });
       else if (e.key === "Delete" || e.key === "Backspace") dispatch({ type: "DELETE_SELECTION" });
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        dispatch({ type: "COPY_SELECTION" });
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        dispatch({ type: "PASTE" });
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         dispatch({ type: e.shiftKey ? "REDO" : "UNDO" });
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
@@ -82,10 +88,11 @@ export function Editor({ drill }: { drill: PublicDrill }) {
         dispatch({ type: "MOVE_SELECTION", dx, dy });
       } else if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         // Single-key tool shortcuts. Deliberately excluded from firing under
-        // any modifier — "no modifier" per the plan, and it also keeps Ctrl+C
-        // (copy), Cmd+L, etc. untouched. The form-control guard above already
-        // stops these from firing while the line-type <select> or any other
-        // control has focus.
+        // any modifier — "no modifier" per the plan. Ctrl+C and Ctrl+V are now
+        // CLAIMED above for copy and paste; this branch never sees them
+        // because it requires no modifier held. The form-control guard above
+        // already stops these from firing while the line-type <select> or any
+        // other control has focus.
         const tool = e.key === "s" ? "select" : e.key === "l" ? "line"
           : e.key === "c" ? "circle" : e.key === "g" ? "move" : null;
         if (tool !== null) dispatch({ type: "SET_TOOL", tool });

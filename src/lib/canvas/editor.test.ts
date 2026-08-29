@@ -184,12 +184,10 @@ test("a drawing at MAX_PRIMITIVES refuses to grow, and clears the pending anchor
     kind: "segment", type: "visible", x1: 0, y1: i, x2: 1, y2: i,
   }));
   const atCap: EditorState = {
+    ...initEditor(),
     history: initHistory(full),
     tool: "line",
-    activeType: "visible",
-    selection: [],
     pending: { x: 0, y: 0 },
-    drag: null,
   };
   const after = reduce(atCap, { type: "CLICK_GRID", at: { x: 5, y: 5 }, additive: false });
   assert.equal(drawing(after).length, MAX_PRIMITIVES);
@@ -386,4 +384,83 @@ test("the line preview is null exactly when the click would commit nothing", () 
   });
   assert.equal(pendingPrimitive("select", "visible", { x: 0, y: 0 }, { x: 3, y: 3 }), null);
   assert.equal(pendingPrimitive("move", "visible", { x: 0, y: 0 }, { x: 3, y: 3 }), null);
+});
+
+const twoLines = [
+  { type: "SET_TOOL", tool: "line" } as const,
+  { type: "CLICK_GRID", at: { x: 0, y: 0 }, additive: false } as const,
+  { type: "CLICK_GRID", at: { x: 4, y: 0 }, additive: false } as const,
+  { type: "CLICK_GRID", at: { x: 0, y: 2 }, additive: false } as const,
+  { type: "CLICK_GRID", at: { x: 4, y: 2 }, additive: false } as const,
+];
+
+const selectAll = [
+  { type: "SET_TOOL", tool: "select" } as const,
+  { type: "DRAG_BEGIN", at: { x: -1, y: -1 } } as const,
+  { type: "DRAG_UPDATE", at: { x: 6, y: 4 } } as const,
+  { type: "DRAG_COMMIT", additive: false } as const,
+];
+
+test("paste appends the copied primitives and selects exactly them", () => {
+  const s = run([
+    ...twoLines,
+    { type: "SET_TOOL", tool: "select" },
+    { type: "CLICK_GRID", at: { x: 2, y: 0 }, additive: false },
+    { type: "COPY_SELECTION" },
+    { type: "PASTE" },
+  ]);
+  assert.equal(drawing(s).length, 3);
+  assert.deepEqual(s.selection, [2]);
+  assert.deepEqual(drawing(s)[2], {
+    kind: "segment", type: "visible", x1: 1, y1: 1, x2: 5, y2: 1,
+  });
+});
+
+test("a repeated paste steps further out, so copies never hide under each other", () => {
+  const s = run([
+    ...twoLines,
+    { type: "SET_TOOL", tool: "select" },
+    { type: "CLICK_GRID", at: { x: 2, y: 0 }, additive: false },
+    { type: "COPY_SELECTION" },
+    { type: "PASTE" },
+    { type: "PASTE" },
+  ]);
+  assert.equal(drawing(s).length, 4);
+  assert.deepEqual(drawing(s)[2], { kind: "segment", type: "visible", x1: 1, y1: 1, x2: 5, y2: 1 });
+  assert.deepEqual(drawing(s)[3], { kind: "segment", type: "visible", x1: 2, y1: 2, x2: 6, y2: 2 });
+  assert.deepEqual(s.selection, [3]);
+});
+
+test("one undo removes a whole paste, however many primitives it held", () => {
+  const s = run([...twoLines, ...selectAll, { type: "COPY_SELECTION" }, { type: "PASTE" }, { type: "UNDO" }]);
+  assert.equal(drawing(s).length, 2);
+});
+
+test("paste refuses WHOLLY at the cap rather than pasting part of the clipboard", () => {
+  const near: Primitive[] = Array.from({ length: MAX_PRIMITIVES - 1 }, (_, i) => ({
+    kind: "segment", type: "visible", x1: 0, y1: i, x2: 1, y2: i,
+  }));
+  const s: EditorState = {
+    ...initEditor(),
+    history: initHistory(near),
+    clipboard: [
+      { kind: "segment", type: "visible", x1: 0, y1: 0, x2: 1, y2: 0 },
+      { kind: "segment", type: "visible", x1: 0, y1: 1, x2: 1, y2: 1 },
+    ],
+  };
+  assert.equal(drawing(reduce(s, { type: "PASTE" })).length, MAX_PRIMITIVES - 1);
+});
+
+test("copying nothing, and pasting nothing, are both no-ops that keep what is held", () => {
+  const copied = run([
+    ...twoLines,
+    { type: "SET_TOOL", tool: "select" },
+    { type: "CLICK_GRID", at: { x: 2, y: 0 }, additive: false },
+    { type: "COPY_SELECTION" },
+  ]);
+  // An empty selection must not wipe the clipboard.
+  const after = reduce({ ...copied, selection: [] }, { type: "COPY_SELECTION" });
+  assert.equal(after.clipboard.length, 1);
+  // An empty clipboard makes PASTE a no-op.
+  assert.deepEqual(drawing(reduce(initEditor(), { type: "PASTE" })), []);
 });

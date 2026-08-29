@@ -29,6 +29,17 @@ export type EditorState = {
   pending: Point | null;
   /** A rubber-band or move drag in progress, if one is in progress. */
   drag: Drag | null;
+  /**
+   * Copied primitives, held INSIDE the editor rather than in the system
+   * clipboard: pure, testable without a browser, and no permission prompt.
+   * Cross-tab copy is not a need here.
+   */
+  clipboard: Primitive[];
+  /**
+   * How many times the current clipboard has been pasted, so each paste steps
+   * one unit further out and copies never hide under each other.
+   */
+  pasteSerial: number;
 };
 
 export type Action =
@@ -49,7 +60,9 @@ export type Action =
   // component, as the one place that interprets a gesture.
   | { type: "DRAG_BEGIN"; at: Point }
   | { type: "DRAG_UPDATE"; at: Point }
-  | { type: "DRAG_COMMIT"; additive: boolean };
+  | { type: "DRAG_COMMIT"; additive: boolean }
+  | { type: "COPY_SELECTION" }
+  | { type: "PASTE" };
 
 export function initEditor(): EditorState {
   return {
@@ -59,6 +72,8 @@ export function initEditor(): EditorState {
     selection: [],
     pending: null,
     drag: null,
+    clipboard: [],
+    pasteSerial: 0,
   };
 }
 
@@ -270,6 +285,34 @@ export function reduce(s: EditorState, action: Action): EditorState {
       return {
         ...commit(s, drawing(s).filter((_, i) => !doomed.has(i))),
         selection: [],
+      };
+    }
+
+    case "COPY_SELECTION": {
+      // An empty selection must not WIPE what is already held — that would
+      // lose a copy to a stray click on blank paper.
+      if (s.selection.length === 0) return s;
+      const chosen = new Set(s.selection);
+      return {
+        ...s,
+        clipboard: drawing(s).filter((_, i) => chosen.has(i)),
+        pasteSerial: 0,
+      };
+    }
+
+    case "PASTE": {
+      if (s.clipboard.length === 0) return s;
+      // Refuse WHOLLY, never partially: validate.ts rejects an attempt over
+      // MAX_PRIMITIVES, so a half-pasted clipboard would be both surprising
+      // and unsubmittable.
+      if (drawing(s).length + s.clipboard.length > MAX_PRIMITIVES) return s;
+      const step = s.pasteSerial + 1;
+      const pasted = s.clipboard.map((p) => shift(p, step, step));
+      const base = drawing(s).length;
+      return {
+        ...commit(s, [...drawing(s), ...pasted]),
+        selection: pasted.map((_, i) => base + i),
+        pasteSerial: step,
       };
     }
 
