@@ -1,4 +1,4 @@
-# Canvas drawing aids: circle preview, angle readout, copy/paste, rotate
+# Canvas drawing aids: circle preview, angle readout, copy/paste, rotate, mirror
 
 **Date:** 2026-08-29
 **Status:** approved
@@ -8,9 +8,11 @@
 
 ## 1. What this is
 
-Four requests from the builder against the working canvas. Three are ordinary
+Five requests from the builder against the working canvas. Three are ordinary
 feature work. The fourth — a rotate tool — ran into the lattice, and the
-measurement reshaped it before any code was written.
+measurement reshaped it before any code was written. The fifth, mirror, was
+offered alongside rotate and added once it was noticed (§7); it turns out to be
+the one operation here with no parity trap at all.
 
 They are specced together because they share one seam (the editor reducer) and
 one hazard (the canvas must never produce a drawing the scorer cannot accept).
@@ -20,7 +22,9 @@ one hazard (the canvas must never produce a drawing the scorer cannot accept).
 ## 2. The premise checks, run first
 
 §2.4 of AGENTS.md: find the cheapest question that could kill a piece of work
-and answer it first. Two of these features had one.
+and answer it first. Three of these features had one — the angle readout, the
+rotate tool, and mirror (§7, measured there because it is the contrast that
+explains rotate's base point).
 
 ### 2.1 Which angles can a LINE make? Multiples of 45, and nothing else.
 
@@ -278,7 +282,54 @@ unchanged. One history entry per rotation. No clamping to sheet bounds, as in §
 
 ---
 
-## 7. Testing
+## 7. Feature 5 — mirror / flip
+
+**Asked for** on 2026-08-29, after being offered and initially missed.
+
+**Two actions: `MIRROR_H` (about a vertical axis) and `MIRROR_V` (about a
+horizontal axis)**, both acting on the current selection.
+
+**It needs no base point, and this is a real difference from rotate rather than
+a simplification.** A horizontal mirror maps `x → 2·cx − x` and leaves `y`
+alone, so it is exact whenever `2·cx` is an integer. The selection's
+bounding-box centre is `(minX + maxX) / 2`, and `minX + maxX` is always an
+integer, so **the bbox centre is always safe** — measured across even, odd and
+offset bounding boxes:
+
+```
+bbox x 0..8  -> axis 4.0   SAFE
+bbox x 0..7  -> axis 3.5   SAFE
+bbox x 3..10 -> axis 6.5   SAFE
+bbox x 2..9  -> axis 5.5   SAFE
+```
+
+Rotation fails for mixed-parity boxes (§2.4) because it couples `x` and `y`
+through `cx + cy`; a mirror touches one coordinate at a time and cannot. So
+rotate takes a base point and mirror does not, and that asymmetry is deliberate
+and measured, not an oversight.
+
+**Congruence is exact by construction** — a mirror is an isometry with integer
+coefficients, so no rounding is involved anywhere and no distance can drift.
+
+**What flips.** A segment's two endpoints; a circle's centre, radius unchanged.
+One history entry. The selection is preserved (the same primitives, flipped in
+place), so a second `MIRROR_H` returns the original exactly.
+
+**Keyboard.** `Shift+H` and `Shift+V`. These carry a modifier deliberately: the
+bare `h`/`v` keys are left free, and the existing single-key tool shortcuts are
+already specified to fire only with no modifier held.
+
+**One note worth carrying, and it is not a defect to fix.** A mirror is the one
+operation here that turns a correct view into a plausible-looking wrong one —
+the exact failure class §5.2 built the golden set to catch, now available to the
+student as a button. That is fine: the scorer compares against the key and will
+say the view is wrong, which is the tool working. It is recorded because
+"handedness silently flipped" is the hardest error in this project to see by
+eye, and the next person to debug a mystified student should think of it.
+
+---
+
+## 8. Testing
 
 Everything with logic lives in `src/lib/canvas/` and is tested without a browser.
 
@@ -306,6 +357,14 @@ had it shipped. Integrality: every resulting coordinate is an integer, swept
 over both base-point parities and over odd and even bounding boxes, which is the
 §2.4 trap. Four rotations of 90° return the original drawing exactly.
 
+**Mirror (§7).** Exactness swept over even, odd and offset bounding boxes —
+every resulting coordinate an integer, with no rounding anywhere in the path.
+Congruence: every pairwise distance preserved exactly. Involution: two
+`MIRROR_H` in a row return the original drawing precisely. And a positive
+control that the flip actually happened — an asymmetric selection must NOT be
+equal to itself after one mirror, or a no-op implementation would pass the
+involution test.
+
 **In the browser, because tests cannot see it (§6, the authored-prose hazard in
 its rendering form):** the angle arcs and labels must be read on a real sheet
 with three views drawn, at a crossing dense enough for labels to collide. A
@@ -314,11 +373,8 @@ catches, and the same is true of the rotate preview at each stop.
 
 ---
 
-## 8. Deliberately out of scope
+## 9. Deliberately out of scope
 
-- **Mirror / flip.** Offered — it is lattice-exact at every position and is the
-  natural companion to rotate — and not taken. Left out rather than added
-  unasked.
 - **Line–circle intersection angles** (§4).
 - **The system clipboard** (§5).
 - **Cut.** Not asked for; copy plus delete already covers it.
