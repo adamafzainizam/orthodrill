@@ -155,3 +155,31 @@ Append new entries at the bottom. Never delete an entry; if a decision is revers
 **Two things follow.**
 - **`VERIFIED` in `golden.ts` now means "the builder checked it against prior coursework", not "an outside expert signed it off".** The `verifiedBy` field on each part says so, and points here. Do not quietly upgrade what this word means.
 - **The spec asks for 8–10 golden parts; we have 4.** That gap is unchanged by this decision and is not a reason to hold up the canvas, but new parts should be added as the generator's coverage grows.
+
+## 2026-08-27 — the product is the marking, not the projection drill
+
+**What changed.** orthodrill stopped being an orthographic projection drill and became a tool for practising technical drawing across topics. Orthographic projection and parabola construction ship; oblique, the Type B reverse drill and straightedge constructions are next.
+
+**Why it was cheap.** The scorer never knew what the primitives depicted. It diffs typed lines and circles on a grid, so a tangent, a parabola and a front view are the same kind of thing to it. The only real generalisation needed was that a construction is ONE figure with nothing to cluster and no placement to judge, which became `scoreFigure` beside `scoreViews` over the same `compareView`.
+
+**The premise check that shaped the roadmap, run before any design.** Scoring needs integer grid coordinates, so the cheapest question that could kill whole topics was whether their answers land on lattice points. Measured: tangent points in **0 of 162** configurations, ellipse points 4 of 12, parabola by the rectangle method exact, straightedge constructions exact.
+
+That is not a content problem to author around — the model cannot express the answer. It sorts topics into three tiers by what each actually needs (AGENTS.md §1.1), and it picked the second topic on evidence rather than on appeal. Building a tangents topic would have consumed weeks before the wall appeared.
+
+**What a topic now costs:** a generator, hints, a method diagram, and a preview figure. Both illustrative figures must be built from a solid or spec that is not any exercise's, or the topic chooser publishes an answer.
+
+**Deliberately out of scope:** building, electrical, interior and planning drawing. A correct schematic is not a unique set of primitives, so scoring it is a research problem rather than a feature. Recorded so the decision is visible rather than looking like an oversight.
+
+## 2026-08-27 — the UI thesis is studio dark
+
+**Decided** after the builder said the interface was not as good as it could be, which was fair: it was functional but read as a prototype.
+
+**The thesis: quiet near-black chrome that recedes, with the drawing sheet as the one bright, elevated surface.** On a drawing tool the sheet is the subject, and chrome that competes with it is chrome that is wrong. Build against this.
+
+**Three of the problems were structural rather than cosmetic**, which is why the revamp was worth doing properly:
+- An exercise page had no way out — no header, no breadcrumb, no link to its topic. The browser back button was the only exit.
+- The toolbar gave a MODE (choosing a tool), an ACTION (undo) and a COMMIT (check my drawing) one identical costume.
+- The hints panel was the same wall of text the parabola worksheet had been criticised for, relocated into a sidebar.
+
+**One constraint that must survive every future visual change:** `Pictorial.tsx` paints its face fills in exactly the ground colour, and that overdraw IS its hidden-line mechanism. It cannot be made translucent or placed on a themed surface. `MethodDiagram` renders fill-less segments and CAN, which is why previews blend and pictorials do not. The two look similar and obey different rules; both are commented in-source.
+
