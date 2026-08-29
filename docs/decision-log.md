@@ -209,6 +209,41 @@ That is not a content problem to author around — the model cannot express the 
 
 **Decision: oblique ships Tier 1, restricted to box-only solids. Cylinders in oblique are Tier 2.** The restriction is affordable — 5 of the 8 orthographic exercises are already box-only, and those solids are directly reusable as oblique subjects, so the topic has content without inventing any.
 
-**Decision: cavalier, not cabinet.** Cabinet halves the receding depth, which is why it looks less distorted and why textbooks often prefer it — but it is lattice-exact only for even depths, so it would silently constrain every exercise's depth to an even number and make an odd-depth solid unscoreable rather than merely wrong. Cavalier has no such coupling. The distortion is a teaching point the topic can name rather than a defect to design around.
+**Decision: cavalier, not cabinet.** ~~Cabinet halves the receding depth, which is why it looks less distorted and why textbooks often prefer it — but it is lattice-exact only for even depths, so it would silently constrain every exercise's depth to an even number and make an odd-depth solid unscoreable rather than merely wrong. Cavalier has no such coupling.~~ **SUPERSEDED the same day — see the next entry.** The builder pointed out that oblique has three standard types, and re-measuring showed all three are lattice-exact under a per-type authoring rule. Treating cabinet's even-depth requirement as a defect was the error: it is an authoring constraint of exactly the same kind as the parabola's `h = n²`, which this project already accepts without complaint.
 
 **What this cost:** one throwaway script and about twenty minutes. What it saved is the version of this session where a bore is added to an oblique exercise in week two and the ellipse is discovered by a student.
+
+## 2026-08-29 — oblique has three types, all three are lattice-exact, and the real constraint is elsewhere
+
+**Prompted by the builder**, hours after the entry above: *"there are 3 types of oblique drawing. we should include exercises for all of them, no?"* Correct, and the re-measurement changed the decision.
+
+**The three types differ only in the depth factor `k` applied along the receding axis.** Cavalier draws depth at `k = 1`, cabinet at `k = 1/2`, and general (or normal) oblique at a reduction ratio, conventionally `2/3` or `3/4`. That is a ONE-PARAMETER generalisation of the same projection, not three topics:
+
+```
+(x, y, z)  ->  (x + k·y,  z + k·y)
+```
+
+**Measured: every type is lattice-exact, under one authoring rule per type.** A vertex lands on the lattice iff `k·y` is an integer, so the rule is about every y-coordinate appearing as a vertex — the base depth *and* every feature box's `y` and `d` — not just the overall depth.
+
+| Type | `k` | Admissible depths | Naive authoring | Authored in steps of the denominator |
+|---|---|---|---|---|
+| Cavalier | 1 | every integer | 85184 of 85184 | **27104 of 27104 — exact** |
+| Cabinet | 1/2 | multiples of 2 | 46464 of 85184 | **27104 of 27104 — exact** |
+| General | 2/3 | multiples of 3 | 32912 of 85184 | **27104 of 27104 — exact** |
+| General | 3/4 | multiples of 4 | 27104 of 85184 | **27104 of 27104 — exact** |
+
+So the earlier "cavalier only" call was wrong. Cabinet is not blocked; it is authored on a depth grid of 2. **All three ship.**
+
+**The receding angle, by contrast, really is fixed.** Only 45° gives an integer step: `tan 15°`, `tan 30°`, `tan 60°` and `tan 75°` are all irrational, and only `tan 45° = 1` yields the step `(1, 1)`. 45° is the standard for oblique anyway, so this costs nothing — but it means the angle is not a variable the topic can teach by varying, and a hint must not imply otherwise. *(The first version of this check reported 45° as off-lattice, because `Math.tan(Math.PI/4)` is `0.9999999999999999`. Caught by disbelieving a result that contradicted the arithmetic, and re-run with a tolerance. A premise check with a floating-point bug is not a premise check.)*
+
+**The real constraint is one I glossed this morning, and it is a content hazard rather than a scoring one.** Strictly, "full depth" in cavalier means the receding line's LENGTH on the page equals the true depth. A 45° axis has unit direction `(1/√2, 1/√2)`, so a true-scale depth `y` gives the offset `k·y/√2` — irrational for every rational `k` and every `y > 0`, **0 of 80** measured. Our step of one grid diagonal per depth unit is therefore `√2` longer than true scale.
+
+**Why that is still correct, and why it must be said out loud.** The ratios between the types — 1 : 1/2 : 2/3 — are preserved exactly, and those ratios are the entire teaching content. The `√2` factor is uniform, applies to every type equally, and is only visible to a ruler laid across the page. The app has no ruler; it has a grid, and the unit along the receding axis is the grid diagonal. Counting one diagonal per unit of depth is exactly how oblique is drawn on squared paper.
+
+**But this is the parabola-hint failure class waiting to happen** (§6). A sidebar hint reading "in cavalier oblique the depth is drawn full size" is, read metrically, describing something the answer key does not do. The hint must say **"one grid diagonal per unit of depth"** and let the ratio carry the teaching. Per §7 the convention needs a citation before the hints are authored — this is precisely a case where the reference belongs with the drill.
+
+**Decisions.**
+- **Ship all three types**, as one generator parameterised by `k`, with a per-type depth rule enforced in validation rather than left to authoring care.
+- **General oblique at `2/3`**, not `3/4` — it needs depths divisible by 3 rather than 4, so the solids stay smaller and the drawings fit the sheet.
+- **Author at least one solid drawn in all three types**, since the comparison is the point: the same part, three depth factors, visibly different distortion.
+- **Box-only still holds.** Nothing here rescues the through-hole; that finding is unchanged and independent of `k`.
