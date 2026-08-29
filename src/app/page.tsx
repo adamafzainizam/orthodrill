@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
-import { MethodDiagram } from "@/components/MethodDiagram";
+import { DriftingFigures } from "@/components/DriftingFigures";
 import { TOPIC_IDS, getTopic } from "@/topics/topics";
 import { topicPreview } from "@/drills/registry";
 
@@ -12,24 +12,30 @@ import { topicPreview } from "@/drills/registry";
  * between. It says what the tool does, shows the drawings so the claim is
  * visible rather than asserted, and gets out of the way. One primary path in.
  *
- * THE FIGURES ARE DRIVEN BY THE TOPIC LIST, not hard-coded. This page used to
- * show one three-view drawing and describe the product as if orthographic
- * projection were all of it — which was true once and stopped being true. A
- * new topic with a preview now appears here on its own, so the front page
- * cannot quietly go stale about what the tool covers.
+ * THE FIGURES AND THE TOPIC SENTENCE ARE DRIVEN BY THE TOPIC LIST, not
+ * hard-coded. This page used to show one three-view drawing and describe the
+ * product as if orthographic projection were all of it — which was true once
+ * and stopped being true. A new topic with a preview now names itself here
+ * and drifts past on its own, so the front page cannot quietly go stale about
+ * what the tool covers.
  */
 export default function Home() {
-  const previews = TOPIC_IDS
-    .map((id) => ({ topic: getTopic(id)!, figure: topicPreview(id) }))
-    .filter((p): p is { topic: NonNullable<ReturnType<typeof getTopic>>; figure: NonNullable<ReturnType<typeof topicPreview>> } => p.figure !== null);
+  // Named from the topic list so the sentence below cannot go stale.
+  const named = TOPIC_IDS
+    .filter((id) => topicPreview(id) !== null)
+    .map((id) => getTopic(id)!.title);
 
   return (
     <>
+      {/* The topic figures live here now, as drifting texture behind the
+          whole page, rather than as a column of illustrations competing with
+          the sentence beside them. */}
+      <DriftingFigures />
       <AppHeader />
       {/* Centred in what is left below the header, so the page does not
           trail off into a void beneath the hero. */}
       <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-[1100px] flex-col justify-center gap-10 px-6 py-12">
-        <div className="grid items-center gap-10 md:grid-cols-[1.05fr_0.95fr]">
+        <div className="max-w-[52ch]">
           <div className="flex flex-col items-start gap-5">
             <p className="t-label">Technical drawing practice</p>
             <h1 className="t-display" style={{ fontSize: "clamp(2rem, 1.2rem + 2.6vw, 3rem)" }}>
@@ -43,8 +49,7 @@ export default function Home() {
             {/* Named from the topic list rather than written out, so this
                 sentence cannot go stale the way the old copy did. */}
             <p className="t-small max-w-[48ch]">
-              Topics so far: {previews.map((p) => p.topic.title).join(", ")}. More of
-              technical drawing is on the way.
+              Topics so far: {named.join(", ")}. More of technical drawing is on the way.
             </p>
             <Link
               href="/topics"
@@ -59,14 +64,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* One figure per topic, so the range is shown rather than claimed.
-              Illustrative only — every one is built from a solid or spec that
-              is deliberately not any exercise's. */}
-          <div aria-hidden="true" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            {previews.map(({ topic, figure }) => (
-              <MethodDiagram key={topic.id} primitives={figure} caption="" variant="blend" />
-            ))}
-          </div>
         </div>
       </main>
     </>

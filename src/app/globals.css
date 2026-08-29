@@ -253,6 +253,23 @@ body {
 }
 
 /*
+ * DRIFT. Each figure crosses the viewport left to right and wraps, on its own
+ * duration and its own negative delay so they never march in step. The
+ * element is scaled in its own transform, so the animation composes with it
+ * via translate on a wrapper axis rather than overwriting it.
+ */
+@keyframes drift-across {
+  from { translate: -30vw 0; }
+  to   { translate: 115vw 0; }
+}
+.drift {
+  animation-name: drift-across;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: translate;
+}
+
+/*
  * ACCESSIBILITY SIGNALS — three independent preferences, each honoured on its
  * own terms rather than collapsed into one "accessible mode".
  */
@@ -271,6 +288,10 @@ body {
      hover state instead: still feedback, just not something that follows. */
   [data-backlit]::before { transition: none; background: none; }
   [data-backlit]:hover { background: var(--bg-hover); }
+  /* A full-width moving background is precisely what this preference exists
+     to stop. The scatter stays — the figures say what they need to standing
+     still — but nothing travels. */
+  .drift { animation: none; translate: 12vw 0; }
 }
 
 /* Frostier, not blurrier: raise the opacity and drop the blur entirely. */

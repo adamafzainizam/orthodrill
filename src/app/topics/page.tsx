@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import { Backlight } from "@/components/Backlight";
+import { DriftingFigures } from "@/components/DriftingFigures";
 import { MethodDiagram } from "@/components/MethodDiagram";
 import { TOPIC_IDS, getTopic } from "@/topics/topics";
 import { getDrill, listDrillIds, topicPreview } from "@/drills/registry";
@@ -20,6 +21,11 @@ export default function TopicsPage() {
 
   return (
     <>
+      {/* Drift belongs on the menus, NOT on an exercise page: a moving
+          background behind a drawing surface competes with the one thing the
+          student is trying to concentrate on. Fewer figures here than on the
+          front page, because the cards already carry their own. */}
+      <DriftingFigures count={4} />
       <AppHeader back="/" />
       <main className="mx-auto flex max-w-[1100px] flex-col gap-8 px-6 py-10">
         <div>
