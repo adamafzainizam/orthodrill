@@ -12,9 +12,12 @@ import {
   initHistory, push, redo as redoHistory, undo as undoHistory, type History,
 } from "./history.ts";
 import type { Primitive, PrimitiveType } from "../scoring/primitives.ts";
+import {
+  defaultRotateBase, mirrorAxis, mirrorPrimitive, rotatePrimitive,
+} from "./transform.ts";
 import { MAX_PRIMITIVES } from "../scoring/validate.ts";
 
-export type Tool = "line" | "circle" | "select" | "move";
+export type Tool = "line" | "circle" | "select" | "move" | "rotate";
 
 /** A rectangle or a move in progress: the drag's start point and its latest point. */
 export type Drag = { start: Point; current: Point };
@@ -29,6 +32,25 @@ export type EditorState = {
   pending: Point | null;
   /** A rubber-band or move drag in progress, if one is in progress. */
   drag: Drag | null;
+  /**
+   * Copied primitives, held INSIDE the editor rather than in the system
+   * clipboard: pure, testable without a browser, and no permission prompt.
+   * Cross-tab copy is not a need here.
+   */
+  clipboard: Primitive[];
+  /**
+   * How many times the current clipboard has been pasted, so each paste steps
+   * one unit further out and copies never hide under each other.
+   */
+  pasteSerial: number;
+  /**
+   * The point a rotation turns about. null means "use the default", which is
+   * the bounding-box centre ROUNDED to a lattice point. A clicked base point
+   * comes from screenToGrid and is therefore always an integer, so there is
+   * no way to express an off-lattice base — see transform.ts's docblock for
+   * why that matters.
+   */
+  rotateBase: Point | null;
 };
 
 export type Action =
@@ -49,7 +71,11 @@ export type Action =
   // component, as the one place that interprets a gesture.
   | { type: "DRAG_BEGIN"; at: Point }
   | { type: "DRAG_UPDATE"; at: Point }
-  | { type: "DRAG_COMMIT"; additive: boolean };
+  | { type: "DRAG_COMMIT"; additive: boolean }
+  | { type: "COPY_SELECTION" }
+  | { type: "PASTE" }
+  | { type: "ROTATE_SELECTION"; quarterTurns: number }
+  | { type: "MIRROR_SELECTION"; axis: "h" | "v" };
 
 export function initEditor(): EditorState {
   return {
@@ -59,6 +85,9 @@ export function initEditor(): EditorState {
     selection: [],
     pending: null,
     drag: null,
+    clipboard: [],
+    pasteSerial: 0,
+    rotateBase: null,
   };
 }
 
@@ -138,6 +167,29 @@ function shift(p: Primitive, dx: number, dy: number): Primitive {
     : { ...p, cx: p.cx + dx, cy: p.cy + dy };
 }
 
+/**
+ * The primitive a second click would commit, or null if it would commit
+ * nothing.
+ *
+ * THE POINT OF THIS FUNCTION IS THAT IT HAS TWO CALLERS. `clickWhileDrawing`
+ * commits its result and `Sheet` previews it, so the preview cannot drift from
+ * what lands — `radiusFrom` rounds AND clamps to [1, MAX_RADIUS], so a preview
+ * computed independently would lie at both ends of that range.
+ */
+export function pendingPrimitive(
+  tool: Tool, type: PrimitiveType, from: Point, to: Point,
+): Primitive | null {
+  if (tool === "line") {
+    // A zero-length segment is not a line; validate.ts refuses it.
+    if (from.x === to.x && from.y === to.y) return null;
+    return { kind: "segment", type, x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+  }
+  if (tool === "circle") {
+    return { kind: "circle", type, cx: from.x, cy: from.y, r: radiusFrom(from, to) };
+  }
+  return null;
+}
+
 function clickWhileDrawing(s: EditorState, at: Point): EditorState {
   const from = s.pending;
   if (from === null) return { ...s, pending: at };
@@ -147,22 +199,11 @@ function clickWhileDrawing(s: EditorState, at: Point): EditorState {
   // and drop the pending anchor rather than leaving a dangling first click.
   if (drawing(s).length >= MAX_PRIMITIVES) return { ...s, pending: null };
 
-  if (s.tool === "line") {
-    // A zero-length segment is not a line; validate.ts refuses it, so it must
-    // never become drawable here either.
-    if (from.x === at.x && from.y === at.y) return { ...s, pending: null };
-    const segment: Primitive = {
-      kind: "segment", type: s.activeType,
-      x1: from.x, y1: from.y, x2: at.x, y2: at.y,
-    };
-    return { ...commit(s, [...drawing(s), segment]), pending: null };
-  }
-
-  const circle: Primitive = {
-    kind: "circle", type: s.activeType,
-    cx: from.x, cy: from.y, r: radiusFrom(from, at),
-  };
-  return { ...commit(s, [...drawing(s), circle]), pending: null };
+  const primitive = pendingPrimitive(s.tool, s.activeType, from, at);
+  // null means the click commits nothing (a zero-length line, or a tool that
+  // does not draw); drop the anchor rather than leaving it dangling.
+  if (primitive === null) return { ...s, pending: null };
+  return { ...commit(s, [...drawing(s), primitive]), pending: null };
 }
 
 /**
@@ -196,7 +237,28 @@ function commitDrag(s: EditorState, drag: Drag, additive: boolean): EditorState 
     return { ...commit(s, mapSelected(s, (p) => shift(p, dx, dy))), drag: null };
   }
 
+  if (s.tool === "rotate") {
+    const base = s.rotateBase ?? defaultRotateBase(drawing(s), s.selection);
+    if (base === null || s.selection.length === 0) return cleared;
+    const turns = quarterTurnsBetween(drag.start, drag.current, base);
+    if (turns === 0) return cleared;
+    return { ...commit(s, mapSelected(s, (p) => rotatePrimitive(p, base, turns))), drag: null };
+  }
+
   return cleared;
+}
+
+/**
+ * The quarter turn a drag around `base` is pointing at, snapped to the nearest
+ * of the FOUR stops the lattice allows. Exported so the sheet's live preview
+ * and this commit cannot disagree about what a drag means — the same
+ * one-function-two-callers reasoning as `pendingPrimitive`.
+ */
+export function quarterTurnsBetween(from: Point, to: Point, base: Point): number {
+  // Screen-anticlockwise, so dy is negated, matching rotatePoint's convention.
+  const a0 = Math.atan2(-(from.y - base.y), from.x - base.x);
+  const a1 = Math.atan2(-(to.y - base.y), to.x - base.x);
+  return ((Math.round(((a1 - a0) * 2) / Math.PI) % 4) + 4) % 4;
 }
 
 function clickWhileSelecting(s: EditorState, at: Point, additive: boolean): EditorState {
@@ -217,7 +279,7 @@ export function reduce(s: EditorState, action: Action): EditorState {
       // Changing tools abandons a half-drawn primitive AND an in-progress
       // drag, rather than leaving stale state that would attach itself to
       // the next gesture under a different tool.
-      return { ...s, tool: action.tool, pending: null, drag: null };
+      return { ...s, tool: action.tool, pending: null, drag: null, rotateBase: null };
 
     case "SET_ACTIVE_TYPE":
       return { ...s, activeType: action.lineType };
@@ -225,6 +287,9 @@ export function reduce(s: EditorState, action: Action): EditorState {
     case "CLICK_GRID":
       if (s.tool === "select") return clickWhileSelecting(s, action.at, action.additive);
       if (s.tool === "move") return s; // Move has no click behaviour, only drag.
+      // A click under the rotate tool sets the point to turn about; the drag
+      // is what actually turns.
+      if (s.tool === "rotate") return { ...s, rotateBase: action.at };
       return clickWhileDrawing(s, action.at);
 
     case "CANCEL":
@@ -233,7 +298,7 @@ export function reduce(s: EditorState, action: Action): EditorState {
     case "DRAG_BEGIN":
       // Only Select and Move interpret a drag; a stray begin under the
       // drawing tools is a no-op rather than stale state waiting to fire.
-      if (s.tool !== "select" && s.tool !== "move") return s;
+      if (s.tool !== "select" && s.tool !== "move" && s.tool !== "rotate") return s;
       return { ...s, drag: { start: action.at, current: action.at } };
 
     case "DRAG_UPDATE":
@@ -259,6 +324,52 @@ export function reduce(s: EditorState, action: Action): EditorState {
         ...commit(s, drawing(s).filter((_, i) => !doomed.has(i))),
         selection: [],
       };
+    }
+
+    case "COPY_SELECTION": {
+      // An empty selection must not WIPE what is already held — that would
+      // lose a copy to a stray click on blank paper.
+      if (s.selection.length === 0) return s;
+      const chosen = new Set(s.selection);
+      return {
+        ...s,
+        clipboard: drawing(s).filter((_, i) => chosen.has(i)),
+        pasteSerial: 0,
+      };
+    }
+
+    case "PASTE": {
+      if (s.clipboard.length === 0) return s;
+      // Refuse WHOLLY, never partially: validate.ts rejects an attempt over
+      // MAX_PRIMITIVES, so a half-pasted clipboard would be both surprising
+      // and unsubmittable.
+      if (drawing(s).length + s.clipboard.length > MAX_PRIMITIVES) return s;
+      const step = s.pasteSerial + 1;
+      const pasted = s.clipboard.map((p) => shift(p, step, step));
+      const base = drawing(s).length;
+      return {
+        ...commit(s, [...drawing(s), ...pasted]),
+        selection: pasted.map((_, i) => base + i),
+        pasteSerial: step,
+      };
+    }
+
+    case "ROTATE_SELECTION": {
+      if (s.selection.length === 0) return s;
+      // A whole turn changes nothing, so it must not reach the history and
+      // give the student an undo step that does nothing visible.
+      if (action.quarterTurns % 4 === 0) return s;
+      const base = s.rotateBase ?? defaultRotateBase(drawing(s), s.selection);
+      if (base === null) return s;
+      return commit(s, mapSelected(s, (p) => rotatePrimitive(p, base, action.quarterTurns)));
+    }
+
+    case "MIRROR_SELECTION": {
+      if (s.selection.length === 0) return s;
+      const horizontal = action.axis === "h";
+      const axis = mirrorAxis(drawing(s), s.selection, horizontal);
+      if (axis === null) return s;
+      return commit(s, mapSelected(s, (p) => mirrorPrimitive(p, axis, horizontal)));
     }
 
     case "UNDO":

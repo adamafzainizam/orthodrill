@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import { gridToScreen, screenToGrid, type Point, type Viewport } from "@/lib/canvas/coords";
 import { mitreLine } from "@/lib/canvas/quadrants";
-import type { Action, Drag, Tool } from "@/lib/canvas/editor";
+import { headingOf, interactionsWith, isExactAngle, type Interaction } from "@/lib/canvas/angles";
+import {
+  pendingPrimitive, quarterTurnsBetween, type Action, type Drag, type Tool,
+} from "@/lib/canvas/editor";
+import { defaultRotateBase, rotatePrimitive } from "@/lib/canvas/transform";
 import type { Primitive, PrimitiveType } from "@/lib/scoring/primitives";
 import type { ViewDiff } from "@/lib/scoring/types";
 
@@ -43,6 +47,29 @@ function primitivePath(p: Primitive, v: Viewport, extra: Record<string, unknown>
   return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeDasharray={dash} {...extra} />;
 }
 
+/**
+ * Collapse Interactions that would draw on top of one another.
+ *
+ * Two segments meeting at a point yield two Interactions AT that point. If they
+ * report the same angle that is one reading, not two; if they differ, each gets
+ * its own row so both stay readable. `row` is the label's stacking index.
+ */
+function dedupeAndStack(items: Interaction[]): Array<Interaction & { row: number }> {
+  const seen = new Set<string>();
+  const rows = new Map<string, number>();
+  const out: Array<Interaction & { row: number }> = [];
+  for (const it of items) {
+    const place = `${it.at.x},${it.at.y}`;
+    const exact = `${place}@${it.degrees.toFixed(4)}`;
+    if (seen.has(exact)) continue;
+    seen.add(exact);
+    const row = rows.get(place) ?? 0;
+    rows.set(place, row + 1);
+    out.push({ ...it, row });
+  }
+  return out;
+}
+
 /** Put an origin-normalised feedback primitive back where the student drew. */
 function place(p: Primitive, anchor: { dx: number; dy: number }): Primitive {
   return p.kind === "circle"
@@ -51,7 +78,7 @@ function place(p: Primitive, anchor: { dx: number; dy: number }): Primitive {
 }
 
 export function Sheet({
-  grid, mode, tool, drawing, selection, pending, drag, cursor, feedback, onAction, onGridMove,
+  grid, mode, tool, activeType, drawing, selection, pending, drag, rotateBase, cursor, feedback, onAction, onGridMove,
 }: {
   grid: { width: number; height: number };
   /**
@@ -67,8 +94,10 @@ export function Sheet({
   tool: Tool;
   drawing: Primitive[];
   selection: number[];
+  activeType: PrimitiveType;
   pending: Point | null;
   drag: Drag | null;
+  rotateBase: Point | null;
   cursor: Point | null;
   feedback: FeedbackOverlay | null;
   onAction: (a: Action) => void;
@@ -186,6 +215,29 @@ export function Sheet({
     ? { dx: drag.current.x - drag.start.x, dy: drag.current.y - drag.start.y }
     : null;
 
+  // The rotate base point, and the quarter turn a drag is currently pointing
+  // at. Rendering only — the reducer does the actual work, and it uses the
+  // SAME `quarterTurnsBetween`, so the preview cannot disagree with what lands.
+  const rotating = tool === "rotate" && selection.length > 0;
+  const base = rotating ? (rotateBase ?? defaultRotateBase(drawing, selection)) : null;
+  const rotateTurns = base && drag ? quarterTurnsBetween(drag.start, drag.current, base) : 0;
+
+  // The angle readout. Rendering only: an Interaction never enters `drawing`,
+  // so its frequently-fractional crossing point cannot reach validate.ts.
+  // Lines only -- a circle has no heading, and the angle of its radius drag
+  // means nothing to the student.
+  const showAngles = pending !== null && cursor !== null && tool === "line";
+  // Several segments can meet at ONE point — drawing from a corner where two
+  // lines already join gives two Interactions at the same place. Identical
+  // readings there are one fact, not two, so they are deduplicated; genuinely
+  // different angles at the same point are STACKED rather than drawn on top of
+  // each other. Found by screenshotting the real page: two 45° labels sat
+  // exactly on each other and the overlap was invisible only because they
+  // happened to agree.
+  const interactions = showAngles && pending && cursor
+    ? dedupeAndStack(interactionsWith(pending, cursor, drawing)) : [];
+  const heading = showAngles && pending && cursor ? headingOf(pending, cursor) : null;
+
   return (
     <svg
       ref={svgRef}
@@ -250,7 +302,7 @@ export function Sheet({
             strokeWidth: chosen.has(i) ? 3 : p.type === "construction" ? 1 : 2,
             // While a move drag is live, the real primitive fades so the
             // dragged preview below reads as what will actually land.
-            opacity: moveDelta && chosen.has(i) ? 0.3 : 1,
+            opacity: (moveDelta || rotateTurns !== 0) && chosen.has(i) ? 0.3 : 1,
             fill: "none",
           })}
         </g>
@@ -274,13 +326,91 @@ export function Sheet({
         />
       )}
 
-      {pending !== null && cursor !== null && (
-        <line
-          x1={gridToScreen(pending, v).x} y1={gridToScreen(pending, v).y}
-          x2={gridToScreen(cursor, v).x} y2={gridToScreen(cursor, v).y}
-          stroke="var(--select)" strokeWidth={2} strokeDasharray="4 4" opacity={0.7}
-        />
-      )}
+      {pending !== null && cursor !== null && (() => {
+        // The ghost comes from the SAME function that will commit it, so the
+        // preview cannot drift from what lands — `radiusFrom` rounds and
+        // clamps, and a preview computed here independently would lie at both
+        // ends of that range.
+        const ghost = pendingPrimitive(tool, activeType, pending, cursor);
+        const a = gridToScreen(pending, v);
+        const b = gridToScreen(cursor, v);
+        return (
+          <g pointerEvents="none">
+            {/* The radius line stays for the circle tool: it is how you see
+                WHERE the edge point is, which the circle alone does not show. */}
+            <line
+              x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+              stroke="var(--select)" strokeWidth={2} strokeDasharray="4 4" opacity={0.7}
+            />
+            {ghost?.kind === "circle" && (
+              <circle
+                cx={a.x} cy={a.y} r={ghost.r * v.cell}
+                fill="none" stroke="var(--select)" strokeWidth={2}
+                strokeDasharray="4 4" opacity={0.7}
+              />
+            )}
+          </g>
+        );
+      })()}
+
+      {interactions.map((it, i) => {
+        const p = gridToScreen(it.at, v);
+        const tone = it.exact ? "var(--select)" : "var(--warn)";
+        return (
+          <g key={`ang${i}`} pointerEvents="none">
+            <circle cx={p.x} cy={p.y} r={9} fill="none" stroke={tone} strokeWidth={1.5} opacity={0.85} />
+            <rect
+              x={p.x + 12} y={p.y - 20 - it.row * 19} width={54} height={17} rx={3}
+              fill="var(--bg-raised)" stroke={tone} strokeWidth={1} opacity={0.95}
+            />
+            <text
+              x={p.x + 39} y={p.y - 8 - it.row * 19} textAnchor="middle"
+              fontSize={11} fill={tone} style={{ fontVariantNumeric: "tabular-nums" }}
+            >{it.degrees.toFixed(1)}°</text>
+          </g>
+        );
+      })}
+
+      {heading !== null && cursor !== null && pending !== null && (() => {
+        const p = gridToScreen(cursor, v);
+        // The INTEGER rule, not `heading % 45 === 0`. A float comparison
+        // happens to give the right answer for every case swept, but the
+        // principle is that exactness is decided on integers, and a rule that
+        // holds by luck is one a reader cannot check at a glance.
+        const exact = isExactAngle(cursor.x - pending.x, cursor.y - pending.y, 1, 0);
+        const tone = exact ? "var(--select)" : "var(--text-tertiary)";
+        return (
+          <g pointerEvents="none">
+            <rect
+              x={p.x + 14} y={p.y + 8} width={54} height={17} rx={3}
+              fill="var(--bg-raised)" stroke={tone} strokeWidth={1} opacity={0.95}
+            />
+            <text
+              x={p.x + 41} y={p.y + 20} textAnchor="middle"
+              fontSize={11} fill={tone} style={{ fontVariantNumeric: "tabular-nums" }}
+            >{heading.toFixed(1)}°</text>
+          </g>
+        );
+      })()}
+
+      {base && (() => {
+        const c = gridToScreen(base, v);
+        return (
+          <g pointerEvents="none">
+            <circle cx={c.x} cy={c.y} r={6} fill="none" stroke="var(--select)" strokeWidth={2} />
+            <circle cx={c.x} cy={c.y} r={1.5} fill="var(--select)" />
+          </g>
+        );
+      })()}
+
+      {base && rotateTurns !== 0 && selection.map((i) => (
+        <g key={`rot${i}`} pointerEvents="none">
+          {primitivePath(rotatePrimitive(drawing[i], base, rotateTurns), v, {
+            stroke: "var(--select)", strokeWidth: 3, strokeDasharray: "4 4",
+            fill: "none", opacity: 0.8,
+          })}
+        </g>
+      ))}
     </svg>
   );
 }

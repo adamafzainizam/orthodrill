@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Backlight } from "./Backlight";
+import { quarterTurnsFor } from "@/lib/canvas/transform";
 import type { Action, Tool } from "@/lib/canvas/editor";
 import type { PrimitiveType } from "@/lib/scoring/primitives";
 
@@ -9,6 +11,7 @@ const TOOLS: { id: Tool; label: string; key: string }[] = [
   { id: "line", label: "Line", key: "l" },
   { id: "circle", label: "Circle", key: "c" },
   { id: "move", label: "Move", key: "g" },
+  { id: "rotate", label: "Rotate", key: "r" },
 ];
 
 const TYPES: { id: PrimitiveType; label: string }[] = [
@@ -37,6 +40,8 @@ export function Toolbar({
    * is the only filled button on the bar. They used to be one row of
    * identical grey boxes, which told the reader nothing about which was which.
    */
+  const [angleError, setAngleError] = useState(false);
+
   const action =
     "pressable t-small px-2.5 py-1.5 rounded-[var(--radius-sm)] border disabled:opacity-35 disabled:cursor-not-allowed";
   const actionStyle = { background: "var(--bg-raised)", borderColor: "var(--border-subtle)", color: "var(--text-secondary)" };
@@ -65,6 +70,58 @@ export function Toolbar({
               onClick={() => onAction({ type: "SET_TOOL", tool: t.id })}
             >{t.label}</button>
           ))}
+        </div>
+
+        {/* The typed-angle field exists only while Rotate is active, so the
+            bar does not carry a control that means nothing under the other
+            tools. The form-control guard in Editor's key handler already
+            stops the single-key tool shortcuts firing while this has focus,
+            so typing "9" cannot switch tools out from under the field. */}
+        {tool === "rotate" && (
+          <form
+            className="flex items-center gap-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const raw = new FormData(e.currentTarget).get("deg");
+              const turns = quarterTurnsFor(Number(raw));
+              if (turns === null) { setAngleError(true); return; }
+              setAngleError(false);
+              onAction({ type: "ROTATE_SELECTION", quarterTurns: turns });
+            }}
+          >
+            <input
+              name="deg" type="text" inputMode="numeric" defaultValue="90"
+              aria-label="Rotate by degrees"
+              className="t-small w-16 rounded-[var(--radius-sm)] border px-2 py-1"
+              style={{
+                background: "var(--bg-raised)",
+                borderColor: angleError ? "var(--bad)" : "var(--border-subtle)",
+                color: "var(--text-primary)",
+              }}
+              onChange={() => setAngleError(false)}
+            />
+            <button type="submit" className={action} style={actionStyle}>Turn</button>
+            {angleError && (
+              <span className="t-small" style={{ color: "var(--bad)" }}>
+                multiples of 90 only — this grid has no other exact rotation
+              </span>
+            )}
+          </form>
+        )}
+
+        <div className="flex gap-0.5" role="group" aria-label="Mirror">
+          <button
+            type="button" data-backlit className={action} style={actionStyle}
+            disabled={!hasSelection} title="Flip horizontally (Shift+H)"
+            aria-keyshortcuts="Shift+H"
+            onClick={() => onAction({ type: "MIRROR_SELECTION", axis: "h" })}
+          >Flip H</button>
+          <button
+            type="button" data-backlit className={action} style={actionStyle}
+            disabled={!hasSelection} title="Flip vertically (Shift+V)"
+            aria-keyshortcuts="Shift+V"
+            onClick={() => onAction({ type: "MIRROR_SELECTION", axis: "v" })}
+          >Flip V</button>
         </div>
 
         <label className="t-small flex items-center gap-2" style={{ color: "var(--text-tertiary)" }}>
