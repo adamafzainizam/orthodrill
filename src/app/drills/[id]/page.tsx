@@ -45,9 +45,26 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
   // oblique does and the parabola does not. Keyed on the field being present
   // rather than on the topic id, so a future topic that carries a pictorial
   // gets it without another branch here.
-  const part = pub.isometric !== undefined && pub.dimensions !== undefined
-    ? card("The part", <Pictorial primitives={pub.isometric} dimensions={pub.dimensions} />)
-    : null;
+  // THE PART, when there is one to depict. Narrowed on `mode` rather than
+  // reached for with a cast: `promptViews` exists only on the figure branch of
+  // PublicDrill, and AGENTS.md §6 is explicit that a type complaint on this
+  // seam is the guard, not noise to silence.
+  let part: React.ReactNode = null;
+  if (pub.isometric !== undefined && pub.dimensions !== undefined) {
+    part = card("The part", <Pictorial primitives={pub.isometric} dimensions={pub.dimensions} />);
+  } else if (pub.mode === "figure" && pub.promptViews !== undefined) {
+    // Some exercises show the three VIEWS and ask the student to read them.
+    // Safe to publish only because the solid behind them is used by no Type A
+    // exercise — these views ARE that exercise's answer key, and
+    // registry.test.ts enforces the rule.
+    part = card("The part, in three views", (
+      <MethodDiagram
+        primitives={pub.promptViews}
+        grid
+        caption={`${pub.promptConvention === "first_angle" ? "First" : "Third"} angle projection. Each square is one unit — count them to read the sizes off the views.`}
+      />
+    ));
+  }
 
   // THE METHOD, gated on the TOPIC rather than the mode, so a future topic
   // with no worked example of its own renders nothing here rather than
