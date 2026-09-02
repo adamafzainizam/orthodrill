@@ -4,7 +4,9 @@ import { Editor } from "@/components/Editor";
 import { Pictorial } from "@/components/Pictorial";
 import { MethodDiagram } from "@/components/MethodDiagram";
 import { Sidebar } from "@/components/Sidebar";
-import { getDrill, publicHalf, PARABOLA_METHOD_DIAGRAM } from "@/drills/registry";
+import {
+  getDrill, publicHalf, PARABOLA_METHOD_DIAGRAM, OBLIQUE_METHOD_DIAGRAM,
+} from "@/drills/registry";
 
 export default async function DrillPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,33 +30,48 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
   // pictorial's paint program always has. Gated on the topic, not just the
   // mode, so a future "figure" topic with no diagram of its own renders
   // nothing here rather than showing the wrong worked example.
-  const reference = pub.mode === "views"
-    ? (
-      <section
-        className="rounded-[var(--radius-lg)] border p-3"
-        style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
-      >
-        <p className="t-label mb-2">The part</p>
-        <Pictorial primitives={pub.isometric} dimensions={pub.dimensions} />
-      </section>
-    )
-    : pub.topic.id === "parabola"
-      ? (
-        /* Same card as the pictorial above: the two are siblings — the
-           reference material for their respective topics — and should read
-           as the same kind of thing. */
-        <section
-          className="rounded-[var(--radius-lg)] border p-3"
-          style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
-        >
-          <p className="t-label mb-2">The method</p>
-          <MethodDiagram
-            primitives={PARABOLA_METHOD_DIAGRAM}
-            caption="Worked example: the rectangle method (n = 3) — illustrates the method only, not this exercise's answer."
-          />
-        </section>
-      )
+  const card = (label: string, body: React.ReactNode) => (
+    <section
+      className="rounded-[var(--radius-lg)] border p-3"
+      style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}
+    >
+      <p className="t-label mb-2">{label}</p>
+      {body}
+    </section>
+  );
+
+  // THE PART, when there is one to depict. A views exercise always has one;
+  // a figure exercise has one only if its topic redraws a solid, which
+  // oblique does and the parabola does not. Keyed on the field being present
+  // rather than on the topic id, so a future topic that carries a pictorial
+  // gets it without another branch here.
+  const part = pub.isometric !== undefined && pub.dimensions !== undefined
+    ? card("The part", <Pictorial primitives={pub.isometric} dimensions={pub.dimensions} />)
+    : null;
+
+  // THE METHOD, gated on the TOPIC rather than the mode, so a future topic
+  // with no worked example of its own renders nothing here rather than
+  // showing someone else's — which would be a worked answer to the wrong
+  // question.
+  const method = pub.topic.id === "parabola"
+    ? card("The method", (
+      <MethodDiagram
+        primitives={PARABOLA_METHOD_DIAGRAM}
+        caption="Worked example: the rectangle method (n = 3) — illustrates the method only, not this exercise's answer."
+      />
+    ))
+    : pub.topic.id === "oblique"
+      ? card("The method", (
+        <MethodDiagram
+          primitives={OBLIQUE_METHOD_DIAGRAM}
+          caption="Worked example: a plain block in cavalier oblique, with the 45° receding axis marked — illustrates the method only, not this exercise's answer."
+        />
+      ))
       : null;
+
+  const reference = (part !== null || method !== null)
+    ? <>{part}{method}</>
+    : null;
 
   return (
     <>

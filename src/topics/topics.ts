@@ -17,7 +17,7 @@
  * as a topic. Same pattern as `drills/registry.ts`'s `getDrill`.
  */
 
-export type TopicId = "orthographic" | "parabola";
+export type TopicId = "orthographic" | "parabola" | "oblique";
 
 export type Hint = { title: string; body: string };
 
@@ -129,6 +129,61 @@ const CATALOGUE: Topic[] = [
           + "geometry: more divisions make the joined segments read as a "
           + "smoother curve on the sheet, even though every one of them is "
           + "still a straight line underneath.",
+      },
+    ],
+  },
+  {
+    id: "oblique",
+    title: "Oblique projection",
+    blurb:
+      "Redraw a part as a pictorial with its front face true shape and its "
+      + "depth receding at 45°. Compare cavalier, cabinet and general oblique "
+      + "on the same solid and see what each does to the shape.",
+    hints: [
+      {
+        title: "The front face is drawn true shape",
+        body:
+          "That is the whole point of oblique, and what makes it quicker to "
+          + "draw than isometric: the face you put at the front keeps its real "
+          + "widths and heights, so a square stays a square and a circle would "
+          + "stay a circle. Choose the face with the most detail to sit at the "
+          + "front. Every exercise here states which face that is.",
+      },
+      {
+        title: "The three types differ only in how much depth you draw",
+        body:
+          "Cavalier does not reduce the depth at all, cabinet halves it, and "
+          + "general oblique takes a fraction in between — two thirds here. "
+          + "Nothing else changes: same front face, same 45° axis. Cavalier "
+          + "looks too deep because the eye expects foreshortening; cabinet "
+          + "looks closest to right. Drawing the same part in all three is the "
+          + "fastest way to see why.",
+      },
+      {
+        title: "Depth goes one grid diagonal per unit",
+        body:
+          "The receding axis runs at 45°, so one unit of depth is one step "
+          + "right and one step up — the diagonal of one grid square. For "
+          + "cabinet, two units of depth make one diagonal; for general "
+          + "oblique, three units make two. Count diagonals along the axis, "
+          + "not squares across.",
+      },
+      {
+        title: "Hidden edges are left out of a pictorial",
+        body:
+          "This is the opposite of the rule for orthographic views, and it is "
+          + "easy to carry the wrong habit across. A pictorial shows the part "
+          + "as it looks, so an edge you could not see is simply not drawn — "
+          + "no dashed lines. Draw only what is visible from the front, above "
+          + "and the right.",
+      },
+      {
+        title: "Only 45° works on a grid, and that is not a limitation of the method",
+        body:
+          "On squared paper the receding axis has to run corner to corner "
+          + "through the squares, which is 45°. Other angles are used in "
+          + "practice — 30° and 60° are common on plain paper — but they do "
+          + "not land on grid intersections, so every exercise here uses 45°.",
       },
     ],
   },
