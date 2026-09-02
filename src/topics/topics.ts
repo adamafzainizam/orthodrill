@@ -152,8 +152,8 @@ const CATALOGUE: Topic[] = [
       {
         title: "The three types differ only in how much depth you draw",
         body:
-          "Cavalier draws the full depth, cabinet draws half of it, and "
-          + "general oblique draws a fraction in between — two thirds here. "
+          "Cavalier does not reduce the depth at all, cabinet halves it, and "
+          + "general oblique takes a fraction in between — two thirds here. "
           + "Nothing else changes: same front face, same 45° axis. Cavalier "
           + "looks too deep because the eye expects foreshortening; cabinet "
           + "looks closest to right. Drawing the same part in all three is the "

@@ -352,10 +352,12 @@ const CATALOGUE: Drill[] = [
     id: "oblique-cavalier-step",
     title: "Stepped bar in cavalier oblique",
     prompt:
-      "Redraw this part in CAVALIER oblique, which draws the depth at FULL "
-      + "size — six units deep is six diagonals back. "
-      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
-      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      "Redraw this part in CAVALIER oblique, which does not reduce the depth "
+      + "at all — six units deep is six diagonals back. "
+      + "The 60 dimension is the depth, and it is the one that goes back. "
+      + "The face at right angles to it, facing you, is the front face, drawn true shape. "
+      + "The depth goes back at 45° up and to the right — one step right and one step up "
+      + "per diagonal. "
       + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
@@ -372,11 +374,13 @@ const CATALOGUE: Drill[] = [
     id: "oblique-cabinet-step",
     title: "The same bar in cabinet oblique",
     prompt:
-      "Redraw the SAME part in CABINET oblique, which draws the depth at HALF "
-      + "size — six units deep is three diagonals back. Compare it with the "
+      "Redraw the SAME part in CABINET oblique, which halves the depth — six "
+      + "units deep is three diagonals back. Compare it with the "
       + "cavalier drawing of this part: only the depth changes. "
-      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
-      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      + "The 60 dimension is the depth, and it is the one that goes back. "
+      + "The face at right angles to it, facing you, is the front face, drawn true shape. "
+      + "The depth goes back at 45° up and to the right — one step right and one step up "
+      + "per diagonal. "
       + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
@@ -393,8 +397,10 @@ const CATALOGUE: Drill[] = [
       "Redraw the SAME part in GENERAL oblique at two thirds depth — six units "
       + "deep is four diagonals back. It sits between cavalier and cabinet, "
       + "which is the point of it. "
-      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
-      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      + "The 60 dimension is the depth, and it is the one that goes back. "
+      + "The face at right angles to it, facing you, is the front face, drawn true shape. "
+      + "The depth goes back at 45° up and to the right — one step right and one step up "
+      + "per diagonal. "
       + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
@@ -408,11 +414,13 @@ const CATALOGUE: Drill[] = [
     id: "oblique-cabinet-notch",
     title: "Notched plate in cabinet oblique",
     prompt:
-      "Redraw this part in CABINET oblique, at half depth — four units deep is "
-      + "two diagonals back. The notch is cut right through, so it reads on "
+      "Redraw this part in CABINET oblique, which halves the depth — four "
+      + "units deep is two diagonals back. The notch is cut right through, so it reads on "
       + "the back of the part as well as the front. "
-      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
-      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      + "The 40 dimension is the depth, and it is the one that goes back. "
+      + "The face at right angles to it, facing you, is the front face, drawn true shape. "
+      + "The depth goes back at 45° up and to the right — one step right and one step up "
+      + "per diagonal. "
       + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
@@ -422,7 +430,7 @@ const CATALOGUE: Drill[] = [
     // NOT legal for general (step 3) — validateObliqueSolid would reject it.
     spec: {
       kind: "oblique", type: "cabinet", originX: 14, originY: 28,
-      solid: subtractBox(block(9, 4, 4), { x: 0, y: 0, z: 0, w: 2, d: 4, h: 2 }, "notch"),
+      solid: subtractBox(block(9, 4, 5), { x: 0, y: 0, z: 0, w: 2, d: 4, h: 2 }, "notch"),
     },
   },
 ];

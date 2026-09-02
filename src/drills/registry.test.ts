@@ -4,6 +4,7 @@ import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS } from "./regi
 import { getTopic } from "../topics/topics.ts";
 import { generateViews } from "../lib/geometry/views.ts";
 import { block, type Solid } from "../lib/geometry/solid.ts";
+import { DEPTH_FACTOR } from "../lib/geometry/oblique.ts";
 import { boundingBox, type Primitive } from "../lib/scoring/primitives.ts";
 import type { KeyViews } from "../lib/scoring/assign.ts";
 
@@ -330,6 +331,56 @@ test("every orthographic exercise's solid is asymmetric on at least one axis", (
       isAsymmetricSomewhere(drill.solid),
       `${id} is symmetric in every view, in both directions — a mirrored `
       + `generator would produce an identical-looking wrong answer for it`,
+    );
+  }
+});
+
+test("an oblique prompt only names a dimension its pictorial actually shows", () => {
+  // AGENTS.md §6's hazard class: authored prose is graded content and nothing
+  // verifies it. This one CAN be verified, so it is.
+  //
+  // The defect this catches was real. A prompt named the front face as "the 80
+  // by 50 face", but the dimension chain splits the width at the step and
+  // drops the redundant overall figure (PR #14), so the pictorial shows
+  // 60/50/30/30/20 and there is no 80 anywhere on it. A student would have
+  // hunted for a number that is not there.
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "figure" || drill.spec.kind !== "oblique") continue;
+    const pub = publicHalf(drill);
+    assert.notEqual(pub.dimensions, undefined, `${id} has no pictorial to check against`);
+    const shown = (pub.dimensions ?? []).map((d) => d.label);
+    const claimed = drill.prompt.match(/The (\d+) dimension is the depth/);
+    assert.ok(claimed, `${id}'s prompt does not name the depth dimension at all`);
+    assert.ok(
+      shown.includes(claimed[1]),
+      `${id}'s prompt names "${claimed[1]}" as the depth, but the pictorial `
+      + `only shows [${shown.join(", ")}] — the student cannot find it`,
+    );
+  }
+});
+
+test("an oblique prompt's stated diagonal count matches the type's depth factor", () => {
+  // "six units deep is three diagonals back" is the one number a student
+  // actually counts, so it must equal k*d. Getting it wrong would fail them
+  // for following the prompt — the parabola-hint failure in a new place.
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "figure" || drill.spec.kind !== "oblique") continue;
+    const m = drill.prompt.match(/(\w+) units deep is (\w+) diagonals back/);
+    assert.ok(m, `${id}'s prompt does not state the diagonal count`);
+    const words: Record<string, number> = {
+      two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+    };
+    const statedDepth = words[m[1]] ?? Number(m[1]);
+    const statedDiagonals = words[m[2]] ?? Number(m[2]);
+    assert.equal(statedDepth, drill.spec.solid.base.d, `${id} misstates the depth`);
+    assert.equal(
+      statedDiagonals,
+      DEPTH_FACTOR[drill.spec.type] * drill.spec.solid.base.d,
+      `${id} states ${statedDiagonals} diagonals, but ${drill.spec.type} of a `
+      + `${drill.spec.solid.base.d}-deep part is `
+      + `${DEPTH_FACTOR[drill.spec.type] * drill.spec.solid.base.d}`,
     );
   }
 });
