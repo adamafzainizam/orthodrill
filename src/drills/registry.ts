@@ -20,6 +20,7 @@
 import { block, subtractBox, subtractCylinder, type Solid } from "../lib/geometry/solid.ts";
 import { generateViews } from "../lib/geometry/views.ts";
 import { isometricView } from "../lib/geometry/isometric.ts";
+import { obliqueKey, type ObliqueSpec } from "../lib/geometry/oblique.ts";
 import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
 import { parabolaKey, type ParabolaSpec } from "../lib/geometry/parabola.ts";
@@ -55,12 +56,24 @@ export type FigureDrill = {
   topicId: TopicId;
   mode: "figure";
   /**
-   * PRIVATE. `parabolaKey(spec)` derives the answer key with no work at all —
-   * it is a pure function anyone could run — so `spec` is exactly as
-   * sensitive as `solid` above and must never cross into `publicHalf`.
+   * PRIVATE. `parabolaKey(spec)` / `obliqueKey(spec)` derive the answer key
+   * with no work at all — they are pure functions anyone could run — so `spec`
+   * is exactly as sensitive as `solid` above and must never cross into
+   * `publicHalf`. An oblique spec CONTAINS a solid, so this is not a weaker
+   * secret than a views drill's; it is the same one.
    */
-  spec: ParabolaSpec;
+  spec: FigureSpec;
 };
+
+/**
+ * Which generator derives a figure's key, TAGGED rather than inferred from
+ * which fields happen to be present. `mode`'s own comment above says
+ * inference is how the wrong branch gets taken when a shape this catalogue
+ * does not yet carry arrives, and that reasoning applies here identically.
+ */
+export type FigureSpec =
+  | ({ kind: "parabola" } & ParabolaSpec)
+  | ({ kind: "oblique" } & ObliqueSpec);
 
 /**
  * Which scoring mode an exercise uses. Explicit rather than inferred from
@@ -97,6 +110,15 @@ export type PublicDrill =
       prompt: string;
       mode: "figure";
       grid: Readonly<{ width: number; height: number }>;
+      /**
+       * A figure exercise MAY carry a pictorial. The parabola does not — its
+       * method diagram lives in the sidebar — but oblique does, because §7
+       * requires every exercise give the student something to look at and for
+       * oblique that is the part being redrawn. Derived from the solid exactly
+       * as a views drill derives it; the SOLID itself never crosses this line.
+       */
+      isometric?: readonly IsoPrimitive[];
+      dimensions?: readonly IsoDim[];
       topic: PublicTopic;
     };
 
@@ -284,7 +306,7 @@ const CATALOGUE: Drill[] = [
     // n=5, apex near the bottom edge, centred horizontally on the 48-wide
     // sheet — the same placement `parabola.test.ts` uses to pin the "fits
     // the sheet" property. PRIVATE: see FigureDrill's `spec` field above.
-    spec: { n: 5, originX: 24, originY: 38 },
+    spec: { kind: "parabola", n: 5, originX: 24, originY: 38 },
   },
   {
     id: "parabola-rectangle-4",
@@ -304,7 +326,7 @@ const CATALOGUE: Drill[] = [
     // Same apex placement style as parabola-rectangle-5. n=4 != DIAGRAM_N
     // (3) below, so this never coincides with the method diagram — see that
     // constant's docstring before ever picking an n that would.
-    spec: { n: 4, originX: 24, originY: 38 },
+    spec: { kind: "parabola", n: 4, originX: 24, originY: 38 },
   },
   {
     id: "parabola-rectangle-6",
@@ -324,7 +346,84 @@ const CATALOGUE: Drill[] = [
     // sheet's 40-unit height — n=7 does not fit at all (49 tall), which is
     // why 6 is the ceiling. n=6 != DIAGRAM_N (3) below, for the same reason
     // as parabola-rectangle-4 above.
-    spec: { n: 6, originX: 24, originY: 38 },
+    spec: { kind: "parabola", n: 6, originX: 24, originY: 38 },
+  },
+  {
+    id: "oblique-cavalier-step",
+    title: "Stepped bar in cavalier oblique",
+    prompt:
+      "Redraw this part in CAVALIER oblique, which draws the depth at FULL "
+      + "size — six units deep is six diagonals back. "
+      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
+      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    // Depth 6, and the step spans the whole depth, so every y-coordinate is 0
+    // or 6 — a multiple of 1, 2 AND 3. That is what lets this one solid carry
+    // all three types, and the comparison across them is the actual teaching.
+    spec: {
+      kind: "oblique", type: "cavalier", originX: 12, originY: 30,
+      solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
+    },
+  },
+  {
+    id: "oblique-cabinet-step",
+    title: "The same bar in cabinet oblique",
+    prompt:
+      "Redraw the SAME part in CABINET oblique, which draws the depth at HALF "
+      + "size — six units deep is three diagonals back. Compare it with the "
+      + "cavalier drawing of this part: only the depth changes. "
+      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
+      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    spec: {
+      kind: "oblique", type: "cabinet", originX: 14, originY: 28,
+      solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
+    },
+  },
+  {
+    id: "oblique-general-step",
+    title: "The same bar in general oblique",
+    prompt:
+      "Redraw the SAME part in GENERAL oblique at two thirds depth — six units "
+      + "deep is four diagonals back. It sits between cavalier and cabinet, "
+      + "which is the point of it. "
+      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
+      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    spec: {
+      kind: "oblique", type: "general", originX: 14, originY: 28,
+      solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
+    },
+  },
+  {
+    id: "oblique-cabinet-notch",
+    title: "Notched plate in cabinet oblique",
+    prompt:
+      "Redraw this part in CABINET oblique, at half depth — four units deep is "
+      + "two diagonals back. The notch is cut right through, so it reads on "
+      + "the back of the part as well as the front. "
+      + "Draw the front face true shape, with the depth receding at 45° up and to the right. "
+      + "One unit of depth is one grid diagonal — one step right and one step up. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    // A different shape, so the type is not welded to one solid in the
+    // student's mind. Depth 4: legal for cabinet (step 2), and deliberately
+    // NOT legal for general (step 3) — validateObliqueSolid would reject it.
+    spec: {
+      kind: "oblique", type: "cabinet", originX: 14, originY: 28,
+      solid: subtractBox(block(9, 4, 4), { x: 0, y: 0, z: 0, w: 2, d: 4, h: 2 }, "notch"),
+    },
   },
 ];
 
@@ -419,6 +518,14 @@ export function publicHalf(drill: Drill): PublicDrill {
       prompt: drill.prompt,
       mode: "figure",
       grid: SHEET,
+      // Oblique redraws a part, so it needs the part on screen. The parabola
+      // has nothing to depict and leaves both absent.
+      ...(drill.spec.kind === "oblique"
+        ? {
+          isometric: Object.freeze(isometricView(drill.spec.solid)),
+          dimensions: Object.freeze(isometricDimensions(drill.spec.solid)),
+        }
+        : {}),
       topic: publicTopic(drill),
     })
     : Object.freeze({
@@ -444,7 +551,9 @@ export function answerKey(drill: Drill): KeyViews | Primitive[] {
   if (drill.mode === "figure") {
     const cached = figureKeyCache.get(drill.id);
     if (cached !== undefined) return cached;
-    const built = freezeArray(parabolaKey(drill.spec));
+    const built = freezeArray(
+      drill.spec.kind === "parabola" ? parabolaKey(drill.spec) : obliqueKey(drill.spec),
+    );
     figureKeyCache.set(drill.id, built);
     return built;
   }
@@ -566,7 +675,46 @@ export const ORTHOGRAPHIC_PREVIEW: readonly Primitive[] = Object.freeze(buildOrt
 export function topicPreview(topicId: string): readonly Primitive[] | null {
   if (topicId === "orthographic") return ORTHOGRAPHIC_PREVIEW;
   if (topicId === "parabola") return PARABOLA_METHOD_DIAGRAM;
+  if (topicId === "oblique") return OBLIQUE_METHOD_DIAGRAM;
   return null;
 }
+
+/**
+ * A worked METHOD DIAGRAM for the oblique topic: a small block drawn in
+ * cavalier oblique, with a horizontal reference line at the front bottom-right
+ * corner so the 45° of the receding axis is visible as an ANGLE rather than
+ * merely asserted in prose.
+ *
+ * DELIBERATELY A SOLID NO EXERCISE USES — a plain 4x3x3 block, where every
+ * shipped exercise has a feature and a different size. Same rule as the
+ * parabola diagram's n=3: an illustration of the METHOD must never become the
+ * answer to an INSTANCE. If a plain 4x3x3 block is ever shipped as an
+ * exercise, change THIS, not that.
+ *
+ * Depth 3 is legal for cavalier (step 1) and would be illegal for cabinet
+ * (step 2) — which is fine, the diagram only ever draws cavalier, and
+ * `obliqueKey` would throw rather than draw it wrongly if that changed.
+ */
+const DIAGRAM_SOLID = block(4, 3, 3);
+
+function buildObliqueMethodDiagram(): Primitive[] {
+  const drawing = obliqueKey({
+    solid: DIAGRAM_SOLID, type: "cavalier", originX: 0, originY: 6,
+  });
+
+  // The front bottom-right corner, where the receding axis leaves the front
+  // face. A horizontal from there makes the 45° readable.
+  const seg = (x1: number, y1: number, x2: number, y2: number): Primitive =>
+    ({ kind: "segment", type: "construction", x1, y1, x2, y2 });
+
+  return [
+    ...drawing,
+    seg(4, 6, 9, 6),   // horizontal reference
+    seg(7, 3, 9, 1),   // the receding axis, carried past the solid
+  ];
+}
+
+export const OBLIQUE_METHOD_DIAGRAM: readonly Primitive[] =
+  Object.freeze(buildObliqueMethodDiagram());
 
 export const PARABOLA_METHOD_DIAGRAM: readonly Primitive[] = Object.freeze(buildParabolaMethodDiagram());
