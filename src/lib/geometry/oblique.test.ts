@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEPTH_FACTOR, DEPTH_STEP, projectOblique, profileOf, obliqueBounds,
-  validateObliqueSolid,
+  validateObliqueSolid, obliqueKey,
   type ObliqueType,
 } from "./oblique.ts";
 import { block, subtractBox, subtractCylinder } from "./solid.ts";
@@ -108,4 +108,121 @@ test("a feature that does not span the full depth is not a prism", () => {
 test("a fully subtracted solid is rejected rather than drawn as nothing", () => {
   const gone = subtractBox(block(6, 6, 4), { x: 0, y: 0, z: 0, w: 6, d: 6, h: 4 }, "all");
   assert.equal(validateObliqueSolid(gone, "cavalier"), "EMPTY_SOLID");
+});
+
+const key = (ps: { kind: string }[]) =>
+  ps.map((p) => {
+    const q = p as unknown as { x1: number; y1: number; x2: number; y2: number };
+    // Canonical endpoint order, so authorship order cannot affect comparison.
+    const [a, b] = [[q.x1, q.y1], [q.x2, q.y2]].sort((m, n) => m[0] - n[0] || m[1] - n[1]);
+    return `${a[0]},${a[1]}-${b[0]},${b[1]}`;
+  }).sort();
+
+test("a plain box in cavalier is exactly the nine segments drawn by hand", () => {
+  // w=4 d=6 h=3, origin (0,20). Derived from the geometry, NOT recomputed from
+  // the generator: front rectangle (4), two back edges whose faces are visible
+  // (+x and +z), and three receding lines.
+  const got = key(obliqueKey({
+    solid: block(4, 6, 3), type: "cavalier", originX: 0, originY: 20,
+  }));
+  assert.deepEqual(got, [
+    "0,17-0,20",     // front left
+    "0,17-4,17",     // front top
+    "0,17-6,11",     // receding from TOP-LEFT
+    "0,20-4,20",     // front bottom
+    "10,11-10,14",   // back right
+    "4,17-10,11",    // receding from TOP-RIGHT -- the crease, see below
+    "4,17-4,20",     // front right
+    "4,20-10,14",    // receding from BOTTOM-RIGHT
+    "6,11-10,11",    // back top
+  ].sort());
+});
+
+test("POSITIVE CONTROL: the TOP-RIGHT receding crease is present", () => {
+  // It is INTERIOR to the silhouette hexagon, so a generator that emits only
+  // the union outline plus the front profile loses it and the drawing looks
+  // subtly wrong. It is the crease between the visible top face and the
+  // visible right face, and it is genuinely drawn.
+  const got = key(obliqueKey({
+    solid: block(4, 6, 3), type: "cavalier", originX: 0, originY: 20,
+  }));
+  assert.equal(got.includes("4,17-10,11"), true, "top-right receding crease missing");
+});
+
+test("no receding line from the BOTTOM-LEFT corner, where both faces are hidden", () => {
+  const got = key(obliqueKey({
+    solid: block(4, 6, 3), type: "cavalier", originX: 0, originY: 20,
+  }));
+  assert.equal(got.some((k) => k.startsWith("0,20-6,")), false);
+});
+
+test("OCCLUSION: a back edge covered by the sweep of nearer material is absent", () => {
+  // Top-left 2x2 removed, so moving up-and-right from the low-left region
+  // re-enters the solid -- which is exactly when a prism occludes itself.
+  const notched = subtractBox(block(6, 6, 4), { x: 0, y: 0, z: 2, w: 2, d: 6, h: 2 }, "notch");
+  const got = key(obliqueKey({
+    solid: notched, type: "cavalier", originX: 0, originY: 20,
+  }));
+  // The back edge of the LOW-LEFT top face (z=2, x 0..2 at y=6) would project
+  // to (6,12)-(8,12). The tall right part sweeps over it.
+  assert.equal(got.includes("6,12-8,12"), false, "an occluded back edge was drawn");
+  // ...while the back edge of the TALL part's top (z=4, x 2..6) is visible.
+  assert.equal(got.includes("8,10-12,10"), true, "a visible back edge was dropped");
+});
+
+test("every coordinate is an integer, in all three types", () => {
+  const prism = subtractBox(block(6, 6, 4), { x: 4, y: 0, z: 2, w: 2, d: 6, h: 2 }, "step");
+  for (const t of TYPES) {
+    for (const p of obliqueKey({ solid: prism, type: t, originX: 2, originY: 30 })) {
+      assert.equal(p.kind, "segment");
+      if (p.kind !== "segment") continue;
+      for (const n of [p.x1, p.y1, p.x2, p.y2]) {
+        assert.equal(Number.isInteger(n), true, `${t} produced ${n}`);
+      }
+    }
+  }
+});
+
+test("hidden lines are OMITTED -- every primitive is visible", () => {
+  const prism = subtractBox(block(6, 6, 4), { x: 4, y: 0, z: 2, w: 2, d: 6, h: 2 }, "step");
+  for (const t of TYPES) {
+    for (const p of obliqueKey({ solid: prism, type: t, originX: 2, originY: 30 })) {
+      assert.equal(p.type, "visible");
+    }
+  }
+});
+
+test("collinear unit edges are merged -- a 4-wide front edge is ONE segment", () => {
+  const got = key(obliqueKey({
+    solid: block(4, 6, 3), type: "cavalier", originX: 0, originY: 20,
+  }));
+  assert.equal(got.includes("0,20-4,20"), true, "front bottom was not merged");
+  assert.equal(got.includes("0,20-1,20"), false, "front bottom left as unit pieces");
+});
+
+test("two receding edges that project onto the SAME line and OVERLAP become one segment", () => {
+  // The top-left-notched prism has receding edges rising from profile vertices
+  // (0,2) and (2,4). Both land on x + y = 18, covering [0,6] and [2,8], so
+  // they overlap. A merger that only chains end-to-start emits five fragments
+  // where the drawing has one line; the key is the INK, and overlapping ink is
+  // drawn once. Found by dumping the real output, not by any assertion here
+  // before it existed.
+  const notched = subtractBox(block(6, 6, 4), { x: 0, y: 0, z: 2, w: 2, d: 6, h: 2 }, "notch");
+  const got = key(obliqueKey({ solid: notched, type: "cavalier", originX: 0, originY: 20 }));
+  assert.deepEqual(got, [
+    "0,18-0,20",    // front left
+    "0,18-2,18",    // front top, low part
+    "0,18-8,10",    // the UNIONED receding line -- two edges, one segment
+    "0,20-6,20",    // front bottom
+    "12,10-12,14",  // back right
+    "2,16-2,18",    // front inner left
+    "2,16-6,16",    // front top, tall part
+    "6,16-12,10",   // receding, top-right
+    "6,16-6,20",    // front right
+    "6,20-12,14",   // receding, bottom-right
+    "8,10-12,10",   // back top, tall part
+  ].sort());
+  // The concave vertex at (2,2) is buried under the tall part: its whole
+  // receding edge is occluded, so nothing lies on x + y = 20.
+  assert.equal(got.some((g) => g === "2,18-8,12"), false);
 });
