@@ -4,10 +4,11 @@
 
 **Practise technical drawing and get marked.** You draw on a snapping grid; it knows the answer, and tells you exactly what you got wrong.
 
-Two topics today:
+Three topics today, 17 exercises:
 
-- **Orthographic projection** — given a dimensioned isometric view of a part, draw its front, top and side views. It marks the content of each view *and* whether you placed them in the right projection convention, which are different mistakes and deserve different answers.
-- **Parabola construction** — build a parabolic arc by the rectangle method. Your construction lines are working lines and are ignored; the curve is what is marked.
+- **Orthographic projection** (8) — given a dimensioned isometric view of a part, draw its front, top and side views. It marks the content of each view *and* whether you placed them in the right projection convention, which are different mistakes and deserve different answers.
+- **Parabola construction** (3) — build a parabolic arc by the rectangle method. Your construction lines are working lines and are ignored; the curve is what is marked.
+- **Oblique projection** (6) — redraw a part as a pictorial with its front face true shape and its depth receding at 45°. Cavalier, cabinet and general oblique on the same solid, so the difference between them is something you see rather than something you are told. Some exercises give you a pictorial to redraw; others give you the three orthographic views and ask you to read them first.
 
 More of technical drawing is on the way. The marking engine doesn't know or care what the lines depict, so a topic is content rather than a rewrite.
 
@@ -26,7 +27,17 @@ This gives immediate, specific feedback. Not "78% similar" — *"your top view i
 
 It does not assess draughtsmanship. Input snaps to a grid, so it tests whether you understand the drawing, not whether you can strike a clean line. That narrowing is deliberate: it is what makes the marking honest and specific rather than fuzzy.
 
-It also sets a real limit on which topics are possible. Because everything snaps to whole grid points, a topic whose correct answer lands on irrational coordinates cannot be drawn here at all — measured, not assumed: tangent points from an external point to a circle landed on the lattice in **0 of 162** configurations tried. Tangents and ellipses therefore wait on a tolerance-based scoring mode rather than on someone finding the time to author them.
+It also sets a real limit on which topics are possible, and the limit is measured rather than guessed. Because everything snaps to whole grid points, a construction whose correct answer lands on irrational coordinates cannot be drawn here at all:
+
+| | On the lattice |
+|---|---|
+| Parabola by the rectangle method | all points, exactly |
+| Oblique, all three types | 27104 of 27104 corners |
+| Tangent from an external point to a circle | **0 of 162** configurations |
+| A line at exactly 60° (isometric) | none — the nearest is 60.2551° |
+| Rotating a drawing by anything but 90° | **4 of 360** whole degrees |
+
+So tangents, ellipses and isometric *drawing* wait on a tolerance-based scoring mode, rather than on someone finding the time to author them. And the rotate tool offers four stops rather than eight, because the other four cannot exist on a grid — rotating a shape 45° and rounding back turns a 4-unit edge into 2.83 and a right angle into 78.7°, which is a drawing tool quietly damaging your work.
 
 ## Both projection conventions
 
@@ -34,7 +45,11 @@ First-angle projection dominates Europe and Asia. Third-angle dominates the Unit
 
 ## Status
 
-**Design approved, nothing built.** See [`AGENTS.md`](AGENTS.md) for current status and [the design spec](docs/superpowers/specs/2026-08-20-orthographic-drill-design.md) for the reasoning behind it.
+**Working, run locally, not deployed.** Three topics mark real attempts end to end; 454 tests. The one thing not yet done is the test that matters most: a student who has never seen the app completing a drill cold and agreeing the feedback is right.
+
+Run it with `npm install && npm run dev`.
+
+See [`AGENTS.md`](AGENTS.md) for current status and what is next, [`docs/decision-log.md`](docs/decision-log.md) for why things are the way they are, and [the design specs](docs/superpowers/specs/) for the reasoning in the order it was written.
 
 ## License
 

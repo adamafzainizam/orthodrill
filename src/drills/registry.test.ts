@@ -347,6 +347,9 @@ test("an oblique prompt only names a dimension its pictorial actually shows", ()
   for (const id of listDrillIds()) {
     const drill = getDrill(id)!;
     if (drill.mode !== "figure" || drill.spec.kind !== "oblique") continue;
+    // Only exercises shown as a PICTORIAL name a dimension; the ones shown as
+    // three views point at the views instead and are checked separately below.
+    if (drill.spec.shownAs.kind !== "pictorial") continue;
     const pub = publicHalf(drill);
     assert.notEqual(pub.dimensions, undefined, `${id} has no pictorial to check against`);
     const shown = (pub.dimensions ?? []).map((d) => d.label);
@@ -382,5 +385,55 @@ test("an oblique prompt's stated diagonal count matches the type's depth factor"
       + `${drill.spec.solid.base.d}-deep part is `
       + `${DEPTH_FACTOR[drill.spec.type] * drill.spec.solid.base.d}`,
     );
+  }
+});
+
+test("a views-prompted drill NEVER shows the answer to a Type A exercise", () => {
+  // AGENTS.md §5.1 in new clothes. The three views of a solid ARE the answer
+  // key for an orthographic exercise on that solid, so a drill that SHOWS the
+  // views of S publishes the answer to any Type A drill that ASKS for them.
+  //
+  // Compared by the GENERATED VIEWS rather than by the solid's fields: two
+  // solids described differently can still produce identical views, and it is
+  // the views that leak, not the description.
+  const askedFor = new Map<string, string>();
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "views") continue;
+    askedFor.set(JSON.stringify(generateViews(drill.solid)), id);
+  }
+
+  let checked = 0;
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "figure" || drill.spec.kind !== "oblique") continue;
+    if (drill.spec.shownAs.kind !== "views") continue;
+    checked++;
+    const shown = JSON.stringify(generateViews(drill.spec.solid));
+    const clash = askedFor.get(shown);
+    assert.equal(
+      clash, undefined,
+      `${id} shows the three views of the same part that "${clash}" asks the `
+      + `student to DRAW — its prompt is that exercise's answer key`,
+    );
+  }
+  // A test that never runs proves nothing (AGENTS.md §6): fail loudly if the
+  // catalogue stops containing the thing this guards.
+  assert.ok(checked > 0, "no views-prompted drills found — this test is inert");
+});
+
+test("a views-prompted drill publishes its views and NOT its solid", () => {
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "figure" || drill.spec.kind !== "oblique") continue;
+    if (drill.spec.shownAs.kind !== "views") continue;
+    const pub = publicHalf(drill);
+    // Narrowed rather than cast: promptViews lives only on the figure branch.
+    assert.equal(pub.mode, "figure");
+    if (pub.mode !== "figure") continue;
+    assert.ok(pub.promptViews !== undefined, `${id} shows views but publishes none`);
+    assert.equal(pub.promptConvention, drill.spec.shownAs.convention);
+    assert.equal("spec" in pub, false, `${id} leaked its spec`);
+    assert.equal("solid" in pub, false, `${id} leaked its solid`);
   }
 });

@@ -247,3 +247,38 @@ So the earlier "cavalier only" call was wrong. Cabinet is not blocked; it is aut
 - **General oblique at `2/3`**, not `3/4` — it needs depths divisible by 3 rather than 4, so the solids stay smaller and the drawings fit the sheet.
 - **Author at least one solid drawn in all three types**, since the comparison is the point: the same part, three depth factors, visibly different distortion.
 - **Box-only still holds.** Nothing here rescues the through-hole; that finding is unchanged and independent of `k`.
+
+## 2026-08-29 — the rotate tool ships four stops, not eight
+
+**Asked for** as an AutoCAD-style rotate with "9 snapping points across 360 degrees". Measured before designing, per §2.4.
+
+**Only 4 of 360 whole degrees map the integer lattice to itself: 0, 90, 180, 270.** Nothing else, and **no finer grid ever adds any** — 0 of 6560 non-zero lattice points survive a 45° rotation, because `(x−y)/√2` is an integer only if `x−y` is a multiple of `√2`, which no integer is.
+
+**Rotate-and-round is not a near miss, which is why it is not offered as a fallback.** An asymmetric L rotated 45° and snapped back:
+
+| | |
+|---|---|
+| Worst edge | `4.000` → `2.828`, a 29% shortening |
+| Worst corner | right angle → `78.7°` |
+
+A drawing tool that silently deforms the student's work, in an app that then marks that work, is worse than a tool without a rotate button. This is the "close enough" judgement §1.1 names as how a tool teaches the wrong thing, arriving from a new direction.
+
+**More stops DO exist, and were rejected on a clean rule.** Rational points on the unit circle are exactly the Pythagorean triples, so a shape whose coordinates are all multiples of 5 can rotate exactly by the 3-4-5 angle — verified end to end, every vertex integer, worst pairwise-distance error `7e-15`. That gives **twelve** exact stops on a ×5 lattice, twenty on ×25, thirty-six on ×65. But none of them is 45°, every extra one is a decimal (36.87°, 53.13°, 22.62°…), and the sheet is 48×40, so a ×5 lattice leaves 9×8 usable positions — not enough for three views.
+
+**The builder's rule, stated 2026-08-29: ship only whole-number stops.** That settles it without needing the other arguments, and it is right on its own terms — a snap stop labelled `36.87°` is a bad control.
+
+**A second trap, caught before implementation.** Rotation about a centre `(cx, cy)` is lattice-safe only when `cx` and `cy` are **both** integer or **both** half-integer, so rotating about a selection's bounding-box centre is off-lattice whenever its width and height differ in parity — roughly half of all selections, silently producing coordinates `validate.ts` rejects. Every base point in the shipped design is integer by construction, so an unsafe one cannot be expressed. **Mirror has no such trap** — it touches one coordinate at a time and needs only `2·cx` to be an integer, which a bounding-box centre always satisfies. That asymmetry is why rotate takes a base point and mirror does not.
+
+**A related finding that changed the roadmap.** The same sweep showed no pair of lattice points sits at 60° — `tan 60° = √3`, nearest approach within 12 units is 60.2551°. **Isometric DRAWING is therefore Tier 2**, filed with tangents and ellipses. It does NOT block the Type B reverse drill, which asks a student to *read* an isometric rather than draw one.
+
+## 2026-09-02 — oblique ships as prisms, and the views-prompt leak
+
+**The prism scope was forced by the lattice, not chosen for convenience.** A solid usable in all three oblique types needs every y-coordinate divisible by 6, which on a depth-6 solid leaves `y ∈ {0, 6}` — meaning every feature spans the full depth. That is a prism: a 2D profile extruded. Prisms are also the only case where visibility is exactly computable, so the constraint and the tractable case turned out to be the same thing.
+
+**`isoedges.ts` could not be reused, and the reason generalises.** It returns a PAINT PROGRAM whose occlusion is overdraw — correct for a prompt picture, useless as an answer key, which must be an explicit set of scoreable primitives. Any future topic that needs a *key* rather than a *picture* will hit this same wall: a renderer and a generator are not interchangeable, however similar their output looks.
+
+**Wave 1 / wave 2 was a deliberate split.** Wave 1 prompts with the dimensioned isometric, reusing `Pictorial`. Wave 2 prompts with the three orthographic views — the classic textbook form — and needs a views-as-figure renderer that **the Type B reverse drill also needs**, so it was built once, generally, for both. Type B's prompt half is therefore done before Type B is started.
+
+**The security rule wave 2 created, and it is §5.1 in new clothes.** The three views of a solid ARE the answer key for a Type A orthographic exercise on that solid. So a drill that SHOWS those views publishes the answer to any drill that ASKS for them. Nothing about it looks like a leak — the prompt is a picture, the answer is a set of primitives, and they are the same object. A test enforces that no solid is used both ways, comparing **generated views rather than solid fields**, because two solids described differently can produce identical views and it is the views that leak. **This will apply to Type B by definition**, since Type B shows three views as its entire prompt.
+
+**What the render check earned this time.** Reading the pages as a student caught five defects no test saw: three prompts that contradicted the key (including the exact `√2` "full size" wording the lattice check had flagged in advance), a views prompt with no dimensions or grid that made its exercise literally unanswerable, and then a grid that was invisible because it was drawn in a border token at half a pixel. Two of the five are now mechanically checked. The other three are the reason `scripts/screenshot.ts` exists.

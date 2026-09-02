@@ -21,6 +21,7 @@ import { block, subtractBox, subtractCylinder, type Solid } from "../lib/geometr
 import { generateViews } from "../lib/geometry/views.ts";
 import { isometricView } from "../lib/geometry/isometric.ts";
 import { obliqueKey, type ObliqueSpec } from "../lib/geometry/oblique.ts";
+import { viewsFigure } from "../lib/geometry/viewsheet.ts";
 import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
 import { parabolaKey, type ParabolaSpec } from "../lib/geometry/parabola.ts";
@@ -73,7 +74,27 @@ export type FigureDrill = {
  */
 export type FigureSpec =
   | ({ kind: "parabola" } & ParabolaSpec)
-  | ({ kind: "oblique" } & ObliqueSpec);
+  | ({ kind: "oblique"; shownAs: ShownAs } & ObliqueSpec);
+
+/**
+ * How the part is put in front of the student.
+ *
+ * A DISCRIMINATED shape rather than two optional fields, so a convention
+ * cannot go missing when the views are what is shown — the dependency is
+ * structural instead of a rule someone has to remember.
+ *
+ * This lives on the DRILL rather than in `ObliqueSpec` because it is
+ * presentation, not geometry: `obliqueKey` derives the same answer either way,
+ * and making the geometry module carry it would force every call site to
+ * supply something it has no use for.
+ *
+ * "views" carries a real security consequence — the three views of a solid ARE
+ * the answer key for a Type A exercise on that solid. See `viewsheet.ts`, and
+ * the test in `registry.test.ts` that enforces the rule.
+ */
+export type ShownAs =
+  | { kind: "pictorial" }
+  | { kind: "views"; convention: Convention };
 
 /**
  * Which scoring mode an exercise uses. Explicit rather than inferred from
@@ -119,6 +140,14 @@ export type PublicDrill =
        */
       isometric?: readonly IsoPrimitive[];
       dimensions?: readonly IsoDim[];
+      /**
+       * The three views, laid out, when the exercise shows those instead of a
+       * pictorial. SAFE to publish only because the solid behind it is used by
+       * no Type A exercise — these views ARE that exercise's answer key. The
+       * rule is enforced in registry.test.ts.
+       */
+      promptViews?: readonly Primitive[];
+      promptConvention?: Convention;
       topic: PublicTopic;
     };
 
@@ -366,7 +395,7 @@ const CATALOGUE: Drill[] = [
     // or 6 — a multiple of 1, 2 AND 3. That is what lets this one solid carry
     // all three types, and the comparison across them is the actual teaching.
     spec: {
-      kind: "oblique", type: "cavalier", originX: 12, originY: 30,
+      kind: "oblique", type: "cavalier", shownAs: { kind: "pictorial" }, originX: 12, originY: 30,
       solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
     },
   },
@@ -386,7 +415,7 @@ const CATALOGUE: Drill[] = [
     topicId: "oblique",
     mode: "figure",
     spec: {
-      kind: "oblique", type: "cabinet", originX: 14, originY: 28,
+      kind: "oblique", type: "cabinet", shownAs: { kind: "pictorial" }, originX: 14, originY: 28,
       solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
     },
   },
@@ -406,7 +435,7 @@ const CATALOGUE: Drill[] = [
     topicId: "oblique",
     mode: "figure",
     spec: {
-      kind: "oblique", type: "general", originX: 14, originY: 28,
+      kind: "oblique", type: "general", shownAs: { kind: "pictorial" }, originX: 14, originY: 28,
       solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
     },
   },
@@ -429,8 +458,61 @@ const CATALOGUE: Drill[] = [
     // student's mind. Depth 4: legal for cabinet (step 2), and deliberately
     // NOT legal for general (step 3) — validateObliqueSolid would reject it.
     spec: {
-      kind: "oblique", type: "cabinet", originX: 14, originY: 28,
+      kind: "oblique", type: "cabinet", shownAs: { kind: "pictorial" }, originX: 14, originY: 28,
       solid: subtractBox(block(9, 4, 5), { x: 0, y: 0, z: 0, w: 2, d: 4, h: 2 }, "notch"),
+    },
+  },
+  {
+    id: "oblique-from-views-cavalier",
+    title: "From three views to cavalier oblique",
+    prompt:
+      "You are given the three orthographic views of a part, in FIRST ANGLE. "
+      + "Read them, then draw the part in CAVALIER oblique, which does not "
+      + "reduce the depth at all — six units deep is six diagonals back. "
+      + "The front view tells you the shape of the front face, which is drawn "
+      + "true shape; the top view tells you the depth. "
+      + "The depth goes back at 45° up and to the right — one step right and "
+      + "one step up per diagonal. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only "
+      + "what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    // A solid NO Type A exercise uses. Showing its three views publishes the
+    // answer to any orthographic drill that asks for them, which is why
+    // `registry.test.ts` enforces that no solid is used both ways.
+    spec: {
+      kind: "oblique", type: "cavalier",
+      shownAs: { kind: "views", convention: "first_angle" },
+      originX: 12, originY: 30,
+      solid: subtractBox(block(7, 6, 4), { x: 0, y: 0, z: 2, w: 3, d: 6, h: 2 }, "rebate"),
+    },
+  },
+  {
+    id: "oblique-from-views-cabinet",
+    title: "From three views to cabinet oblique",
+    prompt:
+      "You are given the three orthographic views of a part, in THIRD ANGLE — "
+      + "check the arrangement before you read them. Draw the part in CABINET "
+      + "oblique, which halves the depth — six units deep is three diagonals "
+      + "back. "
+      + "The front view tells you the shape of the front face, which is drawn "
+      + "true shape; the top view tells you the depth. "
+      + "The depth goes back at 45° up and to the right — one step right and "
+      + "one step up per diagonal. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only "
+      + "what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    // Third angle deliberately, so the pair covers both conventions — neither
+    // is "correct" (AGENTS.md §7) and a student who only ever sees one has
+    // learned half the topic.
+    spec: {
+      kind: "oblique", type: "cabinet",
+      shownAs: { kind: "views", convention: "third_angle" },
+      originX: 14, originY: 28,
+      solid: subtractBox(block(6, 6, 6), { x: 4, y: 0, z: 0, w: 2, d: 6, h: 3 }, "step"),
     },
   },
 ];
@@ -526,13 +608,21 @@ export function publicHalf(drill: Drill): PublicDrill {
       prompt: drill.prompt,
       mode: "figure",
       grid: SHEET,
-      // Oblique redraws a part, so it needs the part on screen. The parabola
-      // has nothing to depict and leaves both absent.
+      // Oblique redraws a part, so it needs the part on screen — either as a
+      // pictorial or as the three views to read it from. The parabola has
+      // nothing to depict and carries none of these.
       ...(drill.spec.kind === "oblique"
-        ? {
-          isometric: Object.freeze(isometricView(drill.spec.solid)),
-          dimensions: Object.freeze(isometricDimensions(drill.spec.solid)),
-        }
+        ? drill.spec.shownAs.kind === "pictorial"
+          ? {
+            isometric: Object.freeze(isometricView(drill.spec.solid)),
+            dimensions: Object.freeze(isometricDimensions(drill.spec.solid)),
+          }
+          : {
+            promptViews: freezeArray(
+              viewsFigure(drill.spec.solid, drill.spec.shownAs.convention),
+            ),
+            promptConvention: drill.spec.shownAs.convention,
+          }
         : {}),
       topic: publicTopic(drill),
     })

@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { Primitive, PrimitiveType } from "@/lib/scoring/primitives";
 
 /**
@@ -59,13 +60,23 @@ const WIDTH: Record<PrimitiveType, number> = {
 };
 
 export function MethodDiagram({
-  primitives, caption, variant = "paper",
+  primitives, caption, variant = "paper", grid = false,
 }: {
   primitives: readonly Primitive[];
   caption: string;
   /** `paper` for reference material a student studies; `blend` for a preview
    *  that should sit quietly on its host surface. */
   variant?: "paper" | "blend";
+  /**
+   * Draw squared paper behind the figure.
+   *
+   * NOT decoration. When a figure is the only statement of a part's SIZE — as
+   * the three-views prompt is, since it carries no dimensions — the student
+   * has to be able to count units off it, or they cannot produce the answer
+   * key at all and the exercise is unanswerable. Same reasoning that put a
+   * grid under the verification sheet's orthographic views.
+   */
+  grid?: boolean;
 }) {
   if (primitives.length === 0) return null;
 
@@ -85,6 +96,26 @@ export function MethodDiagram({
   const blend = variant === "blend";
   const palette = blend ? BLEND_STROKE : STROKE;
 
+  // One line per whole grid unit, covering the figure's own extent plus the
+  // padding, so a student can count squares to read a size off the drawing.
+  //
+  // `--grid` on `--paper`, which is exactly what the drawing canvas uses, NOT
+  // `--rule`: that is a BORDER token, and at 0.5px it sub-pixelled away
+  // entirely, leaving a caption telling the student to count squares that were
+  // not there. Caught by rendering the page, which is the only thing that sees
+  // it (AGENTS.md §6).
+  const gridLines: ReactElement[] = [];
+  if (grid) {
+    for (let i = 0; i <= Math.round(maxX - minX); i++) {
+      gridLines.push(<line key={`gv${i}`} x1={px(minX + i)} y1={PAD} x2={px(minX + i)} y2={h - PAD}
+        stroke="var(--grid)" strokeWidth={1} />);
+    }
+    for (let j = 0; j <= Math.round(maxY - minY); j++) {
+      gridLines.push(<line key={`gh${j}`} x1={PAD} y1={py(minY + j)} x2={w - PAD} y2={py(minY + j)}
+        stroke="var(--grid)" strokeWidth={1} />);
+    }
+  }
+
   return (
     <figure className="m-0">
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}
@@ -103,6 +134,7 @@ export function MethodDiagram({
           }
           : { background: "var(--paper)" }}
         role="img" aria-label={caption}>
+        {gridLines}
         {primitives.map((p, i) => {
           const stroke = palette[p.type];
           const dash = DASH[p.type];
