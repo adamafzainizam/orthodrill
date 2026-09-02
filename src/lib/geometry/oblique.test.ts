@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEPTH_FACTOR, DEPTH_STEP, projectOblique, profileOf, obliqueBounds,
+  validateObliqueSolid,
   type ObliqueType,
 } from "./oblique.ts";
-import { block, subtractBox } from "./solid.ts";
+import { block, subtractBox, subtractCylinder } from "./solid.ts";
 
 const TYPES: ObliqueType[] = ["cavalier", "cabinet", "general"];
 
@@ -64,4 +65,47 @@ test("bounds are (w + k*d) by (h + k*d)", () => {
     { width: 11, height: 7 });
   assert.deepEqual(obliqueBounds({ solid: s, type: "general", originX: 0, originY: 0 }),
     { width: 12, height: 8 });
+});
+
+// A legal prism: depth 6 (a multiple of 1, 2 AND 3), and its one feature
+// spans the whole depth, so it is an extrusion of a 2D profile.
+const PRISM = subtractBox(block(6, 6, 4), { x: 4, y: 0, z: 2, w: 2, d: 6, h: 2 }, "step");
+
+test("POSITIVE CONTROL: a legal prism passes in all three types", () => {
+  for (const t of TYPES) {
+    assert.equal(validateObliqueSolid(PRISM, t), null, `${t} rejected a legal prism`);
+  }
+});
+
+test("a cylinder is rejected -- a bore is an ellipse in oblique", () => {
+  const bored = subtractCylinder(block(6, 6, 4), "z", 3, 3, 1, "bore");
+  assert.equal(validateObliqueSolid(bored, "cavalier"), "CYLINDER_IN_OBLIQUE");
+});
+
+test("the depth rule is per TYPE: the same solid can be legal in one and not another", () => {
+  // Depth 4: fine for cavalier (step 1) and cabinet (step 2), not for
+  // general (step 3). This is the whole reason DEPTH_STEP exists.
+  const d4 = block(6, 4, 4);
+  assert.equal(validateObliqueSolid(d4, "cavalier"), null);
+  assert.equal(validateObliqueSolid(d4, "cabinet"), null);
+  assert.equal(validateObliqueSolid(d4, "general"), "DEPTH_NOT_ON_STEP");
+});
+
+test("a FEATURE's y-coordinate is checked too, not just the overall depth", () => {
+  // Depth 6 is legal for cabinet, but a feature starting at y=1 is not:
+  // AGENTS.md §4 is explicit that the rule covers every feature box's y and d.
+  const oddFeature = subtractBox(block(6, 6, 4), { x: 4, y: 1, z: 2, w: 2, d: 4, h: 2 }, "groove");
+  assert.equal(validateObliqueSolid(oddFeature, "cabinet"), "DEPTH_NOT_ON_STEP");
+});
+
+test("a feature that does not span the full depth is not a prism", () => {
+  // y=0..2 of a 6-deep block: every y is a multiple of 2, so the depth rule
+  // passes and only the prism rule catches it.
+  const notPrism = subtractBox(block(6, 6, 4), { x: 4, y: 0, z: 2, w: 2, d: 2, h: 2 }, "pocket");
+  assert.equal(validateObliqueSolid(notPrism, "cabinet"), "NOT_A_PRISM");
+});
+
+test("a fully subtracted solid is rejected rather than drawn as nothing", () => {
+  const gone = subtractBox(block(6, 6, 4), { x: 0, y: 0, z: 0, w: 6, d: 6, h: 4 }, "all");
+  assert.equal(validateObliqueSolid(gone, "cavalier"), "EMPTY_SOLID");
 });
