@@ -48,6 +48,8 @@ Nothing found gives automated, immediate, specific feedback on a technical drawi
 
 **Tier 1 — buildable now, lattice-exact.** Orthographic projection (**shipped**, 8 exercises), parabola by the rectangle method (**shipped**, 3), oblique in all three types on prism solids (**shipped**, 6 — some prompted by a pictorial, some by the three views), the Type B reverse drill (**not built**; its prompt half exists as `viewsheet.ts`), and straightedge constructions such as bisectors and equal divisions (**not built**). Each unbuilt one needs a generator, hints, and a method diagram or pictorial — nothing else.
 
+**The parabola topic is being BROADENED into geometric constructions** (decided 2026-09-06). It cannot reach §2.9's floor of 10 on its own — its distinct exercises are `n ∈ {2, 4, 5, 6}` and no more, because apex position is erased by the scorer's normalisation, the sheet height caps `n` at 6, and `n = 3` is the method diagram's. The straightedge constructions listed above stop being a separate future topic and become how that topic reaches ten. **Each one still runs its own lattice check first** — bisecting 90° gives 45° and is exact; bisecting 45° gives 22.5° and is not.
+
 **Tier 2 — blocked on a scoring decision, not on content.** Tangents, ellipses, curve fitting, through-holes drawn in oblique, **and isometric DRAWING**: anything whose correct answer is irrational. Isometric joined this tier on 2026-08-29 — `tan 60° = √3`, so no pair of lattice points sits at 60° and the nearest approach within 12 units is 60.2551°. This does NOT block the Type B reverse drill, which asks a student to READ an isometric, not draw one. A snap grid cannot express the answer, so these need TOLERANCE-based comparison, which does not exist and should not be added casually — "close enough" is exactly the sort of judgement that silently teaches the wrong thing, and it deserves the scrutiny §5.2 gave the generator.
 
 **Tier 3 — needs a different notion of correct entirely.** Building, electrical, interior, planning. A correct schematic is not a unique set of primitives; many arrangements are right. Scoring that is a research problem, not a feature. Out of scope until Tiers 1 and 2 exist.
@@ -110,7 +112,18 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
 **Phase detail:** three topics, all marking real attempts end to end, each with its own hint sidebar and reference figure. The Type A drill was confirmed working by a person: the builder drew all three views on the canvas, in first angle, with construction lines, and scored perfect — content and placement both. The design spec's §10 success criterion is met for the builder; **it has not yet been met by a student who has never seen the app, and that remains the one unmet criterion.**
 
-**Catalogue: 17 exercises — 8 orthographic, 3 parabola, 6 oblique.** That is past the original spec's 8-12 range, which was written when there was one topic; the range was about having enough of ONE topic to practise, and three topics at 8/3/6 is not the thing it was guarding against. Convention is even across orthographic (4 first-angle, 4 third-angle) and covered in both directions in oblique.
+**Catalogue: 17 exercises — 8 orthographic, 3 parabola, 6 oblique** (counted from the registry, not from this file). Convention is even across orthographic (4 first-angle, 4 third-angle) and covered in both directions in oblique.
+
+**Every one of those three is now BELOW the floor.** §2.9 sets 10 per topic as of 2026-09-06, superseding the original spec's 8-12 range. The debt that creates, measured rather than estimated:
+
+| Topic | Today | Owed |
+|---|---|---|
+| Orthographic | 8 | +2 |
+| Oblique | 6 | +4 |
+| Parabola → geometric constructions | 3 | +7, and it needs the §1.1 broadening to get there |
+| Type B (reading views) | 0 | +10 |
+
+That is 23 exercises, and the parabola row cannot be paid off by authoring alone.
 
 None of the orthographic eight are golden-set fixtures — they lean on the already-VERIFIED generator rather than being individually citation-checked — but every figure was rendered and read as a student before shipping, which is the check that has actually caught things (see §6 and the §9 log). `registry.test.ts` enforces the asymmetry requirement §7 always stated, plus two checks on authored PROSE: that an oblique prompt only names a dimension its pictorial really shows, and that its stated diagonal count equals `k × depth`.
 
@@ -147,7 +160,17 @@ None of the orthographic eight are golden-set fixtures — they lean on the alre
 
 ### Next, in order of value
 
-**1. Type B, the reverse drill — the biggest outstanding promise.** Specced in `2026-08-26-canvas-and-reverse-drill-design.md` §4, never planned.
+**Order agreed with the builder 2026-09-06:** Type B engine, then Type B content, then the catalogue backfill, then the update ribbon. The ribbon is last on purpose — it has little to announce until the backfill lands.
+
+**1. Type B, the reverse drill — the biggest outstanding promise.** Specced in `2026-08-26-canvas-and-reverse-drill-design.md` §4, and now in `2026-09-06-type-b-engine-design.md` for wave 1 (engine and server, no UI). Wave 2 is the builder component, hit-testing, feedback colours, the §7.1 isolation relaxation, and the other eight exercises.
+
+- **Read the 2026-09-06 spec, not just the 2026-08-26 one.** It deviates from that spec's §4.2 in a recorded way: the four viewpoints come from rotating the OCCUPANCY a quarter turn, not from four projection bases, so `isoproject.ts` is never edited. §3 of that spec says why.
+- **Type B is box-only, and it is forced.** `buildOccupancy` drops cylinders, so a bored key would silently omit the bore while the prompt shows a circle plainly.
+- **Three views determine the part BECAUSE our views draw hidden lines.** Measured 2026-09-06: `near-mirror-notches` has a visual hull eight cells larger than its key, so silhouettes alone do not pin it down. That makes hidden lines load-bearing rather than merely conventional.
+
+**1b. The catalogue backfill — 23 exercises, per §2.9 and the §3 table.** Orthographic +2 and oblique +4 use generators that already exist and are verified, so they are the cheapest rows. The parabola +7 needs the §1.1 broadening into geometric constructions first, and each new construction needs its own lattice check.
+
+**1c. Update notes and the ribbon** (§2.10). Date-keyed releases, a ribbon on menu and landing pages ONLY — never a drill page — and counts DERIVED from an `addedOn` field on each drill rather than authored. Note `git tag` returns nothing across 23 merged PRs despite §2.5 claiming tagged releases; date-keyed releases give that something to attach to.
 
 - **Its prompt half already exists.** `src/lib/geometry/viewsheet.ts` lays the three views out as one figure, convention-aware and alignment-correct, built for oblique wave 2 precisely because Type B needs the same picture.
 - **The §5.1 rule from wave 2 applies here by definition** (§6): Type B shows three views as its entire prompt, so its solids must be used by no Type A exercise, or the prompt hands over that exercise's answer. `registry.test.ts` already enforces this for views-prompted drills — extend it, do not re-derive it.
