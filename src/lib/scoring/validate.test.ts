@@ -2,9 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   validateAttempt,
+  validateCells,
   MAX_PRIMITIVES,
   MAX_COORD,
   MAX_RADIUS,
+  MAX_CELLS,
+  MAX_CELL_COORD,
 } from "./validate.ts";
 
 const seg = (x1: number, y1: number, x2: number, y2: number) =>
@@ -102,4 +105,59 @@ test("validated primitives are rebuilt, so unknown properties cannot ride along"
 test("one bad primitive rejects the whole attempt, rather than being dropped", () => {
   const r = validateAttempt([seg(0, 0, 1, 0), seg(0, 0, Number.NaN, 0)]);
   assert.equal(r.ok, false);
+});
+
+test("validateCells accepts a well-formed cell set and rebuilds it", () => {
+  const r = validateCells([[0, 0, 0], [1, 2, 3]]);
+  assert.equal(r.ok, true);
+  if (r.ok) assert.deepEqual(r.cells, [[0, 0, 0], [1, 2, 3]]);
+});
+
+test("validateCells rejects anything that is not an array", () => {
+  assert.deepEqual(validateCells({ cells: [] }), { ok: false, reason: "NOT_AN_ARRAY" });
+});
+
+test("validateCells rejects a cell that is not a triple", () => {
+  assert.deepEqual(validateCells([[0, 0]]), { ok: false, reason: "BAD_SHAPE" });
+  assert.deepEqual(validateCells([[0, 0, 0, 0]]), { ok: false, reason: "BAD_SHAPE" });
+});
+
+test("validateCells rejects non-integer and non-finite coordinates", () => {
+  assert.deepEqual(validateCells([[0, 0, 0.5]]), { ok: false, reason: "NOT_ON_GRID" });
+  assert.deepEqual(validateCells([[0, 0, NaN]]), { ok: false, reason: "NOT_A_NUMBER" });
+  assert.deepEqual(validateCells([[0, 0, "1"]]), { ok: false, reason: "NOT_A_NUMBER" });
+});
+
+test("validateCells rejects a negative coordinate", () => {
+  // A cell index is a grid position, never a signed offset — unlike a
+  // primitive coordinate, which may legitimately be negative.
+  assert.deepEqual(validateCells([[-1, 0, 0]]), { ok: false, reason: "OUT_OF_BOUNDS" });
+});
+
+test("validateCells rejects a coordinate past the cap", () => {
+  assert.deepEqual(validateCells([[MAX_CELL_COORD + 1, 0, 0]]), { ok: false, reason: "OUT_OF_BOUNDS" });
+});
+
+test("validateCells rejects a duplicated cell", () => {
+  // A set, submitted as an array. Duplicates would inflate the count past the
+  // cap check and mean nothing to a set diff, so they are a client bug.
+  assert.deepEqual(validateCells([[1, 1, 1], [1, 1, 1]]), { ok: false, reason: "DUPLICATE_CELL" });
+});
+
+test("validateCells rejects an oversized set BEFORE inspecting its contents", () => {
+  const huge = Array.from({ length: MAX_CELLS + 1 }, () => "not even a cell");
+  assert.deepEqual(validateCells(huge), { ok: false, reason: "TOO_MANY_CELLS" });
+});
+
+test("validateCells rebuilds cells rather than passing the caller's arrays through", () => {
+  const smuggled: unknown[] = [[0, 0, 0]];
+  (smuggled[0] as unknown[]).push("extra");
+  assert.deepEqual(validateCells(smuggled), { ok: false, reason: "BAD_SHAPE" });
+});
+
+test("validateCells accepts an empty build", () => {
+  // A student who has cut everything away submits nothing. That is a wrong
+  // answer, not a malformed request, and the scorer says so.
+  const r = validateCells([]);
+  assert.equal(r.ok, true);
 });
