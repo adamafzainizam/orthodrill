@@ -304,6 +304,14 @@ other eight exercises are written. The parabola hint that told students to draw 
 smooth curve against a straight-segment key passed every test in the suite; only
 reading it on the page caught it.
 
+**A specific claim to check first, found while verifying wave 1.** The
+`build-corner-step` prompt tells the student to "count grid squares to read each
+size". Nothing in wave 1 draws a grid — `promptViews` is a bare set of segments,
+and whether a grid appears is the RENDERER's decision in wave 2. That is exactly
+the defect the oblique wave-2 session shipped and caught only by looking: a
+caption telling a student to count squares that were not drawn. **Wave 2 must
+either render the grid or reword the prompt.**
+
 **Each drill carries an `addedOn` date** (AGENTS.md §2.10), so the update ribbon
 can derive what is new from the registry rather than being told. The field is
 added here because Type B is the first content authored after that constraint
