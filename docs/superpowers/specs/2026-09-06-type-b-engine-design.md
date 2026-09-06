@@ -24,6 +24,10 @@ unchanged:
 builder component, hit-testing, feedback colours and the §7.1 isolation
 relaxation are wave 2, and get their own spec section and their own plan.
 
+"No UI" means no new React component and no new page. The topic card, hints and
+preview of §7 are authored DATA — a topic entry and a figure spec — rendered by
+components that already exist, exactly as the oblique topic's preview is.
+
 The split is the parent spec's own §9 advice — "starting with the
 four-viewpoint projection, since everything else in it depends on that being
 right" — and the same shape as oblique's two waves: get the thing that can be
@@ -205,8 +209,12 @@ views are correct but placed in the wrong convention, and names which one the
 student actually used.
 
 So missing and extra cells are grouped into **6-connected regions**, and each
-region is described by where it sits, derived from its centroid within the key's
-bounding box.
+region is described by where it sits. The descriptor is explicit rather than
+left to the implementer: the region's centroid is placed in thirds along each
+axis of the KEY's bounding box, giving left/centre/right on x, front/middle/back
+on y, and bottom/middle/top on z. Axes whose third is the middle one are dropped
+from the phrase, so a region at the back on the left reads "at the back left"
+rather than "at the back left middle".
 
 **A view is named only when that view genuinely differs.** A region can sit
 behind other material and change nothing in a given view; saying "the top view
