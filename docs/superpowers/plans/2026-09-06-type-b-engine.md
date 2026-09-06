@@ -904,20 +904,67 @@ test("POSITIVE CONTROL: a wrong build that changes a view is NOT called view-con
   assert.equal(r.matchesAllViews, false, "a build whose views differ must not be excused");
 });
 
-test("a build that differs from the key but matches all three views is reported as such", () => {
-  // Constructed directly rather than searched for: two cell sets whose three
-  // generated views are identical. If no such pair exists for this grid the
-  // test states so loudly rather than passing vacuously.
-  const key = cellsOfSolid(block(3, 3, 3));
-  const attempt: Cell[] = [...key, [3, 0, 0]];
+test("EXHAUSTIVE: on a 2x2x2 grid, do two different parts ever share all three views?", () => {
+  // This is a MEASUREMENT as much as a test, and it is the only honest way to
+  // exercise §5.3. Enumerate all 256 subsets of a 2x2x2 grid, bucket them by
+  // their three generated views, and look for a bucket holding two distinct
+  // normalised cell sets. Such a pair is a genuine ambiguity: a student could
+  // build either and be right.
+  //
+  // An earlier draft of this test faked a pair by adding a cell outside the
+  // block, which changes the bounding box and therefore the views — it passed
+  // through its own else-branch without ever reaching the code it named. Do
+  // not replace this with a hand-made pair unless you have verified the views
+  // really are identical.
+  const buckets = new Map<string, Cell[][]>();
+  for (let mask = 1; mask < 256; mask++) {
+    const cells: Cell[] = [];
+    for (let b = 0; b < 8; b++) {
+      if (mask & (1 << b)) cells.push([b & 1, (b >> 1) & 1, (b >> 2) & 1]);
+    }
+    const norm = normaliseCells(cells);
+    const dim = (i: 0 | 1 | 2) => norm.reduce((m, c) => Math.max(m, c[i] + 1), 1);
+    const v = generateViewsFromOccupancy(occupancyFromCells(norm, dim(0), dim(1), dim(2)));
+    const sig = JSON.stringify([v.front, v.top, v.side]);
+    const seen = buckets.get(sig) ?? [];
+    if (!seen.some((other) => JSON.stringify(other) === JSON.stringify(norm))) seen.push(norm);
+    buckets.set(sig, seen);
+  }
+
+  const ambiguous = [...buckets.values()].find((sets) => sets.length > 1);
+  if (ambiguous === undefined) {
+    // No pair exists on this grid. That is a real finding and it strengthens
+    // the premise check in the engine spec §2 — record it, do not skip.
+    assert.ok(buckets.size > 0, "no subsets were enumerated — this test is inert");
+    return;
+  }
+
+  const [key, attempt] = ambiguous;
   const r = scoreSolid(attempt, key);
-  if (viewsDifferingWhenRestored(key, attempt).length === 0) {
-    assert.equal(r.matchesAllViews, true, "views agree, so the verdict must say so rather than mark it wrong");
-    assert.equal(r.perfect, false);
-  } else {
-    // The pair does differ in a view, which is the ordinary case; assert the
-    // ordinary outcome rather than skipping, so this test is never inert.
-    assert.equal(r.matchesAllViews, false);
+  assert.equal(r.perfect, false, "the two sets differ, so this is not a perfect build");
+  assert.equal(
+    r.matchesAllViews, true,
+    "these two parts share all three views, so the verdict must say so rather than mark the student wrong",
+  );
+});
+
+test("matchesAllViews is exactly 'not perfect, and no view differs'", () => {
+  // Pins the predicate itself, so §5.3 is covered even on grids where no
+  // ambiguous pair exists. Driven through the public entry point on both
+  // sides, never recomputed from solid.ts's internals.
+  const key = cellsOfSolid(subtractBox(block(3, 3, 2), { x: 0, y: 0, z: 1, w: 1, d: 1, h: 1 }, "nick"));
+  const cases: Cell[][] = [
+    key,
+    key.filter((c) => !(c[0] === 2 && c[1] === 2 && c[2] === 0)),
+    cellsOfSolid(block(3, 3, 2)),
+  ];
+  for (const attempt of cases) {
+    const r = scoreSolid(attempt, key);
+    const viewsDiffer = viewsDifferingWhenRestored(attempt, key).length > 0;
+    assert.equal(
+      r.matchesAllViews, !r.perfect && !viewsDiffer,
+      `matchesAllViews disagreed with the views for attempt of ${attempt.length} cells`,
+    );
   }
 });
 ```
@@ -1026,12 +1073,12 @@ to add `|scoring\/solid` after `scoring\/score`:
 const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/isoedges|geometry\/parabola|scoring\/score|scoring\/solid|scoring\/assign)/;
 ```
 
-Note the pattern `geometry\/solid` already matches `scoring/solid`'s own filename in some import strings; the added alternative is explicit so the intent survives a future edit to either name.
+The existing `geometry\/solid` alternative does NOT cover this: it matches the import string `../geometry/solid.ts`, whereas a client file reaching this module would import `../lib/scoring/solid.ts`. The two names look alike and match different things, which is exactly why the new alternative is spelled out rather than assumed.
 
 - [ ] **Step 5: Run the tests and verify they pass**
 
 Run: `npm test 2>&1 | tail -8`
-Expected: PASS, count risen by 5.
+Expected: PASS, count risen by 6.
 
 - [ ] **Step 6: Prove the derivation is real, not decoration**
 
