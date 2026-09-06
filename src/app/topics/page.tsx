@@ -4,7 +4,7 @@ import { Backlight } from "@/components/Backlight";
 import { DriftingFigures } from "@/components/DriftingFigures";
 import { MethodDiagram } from "@/components/MethodDiagram";
 import { TOPIC_IDS, getTopic } from "@/topics/topics";
-import { getDrill, listDrillIds, topicPreview } from "@/drills/registry";
+import { getDrill, listPlayableDrillIds, playableTopicIds, topicPreview } from "@/drills/registry";
 
 /**
  * The topic chooser, as SECTIONS rather than a list of text cards.
@@ -15,14 +15,19 @@ import { getDrill, listDrillIds, topicPreview } from "@/drills/registry";
  * what the topic looks like without solving anything a student will be asked.
  */
 export default function TopicsPage() {
-  const topics = TOPIC_IDS.map((id) => getTopic(id)!);
+  // A topic with nothing playable is hidden rather than shown empty — see
+  // registry.playableTopicIds. Wave 1 of Type B registers its topic before its
+  // builder exists.
+  const live = new Set(playableTopicIds());
+  const topics = TOPIC_IDS.filter((id) => live.has(id)).map((id) => getTopic(id)!);
   // Resolved here rather than inside the component, for the same reason the
   // front page does it: registry is server-only.
   const driftFigures = TOPIC_IDS
+    .filter((id) => live.has(id))
     .map((id) => topicPreview(id))
     .filter((f): f is NonNullable<typeof f> => f !== null);
   const countFor = (topicId: string) =>
-    listDrillIds().map((d) => getDrill(d)!).filter((d) => d.topicId === topicId).length;
+    listPlayableDrillIds().map((d) => getDrill(d)!).filter((d) => d.topicId === topicId).length;
 
   return (
     <>

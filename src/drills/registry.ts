@@ -22,6 +22,8 @@ import { generateViews } from "../lib/geometry/views.ts";
 import { isometricView } from "../lib/geometry/isometric.ts";
 import { obliqueKey, type ObliqueSpec } from "../lib/geometry/oblique.ts";
 import { viewsFigure } from "../lib/geometry/viewsheet.ts";
+import { cellsOfSolid } from "../lib/geometry/cells.ts";
+import type { Cell } from "../lib/geometry/rotate3.ts";
 import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
 import { parabolaKey, type ParabolaSpec } from "../lib/geometry/parabola.ts";
@@ -103,7 +105,34 @@ export type ShownAs =
  * discriminant TypeScript narrows on below, so `ViewsDrill` and `FigureDrill`
  * must each carry a distinct literal, not just distinct shapes.
  */
-export type Drill = ViewsDrill | FigureDrill;
+/**
+ * A Type B reverse drill: the student is shown the three views and BUILDS the
+ * part. The answer key is the solid's occupied-cell set.
+ *
+ * BOX-ONLY, and it is forced rather than chosen: `buildOccupancy` ignores
+ * cylinder ops, so a bored solid's key would silently omit the bore while the
+ * prompt showed a circle plainly, and the student would be marked wrong for
+ * the one feature they could read most easily. Enforced by `registry.test.ts`.
+ *
+ * `convention` places the three views in the PROMPT. Unlike a views drill it
+ * is not scored — nothing about where the student's part sits depends on it —
+ * but the figure has to be laid out one way or the other, and saying which
+ * teaches the difference the app exists to teach.
+ */
+export type BuildDrill = {
+  id: string;
+  title: string;
+  prompt: string;
+  convention: Convention;
+  topicId: TopicId;
+  mode: "build";
+  /** ISO date. Derived content for the update ribbon (AGENTS.md §2.10). */
+  addedOn: string;
+  /** PRIVATE. The answer key in compressed form. Never serialise this. */
+  solid: Solid;
+};
+
+export type Drill = ViewsDrill | FigureDrill | BuildDrill;
 
 /** What the sidebar needs, and nothing a hint author did not write by hand. */
 export type PublicTopic = { id: TopicId; title: string; hints: Hint[] };
@@ -148,6 +177,28 @@ export type PublicDrill =
        */
       promptViews?: readonly Primitive[];
       promptConvention?: Convention;
+      topic: PublicTopic;
+    }
+  | {
+      id: string;
+      title: string;
+      prompt: string;
+      mode: "build";
+      grid: Readonly<{ width: number; height: number }>;
+      /**
+       * The three views, laid out — the ENTIRE prompt for a Type B drill.
+       * Safe to publish only because the solid behind it is used by no Type A
+       * exercise; these views ARE that exercise's answer key. Enforced in
+       * registry.test.ts.
+       */
+      promptViews: readonly Primitive[];
+      promptConvention: Convention;
+      /**
+       * The base block's dimensions. Readable straight off the three views
+       * anyway, so supplying them gives nothing away, and it saves the builder
+       * UI from re-deriving what the student can already see.
+       */
+      base: Readonly<{ w: number; d: number; h: number }>;
       topic: PublicTopic;
     };
 
@@ -318,6 +369,37 @@ const CATALOGUE: Drill[] = [
       subtractBox(block(9, 6, 4), { x: 6, y: 0, z: 2, w: 3, d: 6, h: 2 }, "step"),
       { x: 7, y: 0, z: 0, w: 2, d: 2, h: 4 }, "notch",
     ),
+  },
+  {
+    id: "build-corner-step",
+    title: "Build the stepped bar",
+    prompt:
+      "The three views below show one part. Build it: start from the full "
+      + "block the views enclose and remove material until your part matches "
+      + "all three. Count grid squares to read each size, and check every "
+      + "feature against more than one view before you cut it.",
+    convention: "first_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-06",
+    // Box-only and asymmetric. Used by no other drill — the three views ARE
+    // the answer to a Type A exercise on this solid, so sharing it would
+    // publish that answer (AGENTS.md §6).
+    solid: subtractBox(block(5, 4, 3), { x: 3, y: 0, z: 1, w: 2, d: 4, h: 2 }, "step"),
+  },
+  {
+    id: "build-offset-notch",
+    title: "Build the notched block",
+    prompt:
+      "The three views below show one part. Build it: start from the full "
+      + "block the views enclose and remove material until your part matches "
+      + "all three. This part's notch does not run the full depth, so the top "
+      + "view is the one that tells you how far back it goes.",
+    convention: "third_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-06",
+    solid: subtractBox(block(6, 4, 3), { x: 0, y: 2, z: 0, w: 2, d: 2, h: 2 }, "notch"),
   },
   {
     id: "parabola-rectangle-5",
@@ -547,6 +629,7 @@ export function getDrill(id: string): Drill | null {
  */
 const keyCache = new Map<string, KeyViews>();
 const figureKeyCache = new Map<string, Primitive[]>();
+const buildKeyCache = new Map<string, Cell[]>();
 const publicCache = new Map<string, PublicDrill>();
 
 /** One level deep is enough: these hold arrays of plain primitive records. */
@@ -597,11 +680,69 @@ function publicTopic(drill: Drill): PublicTopic {
  * construction to draw and roughly where on the sheet to put it — is carried
  * in `prompt`, authored as prose, not as machine-readable numbers.
  */
+/**
+ * The drills the CURRENT UI can actually put in front of a student.
+ *
+ * WAVE 1 OF TYPE B REGISTERS `build` DRILLS WITHOUT A BUILDER TO DRAW THEM.
+ * They must be in the registry — the API serves them, and `registry.test.ts`'s
+ * box-only, well-posedness and views-leak guards all read them — but listing
+ * them in a menu would hand a student a link to a page that cannot render.
+ * So the registry keeps every drill and the student-facing listings ask this.
+ *
+ * DELETE THIS FUNCTION when the builder component ships, and put
+ * `listDrillIds` back in the three pages that call it. It is deliberately a
+ * named concept rather than an inline `.filter(d => d.mode !== "build")`
+ * repeated in each of them, so there is exactly one place to undo.
+ */
+export function listPlayableDrillIds(): string[] {
+  return listDrillIds().filter((id) => getDrill(id)!.mode !== "build");
+}
+
+/**
+ * Topic ids with at least one drill the current UI can render.
+ *
+ * Same wave-1 reason as `listPlayableDrillIds`, and it goes away with it: the
+ * reading-views topic is registered and guarded before its builder exists, and
+ * a topic card advertising a topic with nothing behind it is a promise the app
+ * cannot keep. Hidden until it has something to open.
+ */
+export function playableTopicIds(): string[] {
+  const seen = new Set<string>();
+  for (const id of listPlayableDrillIds()) seen.add(getDrill(id)!.topicId);
+  return [...seen];
+}
+
+/**
+ * Overloaded so that NARROWING A DRILL NARROWS ITS PUBLIC HALF. A page that has
+ * established `drill.mode !== "build"` gets a public half without the build
+ * branch, and can read `isometric` without a cast.
+ *
+ * This is deliberately overloads and not a cast at the call site. AGENTS.md §6
+ * records that TypeScript is the LAST protection on this seam — `Drill` has no
+ * `grid`, so handing one where a `PublicDrill` is expected is a compile error,
+ * and `as PublicDrill` would delete that guard. An overload keeps the checking;
+ * a cast removes it.
+ */
+export function publicHalf(drill: ViewsDrill | FigureDrill): Exclude<PublicDrill, { mode: "build" }>;
+export function publicHalf(drill: BuildDrill): Extract<PublicDrill, { mode: "build" }>;
+export function publicHalf(drill: Drill): PublicDrill;
 export function publicHalf(drill: Drill): PublicDrill {
   const cached = publicCache.get(drill.id);
   if (cached !== undefined) return cached;
 
-  const built: PublicDrill = drill.mode === "figure"
+  const built: PublicDrill = drill.mode === "build"
+    ? Object.freeze({
+      id: drill.id,
+      title: drill.title,
+      prompt: drill.prompt,
+      mode: "build",
+      grid: SHEET,
+      promptViews: freezeArray(viewsFigure(drill.solid, drill.convention)),
+      promptConvention: drill.convention,
+      base: Object.freeze({ ...drill.solid.base }),
+      topic: publicTopic(drill),
+    })
+    : drill.mode === "figure"
     ? Object.freeze({
       id: drill.id,
       title: drill.title,
@@ -641,11 +782,21 @@ export function publicHalf(drill: Drill): PublicDrill {
   return built;
 }
 
+/** SERVER ONLY. The answer key for a "build" exercise: its occupied cells. */
+export function answerKey(drill: BuildDrill): Cell[];
 /** SERVER ONLY. The answer key for a "views" exercise, derived from the solid and cached. */
 export function answerKey(drill: ViewsDrill): KeyViews;
 /** SERVER ONLY. The answer key for a "figure" exercise, derived from the spec and cached. */
 export function answerKey(drill: FigureDrill): Primitive[];
-export function answerKey(drill: Drill): KeyViews | Primitive[] {
+export function answerKey(drill: Drill): KeyViews | Primitive[] | Cell[] {
+  if (drill.mode === "build") {
+    const cached = buildKeyCache.get(drill.id);
+    if (cached !== undefined) return cached;
+    const built = Object.freeze(cellsOfSolid(drill.solid)) as unknown as Cell[];
+    buildKeyCache.set(drill.id, built);
+    return built;
+  }
+
   if (drill.mode === "figure") {
     const cached = figureKeyCache.get(drill.id);
     if (cached !== undefined) return cached;
@@ -770,8 +921,26 @@ export const ORTHOGRAPHIC_PREVIEW: readonly Primitive[] = Object.freeze(buildOrt
  * What each topic shows on its card. A topic with no preview renders none
  * rather than borrowing another topic's, which would teach the wrong thing.
  */
+/**
+ * The reading-views topic card: the three views of a part, which is what the
+ * drill actually puts in front of a student.
+ *
+ * DELIBERATELY A SOLID NO EXERCISE USES — same rule as the parabola diagram's
+ * n=3 and the oblique diagram's plain block. Here the rule is not merely
+ * pedagogical: these views ARE an answer key, so an exercise's solid on a
+ * topic card would publish that exercise's answer to the front page.
+ */
+const READING_VIEWS_PREVIEW_SOLID = subtractBox(
+  block(3, 3, 3), { x: 0, y: 0, z: 2, w: 1, d: 3, h: 1 }, "lip",
+);
+
+export const READING_VIEWS_PREVIEW: readonly Primitive[] = Object.freeze(
+  viewsFigure(READING_VIEWS_PREVIEW_SOLID, "first_angle"),
+);
+
 export function topicPreview(topicId: string): readonly Primitive[] | null {
   if (topicId === "orthographic") return ORTHOGRAPHIC_PREVIEW;
+  if (topicId === "reading-views") return READING_VIEWS_PREVIEW;
   if (topicId === "parabola") return PARABOLA_METHOD_DIAGRAM;
   if (topicId === "oblique") return OBLIQUE_METHOD_DIAGRAM;
   return null;

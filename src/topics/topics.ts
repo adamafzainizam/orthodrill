@@ -17,7 +17,7 @@
  * as a topic. Same pattern as `drills/registry.ts`'s `getDrill`.
  */
 
-export type TopicId = "orthographic" | "parabola" | "oblique";
+export type TopicId = "orthographic" | "parabola" | "oblique" | "reading-views";
 
 export type Hint = { title: string; body: string };
 
@@ -184,6 +184,48 @@ const CATALOGUE: Topic[] = [
           + "through the squares, which is 45°. Other angles are used in "
           + "practice — 30° and 60° are common on plain paper — but they do "
           + "not land on grid intersections, so every exercise here uses 45°.",
+      },
+    ],
+  },
+  {
+    id: "reading-views",
+    title: "Reading three views",
+    blurb:
+      "Given the front, top and side views of a part, build the part itself. "
+      + "The opposite direction to drawing the views, and a different skill.",
+    hints: [
+      {
+        title: "Read all three views before you cut anything",
+        body:
+          "A single view is a shadow: many different parts cast it. What fixes "
+          + "the shape is the three together, and a feature you can only see in "
+          + "one of them is the one most often missed. Look at all three, "
+          + "decide what the part is, and only then start removing material.",
+      },
+      {
+        title: "A dashed line means material you cannot see from there",
+        body:
+          "A hidden line marks an edge that is really in the part but is "
+          + "blocked from that direction by material in front of it. It is not "
+          + "decoration and it is not optional — for many parts the dashed "
+          + "lines are the only thing distinguishing the real shape from a "
+          + "different part with the same outline.",
+      },
+      {
+        title: "Line up the views to place a feature",
+        body:
+          "The front and top views share their left-to-right positions, and "
+          + "the front and side views share their heights. A feature's position "
+          + "in one view therefore tells you where to look for it in another, "
+          + "which is how you work out its depth without guessing.",
+      },
+      {
+        title: "Start from the whole block and take material away",
+        body:
+          "The part begins as the solid block its three views enclose. Every "
+          + "step after that removes material, exactly as it would be machined. "
+          + "If you cut too far you can put material back, but thinking of it "
+          + "as carving keeps the shape you are aiming at in view.",
       },
     ],
   },

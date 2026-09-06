@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import { DriftingFigures } from "@/components/DriftingFigures";
 import { TOPIC_IDS, getTopic } from "@/topics/topics";
-import { topicPreview } from "@/drills/registry";
+import { playableTopicIds, topicPreview } from "@/drills/registry";
 
 /**
  * A short landing — deliberately not a marketing page.
@@ -22,7 +22,9 @@ import { topicPreview } from "@/drills/registry";
 export default function Home() {
   // Resolved HERE, not inside the component: `drills/registry` holds the
   // answer keys, so only server code under app/ may reach it.
+  const live = new Set(playableTopicIds());
   const withPreview = TOPIC_IDS
+    .filter((id) => live.has(id))
     .map((id) => ({ title: getTopic(id)!.title, figure: topicPreview(id) }))
     .filter((t) => t.figure !== null);
   const named = withPreview.map((t) => t.title);

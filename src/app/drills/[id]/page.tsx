@@ -12,6 +12,13 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const drill = getDrill(id);
   if (drill === null) notFound();
+  // A "build" drill is registered, served by the API and guarded by
+  // registry.test.ts, but its BUILDER component is wave 2 — this page draws on
+  // a sheet, and a build exercise has no sheet to draw on. 404 rather than
+  // render an editor for an exercise it cannot express. Nothing links here in
+  // wave 1 (see registry.listPlayableDrillIds); this is the direct-URL case.
+  // REMOVE with that filter when the builder ships.
+  if (drill.mode === "build") notFound();
 
   // Only the public half crosses into the client component. The solid — which
   // IS the answer key, since generateViews turns it into the views — stays here.

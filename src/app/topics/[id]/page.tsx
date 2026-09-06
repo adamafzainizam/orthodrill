@@ -2,14 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { getTopic } from "@/topics/topics";
-import { getDrill, listDrillIds } from "@/drills/registry";
+import { getDrill, listPlayableDrillIds } from "@/drills/registry";
 
 export default async function TopicPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const topic = getTopic(id);
   if (topic === null) notFound();
 
-  const exercises = listDrillIds()
+  const exercises = listPlayableDrillIds()
     .map((drillId) => getDrill(drillId)!)
     .filter((d) => d.topicId === topic.id);
 
