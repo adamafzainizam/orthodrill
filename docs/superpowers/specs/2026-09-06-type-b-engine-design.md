@@ -273,7 +273,14 @@ and as a Type A subject, comparing generated VIEWS rather than solid fields;
 extend that to `mode: "build"` rather than re-deriving it.
 
 **Consequence for content:** every box-only solid in the catalogue is already a
-Type A subject, so Type B needs new solids. Wave 1 registers three.
+Type A subject, so Type B needs new solids — **ten of them**, per AGENTS.md
+§2.9. Each must be box-only, well-posed, and used by no Type A exercise.
+
+**Wave 1 registers TWO**, enough to exercise the round trip and both guards.
+The remaining eight are authored in wave 2, where §7's read-it-as-a-student
+check can actually be applied to them. Authoring ten prompts in wave 1 would
+multiply the owed debt below tenfold for no gain — the engine is not better
+tested by eight more rows of content it never reads.
 
 ---
 
@@ -290,11 +297,17 @@ built from a solid that is deliberately no exercise's.
 
 **An owed debt, recorded so it is not quietly skipped.** §7's check — *would a
 student who followed this exactly produce the key?* — is applied by rendering
-the page and reading it as a student. There is no page in wave 1. **The prompts
-and hints authored here are therefore UNVERIFIED by that check until wave 2**,
-and verifying them is the first content task of wave 2. The parabola hint that
-told students to draw a smooth curve against a straight-segment key passed every
-test in the suite; only reading it on the page caught it.
+the page and reading it as a student. There is no page in wave 1. **The two
+prompts and the hints authored here are therefore UNVERIFIED by that check until
+wave 2**, and verifying them is the first content task of wave 2, before the
+other eight exercises are written. The parabola hint that told students to draw a
+smooth curve against a straight-segment key passed every test in the suite; only
+reading it on the page caught it.
+
+**Each drill carries an `addedOn` date** (AGENTS.md §2.10), so the update ribbon
+can derive what is new from the registry rather than being told. The field is
+added here because Type B is the first content authored after that constraint
+existed; backfilling it across the existing catalogue belongs with the ribbon.
 
 ---
 
@@ -349,8 +362,8 @@ shows clearly.
 
 ## 11. Open questions
 
-- **How many Type B exercises, and in what progression.** Wave 1 registers
-  three; the catalogue's shape is content judgement, deferred to the builder, as
-  the parent spec's §11 already deferred it.
+- **~~How many Type B exercises~~ — SETTLED 2026-09-06.** AGENTS.md §2.9 sets
+  the floor at 10 per topic. Two in wave 1, eight in wave 2. The *progression*
+  across those ten is still content judgement and still the builder's.
 - **Feedback colours** for missing and extra regions — parent spec §11, and a
   wave 2 decision best made against a real rendering.

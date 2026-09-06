@@ -91,6 +91,16 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
 
    **§9's session log is deliberately outside this rule and its Who column stays exactly as it is.** That column is an engineering record — which agent or human touched what, so the next session knows whose reasoning it is reading — not a credit line. Do not "tidy" it to remove agent names. Same for the decision log and any in-source comment describing why a design turned out the way it did.
 8. **English only.** No i18n, no Bahasa Melayu. Reversing this needs a recorded decision.
+9. **Every topic carries at least 10 exercises**, and as many beyond that as the topic can support. Stated by the builder 2026-09-06. This supersedes the original spec's 8-12 range, which was written when there was one topic and was about having enough of ONE topic to practise on.
+
+   **A topic that cannot reach 10 is a signal about the topic, not a licence to bend the count.** Measured the day the policy was set: the parabola caps at FOUR distinct exercises, because `compareView` normalises to the bounding-box origin, so two parabola drills differing only in apex position have byte-identical keys — and `n` is boxed in by the sheet height (`n ≤ 6`) and the method diagram's reservation (`n ≠ 3`). The answer was to broaden that topic into geometric constructions, not to relax the number or touch the scorer. See `docs/decision-log.md`.
+
+   **Never pad to reach the number.** Ten variations of one construction is not ten exercises; ten drills whose keys are identical after normalisation is one drill. If a topic cannot reach 10 with genuinely distinct exercises, widen the topic or say plainly that it is capped and why.
+10. **New exercises ship announced.** Update notes carry a DATE (releases are date-keyed, not semver — this whole repository already keys everything by date, and content additions make major/minor a judgement call that carries no information), and a ribbon on the site announces them.
+
+   **The ribbon never appears on a drill page.** This is the canvas spec's §5 applied to a new thing rather than a new rule: ads are barred from drill pages because "a drill page is where the student is working and learning; nothing competes for attention there", and a ribbon announcing new content competes for attention in exactly that way. Menu and landing pages only.
+
+   **The ribbon's counts are DERIVED from the registry, never authored.** Each drill carries an `addedOn` date. A hand-written "5 new exercises" that says five when three shipped is the parabola-hint failure class exactly (§6): authored prose beside content, verified by nothing, with every test passing around it.
 
 ---
 
