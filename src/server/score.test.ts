@@ -5,6 +5,7 @@ import { createRateLimiter } from "../lib/ratelimit.ts";
 import { getDrill, answerKey, DRILL_IDS } from "../drills/registry.ts";
 import { MAX_PRIMITIVES } from "../lib/scoring/validate.ts";
 import type { Primitive } from "../lib/scoring/primitives.ts";
+import type { Cell } from "../lib/geometry/rotate3.ts";
 
 const permissive = () => createRateLimiter({ limit: 1000, windowMs: 1000 });
 const id = DRILL_IDS[0];
@@ -182,4 +183,87 @@ test("no response ever serialises the solid or the raw key", () => {
     assert.ok(!wire.includes('"ops"'), "a response serialised the feature operations");
     assert.ok(!wire.includes('"base"'), "a response serialised the base block");
   }
+});
+
+/** A two-cell key, enough to exercise every branch without real content. */
+const buildLookup: ScoringLookup = () => ({ found: true, mode: "build", key: [[0, 0, 0], [1, 0, 0]] as Cell[] });
+
+test("a correct cell submission scores perfect", () => {
+  const r = handleScoreRequest(
+    { drillId: "x", kind: "solid", cells: [[0, 0, 0], [1, 0, 0]] },
+    "1.2.3.4", 0, permissive(), buildLookup,
+  );
+  assert.equal(r.status, 200);
+  assert.equal((r.body as { perfect: boolean }).perfect, true);
+});
+
+test("a wrong cell submission answers 200 with a diff, not an error", () => {
+  const r = handleScoreRequest(
+    { drillId: "x", kind: "solid", cells: [[0, 0, 0]] },
+    "1.2.3.4", 0, permissive(), buildLookup,
+  );
+  assert.equal(r.status, 200, "a wrong build is a scoring outcome, not a transport failure");
+  assert.equal((r.body as { perfect: boolean }).perfect, false);
+  assert.equal((r.body as { diff: { missing: unknown[] } }).diff.missing.length, 1);
+});
+
+test("submitting cells to a views exercise is refused before any scoring", () => {
+  const r = handleScoreRequest(
+    { drillId: id, kind: "solid", cells: [[0, 0, 0]] },
+    "1.2.3.4", 0, permissive(),
+  );
+  assert.equal(r.status, 400);
+  assert.equal((r.body as { reason: string }).reason, "BAD_KIND");
+});
+
+test("submitting primitives to a build exercise is refused", () => {
+  const r = handleScoreRequest(
+    { drillId: "x", kind: "views", primitives: [] },
+    "1.2.3.4", 0, permissive(), buildLookup,
+  );
+  assert.equal(r.status, 400);
+  assert.equal((r.body as { reason: string }).reason, "BAD_KIND");
+});
+
+test("a malformed cell set is rejected with its validation reason", () => {
+  const r = handleScoreRequest(
+    { drillId: "x", kind: "solid", cells: [[0, 0, 0.5]] },
+    "1.2.3.4", 0, permissive(), buildLookup,
+  );
+  assert.equal(r.status, 400);
+  assert.equal((r.body as { reason: string }).reason, "NOT_ON_GRID");
+});
+
+test("rate limiting still happens BEFORE validation for a cell submission", () => {
+  // The order is a security property, not a style choice: a flood of oversized
+  // bodies must not cost full validation per request.
+  const rl = createRateLimiter({ limit: 1, windowMs: 5000 });
+  handleScoreRequest({ drillId: "x", kind: "solid", cells: [] }, "9.9.9.9", 0, rl, buildLookup);
+  const r = handleScoreRequest(
+    { drillId: "x", kind: "solid", cells: "not even an array" },
+    "9.9.9.9", 1, rl, buildLookup,
+  );
+  assert.equal(r.status, 429, "throttling must precede validation");
+});
+
+test("an unknown kind is refused", () => {
+  const r = handleScoreRequest(
+    { drillId: "x", kind: "cells", cells: [] },
+    "1.2.3.4", 0, permissive(), buildLookup,
+  );
+  assert.equal(r.status, 400);
+  assert.equal((r.body as { reason: string }).reason, "BAD_KIND");
+});
+
+test("a real build drill scores its own derived key as perfect, end to end", () => {
+  // Through the DEFAULT lookup and real registry content, so the key really is
+  // the one a student would be marked against.
+  const drill = getDrill("build-corner-step")!;
+  if (drill.mode !== "build") throw new Error("build-corner-step is not a build drill");
+  const r = handleScoreRequest(
+    { drillId: "build-corner-step", kind: "solid", cells: answerKey(drill) },
+    "1.2.3.4", 0, permissive(),
+  );
+  assert.equal(r.status, 200);
+  assert.equal((r.body as { perfect: boolean }).perfect, true);
 });

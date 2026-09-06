@@ -89,10 +89,25 @@ function thirdOf(v: number, size: number): number {
 }
 
 /**
+ * A region this fraction of the whole part is not "somewhere" — it IS the part.
+ * Found by reading a real verdict rather than by reasoning: a student who had
+ * built one cell of a 44-cell part was told material was missing "at the
+ * bottom left", which is the true centroid and useless as teaching. Pointing
+ * at a corner when almost everything is absent is worse than saying nothing.
+ */
+const MOST_OF_THE_PART = 2 / 3;
+
+/**
  * Where a region sits, in thirds of the key's bounding-box `extent`. Read in
  * the order a person says it: height, then depth, then side.
+ *
+ * `totalCells`, when given, is the key's cell count, used only to recognise a
+ * region so large that naming a corner would mislead.
  */
-export function describeWhere(region: readonly Cell[], extent: Cell): string {
+export function describeWhere(region: readonly Cell[], extent: Cell, totalCells?: number): string {
+  if (totalCells !== undefined && totalCells > 0 && region.length >= MOST_OF_THE_PART * totalCells) {
+    return "across most of the part";
+  }
   let sx = 0, sy = 0, sz = 0;
   for (const [x, y, z] of region) { sx += x; sy += y; sz += z; }
   const n = region.length;
@@ -163,7 +178,7 @@ export function scoreSolid(attempt: readonly Cell[], key: readonly Cell[]): Soli
   const toRegions = (cells: Cell[], add: boolean): CellRegion[] =>
     groupRegions(cells).map((region) => ({
       cells: region,
-      where: describeWhere(region, extent),
+      where: describeWhere(region, extent, k.length),
       views: viewsFor(region, add),
     }));
 

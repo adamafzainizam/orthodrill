@@ -231,3 +231,26 @@ test("matchesAllViews is exactly 'not perfect, and no view differs'", () => {
     );
   }
 });
+
+test("a region covering most of the part is NOT described by a corner", () => {
+  // Found by reading a real verdict: a student who had built one cell of a
+  // 44-cell part was told material was missing "at the bottom left". That is
+  // the true centroid and useless as teaching — the part is simply absent.
+  const key = cellsOfSolid(subtractBox(block(5, 4, 3), { x: 3, y: 0, z: 1, w: 2, d: 4, h: 2 }, "step"));
+  const r = scoreSolid([[0, 0, 0]], key);
+  assert.equal(r.diff.missing.length, 1);
+  assert.equal(r.diff.missing[0].where, "across most of the part");
+});
+
+test("a SMALL region is still described by where it sits", () => {
+  // The positive control for the rule above: it must not swallow the ordinary
+  // case it was added beside.
+  const key = cellsOfSolid(block(3, 3, 3));
+  const attempt = key.filter((c) => !(c[0] === 0 && c[1] === 0 && c[2] === 0));
+  const r = scoreSolid(attempt, key);
+  assert.equal(r.diff.missing[0].where, "at the bottom front left");
+});
+
+test("describeWhere without a total still names a corner — the parameter is optional", () => {
+  assert.equal(describeWhere([[0, 0, 0]], [9, 9, 9]), "at the bottom front left");
+});
