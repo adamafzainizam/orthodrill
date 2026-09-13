@@ -52,8 +52,15 @@ const FACES: { name: Dir; d: Corner }[] = [
   { name: "+z", d: [0, 0, 1] },
 ];
 
-/** The four lattice corners of one face of the voxel at (x, y, z). */
-function faceCorners(name: Dir, x: number, y: number, z: number): Corner[] {
+/**
+ * The four lattice corners of one face of the voxel at (x, y, z).
+ *
+ * EXPORTED for isopick.ts, which must place a pickable polygon on exactly the
+ * corners the painter fills. Duplicating this would be two sources of truth
+ * for where a face IS, and a click would eventually land somewhere the student
+ * cannot see.
+ */
+export function faceCorners(name: Dir, x: number, y: number, z: number): Corner[] {
   if (name === "+x") {
     return [[x + 1, y, z], [x + 1, y + 1, z], [x + 1, y + 1, z + 1], [x + 1, y, z + 1]];
   }
@@ -85,22 +92,27 @@ export function faceDepth(x: number, y: number, z: number): number {
   return x - y + z;
 }
 
-type Face = { name: Dir; x: number; y: number; z: number; t: number };
+export type Face = { name: Dir; x: number; y: number; z: number; t: number };
+export type { Dir };
+
+/**
+ * The exposed viewer-facing faces of every visible voxel, FARTHEST FIRST, plus
+ * the edge tally that says which of their edges are real boundaries rather
+ * than coplanar continuations.
+ *
+ * EXTRACTED SO THAT PICKING CANNOT DIVERGE FROM PAINTING. `isoPickList` in
+ * isopick.ts needs exactly this ordering and exactly these faces: the face a
+ * student clicks must be the face they can see. Computing face geometry twice
+ * — once to draw and once to hit-test — is two sources of truth for where a
+ * face is, and they would drift the first time either changed.
+ */
+export function orderedFaces(o: Occupancy): { ordered: Face[]; tally: Map<string, number> } {
 
 // Overloaded rather than a single `IsoPrimitive[]` signature so that callers
 // with no extras (isoedges.test.ts among them) keep the narrower, ellipse-free
 // `(IsoFace | IsoLine)[]` type they had before this parameter existed: with
 // extras omitted (defaulting to []), the output genuinely cannot contain an
 // IsoEllipse, since only an extra's `prim` can introduce one.
-export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[];
-export function isoEdges(
-  o: Occupancy,
-  extras: { t: number; prim: IsoPrimitive }[],
-): IsoPrimitive[];
-export function isoEdges(
-  o: Occupancy,
-  extras: { t: number; prim: IsoPrimitive }[] = [],
-): IsoPrimitive[] {
   // 1. Tally edges by position AND normal, over ALL exposed faces of ALL solid
   //    voxels — not just isVisible ones. Two coplanar patches are physically
   //    continuous (and their shared edge must cancel) purely because both are
@@ -142,6 +154,20 @@ export function isoEdges(
 
   // 3. Farthest first. Sort is stable, so ties keep collection order.
   const ordered = [...exposed].sort((p, q) => p.t - q.t);
+
+  return { ordered, tally };
+}
+
+export function isoEdges(o: Occupancy): (IsoFace | IsoLine)[];
+export function isoEdges(
+  o: Occupancy,
+  extras: { t: number; prim: IsoPrimitive }[],
+): IsoPrimitive[];
+export function isoEdges(
+  o: Occupancy,
+  extras: { t: number; prim: IsoPrimitive }[] = [],
+): IsoPrimitive[] {
+  const { ordered, tally } = orderedFaces(o);
 
   // 4. Each fill, then that face's own surviving edges, with any extras
   //    (e.g. bore ellipses from isobore.ts) interleaved immediately after the
