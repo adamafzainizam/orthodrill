@@ -44,6 +44,8 @@ export type ViewsDrill = {
   convention: Convention;
   topicId: TopicId;
   mode: "views";
+  /** ISO date. Derived content for the update ribbon (AGENTS.md §2.10). */
+  addedOn: string;
   /** PRIVATE. The answer key in compressed form. Never serialise this. */
   solid: Solid;
 };
@@ -59,6 +61,8 @@ export type FigureDrill = {
   prompt: string;
   topicId: TopicId;
   mode: "figure";
+  /** ISO date. Derived content for the update ribbon (AGENTS.md §2.10). */
+  addedOn: string;
   /**
    * PRIVATE. `parabolaKey(spec)` / `obliqueKey(spec)` derive the answer key
    * with no work at all — they are pure functions anyone could run — so `spec`
@@ -247,6 +251,7 @@ const CATALOGUE: Drill[] = [
     convention: "first_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-26",
     solid: subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 }, "step"),
   },
   {
@@ -258,6 +263,7 @@ const CATALOGUE: Drill[] = [
     convention: "first_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-26",
     solid: subtractBox(block(8, 4, 4), { x: 0, y: 0, z: 0, w: 2, d: 2, h: 4 }, "notch"),
   },
   {
@@ -270,6 +276,7 @@ const CATALOGUE: Drill[] = [
     convention: "third_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-26",
     solid: subtractCylinder(block(8, 6, 3), "z", 3, 3, 2, "bore"),
   },
   {
@@ -281,6 +288,7 @@ const CATALOGUE: Drill[] = [
     convention: "first_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-26",
     solid: subtractCylinder(
       subtractBox(block(8, 6, 4), { x: 0, y: 4, z: 3, w: 8, d: 2, h: 1 }, "step"),
       "y", 2, 1, 1, "bore",
@@ -298,6 +306,7 @@ const CATALOGUE: Drill[] = [
     convention: "third_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-28",
     // Full width (touches both side faces, so the side view sees straight
     // through it) but set back 1 unit from the front face and 3 from the
     // back (asymmetric, and neither margin is 0) — the front view's own
@@ -319,6 +328,7 @@ const CATALOGUE: Drill[] = [
     convention: "first_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-28",
     // Same footprint on both corners (w=2,d=2), but the left notch runs the
     // full height and the right one only halfway. A student who assumes
     // mirror symmetry gets the right corner wrong in every view; the top
@@ -341,6 +351,7 @@ const CATALOGUE: Drill[] = [
     convention: "third_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-28",
     // The existing two bores use axis "z" (circle in the top view) and axis
     // "y" (circle in the front view). This one uses axis "x", so the circle
     // appears in the SIDE view instead — a case nothing else in the
@@ -360,6 +371,7 @@ const CATALOGUE: Drill[] = [
     convention: "third_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-08-28",
     // The notch's footprint overlaps the step's: part of it re-removes
     // material the step already took (a no-op there) and part of it cuts
     // deeper, down to the base, where the step alone would have left a
@@ -415,6 +427,7 @@ const CATALOGUE: Drill[] = [
     convention: "first_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-09-14",
     // VERIFIED: hidden segments appear in the TOP and SIDE views; the front
     // view shows the window as a plain opening, because that is the direction
     // it is cut along. The prompt deliberately does NOT say "two of the three
@@ -436,6 +449,7 @@ const CATALOGUE: Drill[] = [
     convention: "third_angle",
     topicId: "orthographic",
     mode: "views",
+    addedOn: "2026-09-14",
     // VERIFIED: hidden segments in FRONT and SIDE only; the pocket is interior
     // on x and y so it breaks no silhouette, and the top view shows it as a
     // visible rectangle. The prompt states the part and the one non-obvious
@@ -603,6 +617,7 @@ const CATALOGUE: Drill[] = [
       + "the two solid lines.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-09-14",
     // 12 is EVEN, so the midpoint lands on a grid point. An odd span puts it
     // on a half-unit, which validate.ts rejects — constructions.ts throws
     // rather than rounding, because rounding marks a correct answer wrong.
@@ -621,6 +636,7 @@ const CATALOGUE: Drill[] = [
       + "mirror image of the right one.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-09-14",
     // 45° is the only sloping direction whose perpendicular is also a lattice
     // direction, which is why this exercise can exist and a 30° one cannot.
     //
@@ -640,6 +656,7 @@ const CATALOGUE: Drill[] = [
       + "the corner. Use arcs to find it rather than measuring the angle.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-09-14",
     // THE ONLY angle whose bisector is lattice-exact: 45° is a grid direction,
     // 22.5° is not. Measured before this exercise was written — 1 of 179 whole
     // degrees bisects onto the grid, and that one is the right angle.
@@ -662,6 +679,7 @@ const CATALOGUE: Drill[] = [
       + "than counting squares.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-09-14",
     // 5 divides 15, so every mark is integral. A count that does not divide
     // the length throws rather than producing marks off the grid.
     spec: { kind: "construction", shape: "equal-division", x: 8, y: 26, length: 15, parts: 5, tick: 2 },
@@ -678,6 +696,7 @@ const CATALOGUE: Drill[] = [
       + "those two crossings.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-09-14",
     spec: { kind: "construction", shape: "perp-from-point", x: 6, y: 30, length: 20, px: 14, py: 16 },
   },
   {
@@ -691,6 +710,7 @@ const CATALOGUE: Drill[] = [
       + "the angle with arcs rather than judging it by eye.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-09-14",
     // Slope -1 in screen coordinates is up-and-to-the-right, since screen y
     // increases DOWNWARD. Both +-1 and 0 are lattice-exact; nothing else is.
     //
@@ -713,6 +733,7 @@ const CATALOGUE: Drill[] = [
       + "four sides are graded, so the square must actually meet itself.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-09-14",
     spec: { kind: "construction", shape: "square-on-side", x: 10, y: 30, side: 10 },
   },
   {
@@ -728,6 +749,7 @@ const CATALOGUE: Drill[] = [
       + "point to the next, not a hand-smoothed sweep.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-08-27",
     // n=5, apex near the bottom edge, centred horizontally on the 48-wide
     // sheet — the same placement `parabola.test.ts` uses to pin the "fits
     // the sheet" property. PRIVATE: see FigureDrill's `spec` field above.
@@ -746,6 +768,7 @@ const CATALOGUE: Drill[] = [
       + "point to the next, not a hand-smoothed sweep.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-08-28",
     // n=4, easier than the seeded n=5 exercise: fewer points to locate, a
     // shorter and squatter rectangle (8 wide, 16 tall against n=5's 10x25).
     // Same apex placement style as parabola-rectangle-5. n=4 != DIAGRAM_N
@@ -766,6 +789,7 @@ const CATALOGUE: Drill[] = [
       + "point to the next, not a hand-smoothed sweep.",
     topicId: "constructions",
     mode: "figure",
+    addedOn: "2026-08-28",
     // n=6, harder than the seeded n=5 exercise: more points to locate and a
     // taller rectangle (12 wide, 36 tall) that very nearly fills the
     // sheet's 40-unit height — n=7 does not fit at all (49 tall), which is
@@ -787,6 +811,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-02",
     // Depth 6, and the step spans the whole depth, so every y-coordinate is 0
     // or 6 — a multiple of 1, 2 AND 3. That is what lets this one solid carry
     // all three types, and the comparison across them is the actual teaching.
@@ -810,6 +835,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-02",
     spec: {
       kind: "oblique", type: "cabinet", shownAs: { kind: "pictorial" }, originX: 14, originY: 28,
       solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
@@ -830,6 +856,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-02",
     spec: {
       kind: "oblique", type: "general", shownAs: { kind: "pictorial" }, originX: 14, originY: 28,
       solid: subtractBox(block(8, 6, 5), { x: 5, y: 0, z: 3, w: 3, d: 6, h: 2 }, "step"),
@@ -850,6 +877,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-02",
     // A different shape, so the type is not welded to one solid in the
     // student's mind. Depth 4: legal for cabinet (step 2), and deliberately
     // NOT legal for general (step 3) — validateObliqueSolid would reject it.
@@ -874,6 +902,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-02",
     // A solid NO Type A exercise uses. Showing its three views publishes the
     // answer to any orthographic drill that asks for them, which is why
     // `registry.test.ts` enforces that no solid is used both ways.
@@ -900,6 +929,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-14",
     // GENERAL had no views-prompted exercise at all before this pair: all
     // three types were prompted by a pictorial, but only cavalier and cabinet
     // were prompted by views. A solid NO other exercise uses.
@@ -926,6 +956,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-14",
     spec: {
       kind: "oblique", type: "general",
       shownAs: { kind: "views", convention: "third_angle" },
@@ -958,6 +989,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-14",
     // Cavalier was views-prompted only in FIRST angle; this completes the pair.
     spec: {
       kind: "oblique", type: "cavalier",
@@ -982,6 +1014,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-14",
     // Cabinet was views-prompted only in THIRD angle; this completes the pair,
     // so every type is now drilled from views in both conventions.
     spec: {
@@ -1008,6 +1041,7 @@ const CATALOGUE: Drill[] = [
       + "Place the drawing anywhere with room around it.",
     topicId: "oblique",
     mode: "figure",
+    addedOn: "2026-09-02",
     // Third angle deliberately, so the pair covers both conventions — neither
     // is "correct" (AGENTS.md §7) and a student who only ever sees one has
     // learned half the topic.

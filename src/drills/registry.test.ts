@@ -580,3 +580,31 @@ test("every construction key is integral and fits the sheet", () => {
   }
   assert.ok(checked > 0, "no construction drills found — this test is inert");
 });
+
+test("every drill has an addedOn date, shaped like an ISO date", () => {
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    assert.match(
+      drill.addedOn, /^\d{4}-\d{2}-\d{2}$/,
+      `${id}'s addedOn is missing or not shaped like YYYY-MM-DD`,
+    );
+  }
+});
+
+test("no drill's addedOn is dated in the future", () => {
+  // One day of slack against the test machine's clock, so a drill dated
+  // TODAY cannot fail on a machine whose timezone has not rolled over yet.
+  // String comparison is safe and deliberate here: two YYYY-MM-DD strings
+  // compare lexicographically in the same order as the dates themselves, so
+  // there is no Date parsing and no timezone conversion to get wrong.
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const cutoff = tomorrow.toISOString().slice(0, 10);
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    assert.ok(
+      drill.addedOn <= cutoff,
+      `${id}'s addedOn (${drill.addedOn}) is in the future`,
+    );
+  }
+});
