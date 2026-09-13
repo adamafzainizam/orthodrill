@@ -540,13 +540,17 @@ test("a construction prompt sizes everything in SQUARES, never in 'units'", () =
     if (answerKey(drill).some((p) => p.kind === "segment" && p.x1 !== p.x2 && p.y1 !== p.y2)) {
       diagonal++;
     }
+    // Case-INSENSITIVE, and that matters: the first version of this guard was
+    // case-sensitive, and a mutation test writing "FIVE UNITS" walked straight
+    // past it. A guard that only catches the lowercase spelling of a mistake
+    // is most of the way to not being a guard.
     assert.doesNotMatch(
-      drill.prompt, /\bunits?\b/,
+      drill.prompt, /\bunits?\b/i,
       `${id}'s prompt sizes something in "units". On a diagonal a unit is `
       + `sqrt(2) out from the squares a student counts, so the point it `
       + `describes is not on the grid — say squares instead`,
     );
-    assert.match(drill.prompt, /\bsquares?\b/, `${id}'s prompt never says how many squares`);
+    assert.match(drill.prompt, /\bsquares?\b/i, `${id}'s prompt never says how many squares`);
   }
   assert.ok(checked > 0, "no construction drills found — this test is inert");
   assert.ok(diagonal > 0, "no construction has a diagonal answer — this test guards nothing");
