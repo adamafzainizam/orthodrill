@@ -6,7 +6,7 @@ import { Pictorial } from "@/components/Pictorial";
 import { MethodDiagram } from "@/components/MethodDiagram";
 import { Sidebar } from "@/components/Sidebar";
 import {
-  getDrill, publicHalf, PARABOLA_METHOD_DIAGRAM, OBLIQUE_METHOD_DIAGRAM,
+  getDrill, publicHalf, PARABOLA_METHOD_DIAGRAM, OBLIQUE_METHOD_DIAGRAM, CONSTRUCTION_METHOD_DIAGRAM,
 } from "@/drills/registry";
 
 export default async function DrillPage({ params }: { params: Promise<{ id: string }> }) {
@@ -127,7 +127,22 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
   // with no worked example of its own renders nothing here rather than
   // showing someone else's — which would be a worked answer to the wrong
   // question.
-  const method = pub.topic.id === "parabola"
+  // Gated on the drill's own SPEC, not just its topic. The constructions topic
+  // holds two different families now — the parabola and the straightedge work
+  // — and showing one's worked example beside the other's exercise would be a
+  // worked answer to the wrong question, which is what the note above warns
+  // against. `drill` is used rather than `pub` because the spec is private and
+  // must stay so; only the choice of diagram crosses, and the prompt names the
+  // construction anyway.
+  const constructionSpec = drill.mode === "figure" && drill.spec.kind === "construction";
+  const method = constructionSpec
+    ? card("The method", (
+      <MethodDiagram
+        primitives={CONSTRUCTION_METHOD_DIAGRAM}
+        caption="Worked example: the perpendicular bisector of a 6-unit line, with the two compass arcs left in — illustrates the method only, not this exercise's answer."
+      />
+    ))
+    : pub.topic.id === "constructions"
     ? card("The method", (
       <MethodDiagram
         primitives={PARABOLA_METHOD_DIAGRAM}

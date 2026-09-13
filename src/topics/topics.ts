@@ -17,7 +17,7 @@
  * as a topic. Same pattern as `drills/registry.ts`'s `getDrill`.
  */
 
-export type TopicId = "orthographic" | "parabola" | "oblique" | "reading-views";
+export type TopicId = "orthographic" | "constructions" | "oblique" | "reading-views";
 
 export type Hint = { title: string; body: string };
 
@@ -88,12 +88,38 @@ const CATALOGUE: Topic[] = [
     ],
   },
   {
-    id: "parabola",
-    title: "Parabola construction",
+    id: "constructions",
+    title: "Geometric constructions",
     blurb:
-      "Construct a parabolic arc geometrically using the rectangle (offset) "
-      + "method — no equation, just a grid of construction lines and points.",
+      "Straightedge-and-compass work on a grid: bisectors, equal divisions, "
+      + "parallels, squares, and the parabola by the rectangle method. Draw "
+      + "your construction lines, and the marker grades the result.",
     hints: [
+      {
+        title: "Construction lines are drawn, not hidden",
+        body:
+          "The arcs and rays you use to find a point are part of the drawing, "
+          + "not scaffolding to rub out. Draw them with the Construction line "
+          + "type: the marker ignores that type entirely, so they cost you "
+          + "nothing and they show your method.",
+      },
+      {
+        title: "Only some constructions land on a grid",
+        body:
+          "This tool marks exact positions, so an exercise can only ask for a "
+          + "construction whose answer sits on whole grid points. Bisecting a "
+          + "right angle works, because 45° is a grid direction. Bisecting 45° "
+          + "does not, because 22.5° is not — and a regular hexagon never "
+          + "does. That is why you will not find those here.",
+      },
+      {
+        title: "A bisector needs an even span",
+        body:
+          "The midpoint of a line spanning an odd number of squares falls "
+          + "half-way between two grid points, where you cannot place it. "
+          + "Every line you are asked to bisect here spans an even number for "
+          + "that reason — count the squares before you look for the centre.",
+      },
       {
         title: "Divide half-width and height into the SAME number of parts",
         body:
