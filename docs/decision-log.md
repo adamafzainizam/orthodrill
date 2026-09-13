@@ -368,3 +368,28 @@ That leaves `n`, bounded on both sides:
 **But the free deployment and the ad-revenue plan are mutually exclusive on Vercel.** The day an ad unit goes live, Hobby stops being an option, and the choice is Pro at a monthly cost or a different host. **Cloudflare Workers' free tier permits commercial use** and runs Next.js SSR, which makes it the obvious candidate if that day comes — but it is a migration, not a setting, and it should be decided deliberately rather than under an account suspension.
 
 **Recorded here because the trap is a slow one.** Nothing warns you: the slots are already in the layout, reserved and dimensioned, so filling them looks like a content change rather than a hosting decision. Whoever adds the first ad unit needs to move the site first.
+
+## 2026-09-14 — the parabola topic becomes geometric constructions, and two classics are ruled out forever
+
+**Why it had to broaden rather than grow.** §2.9 asks for ten exercises per topic and the parabola caps at FOUR: apex position is erased by the scorer's normalisation, the sheet height caps `n` at 6, and `n = 3` is the method diagram's. No amount of authoring moves that. The topic is now **Geometric constructions** — `id: "constructions"`, title "Geometric constructions" — and reaches ten with seven straightedge exercises beside the three parabolas.
+
+**§1.1's lattice check ran first, as the rule requires, and it ruled things OUT as well as in:**
+
+| Construction | Lattice points |
+|---|---|
+| Perpendicular bisector, axis-aligned, EVEN span | 310 / 310 — exact |
+| Perpendicular bisector, 45°, EVEN length | 1014 / 1014 — exact |
+| Equal division, when the count divides the length | 35 / 35 — exact |
+| Perpendicular from a point to an axis-aligned line | 420 / 420 — exact |
+| Parallel through a point, slope 0 or ±1 | 1323 / 1323 — exact |
+| Square erected on an axis-aligned side | 220 / 220 — exact |
+| **Angle bisector, general angle** | **1 of 179 whole degrees** |
+| **Regular hexagon** | **0 of 30 radii — never** |
+
+**The right angle is the ONLY angle whose bisector is drawable here**, because 45° is a lattice direction and 22.5° is not. And the **regular hexagon — the classic pair-of-compasses exercise — is Tier 2 permanently**: it needs `r·√3/2` integral, which no integer radius gives. That is the same wall isometric DRAWING hit, for the same reason.
+
+**An odd span is REFUSED, not rounded.** The midpoint of an odd-span line falls on a half-unit, which `validate.ts` rejects outright — so rounding it would make the correct answer undrawable and mark a correct construction wrong. `constructions.ts` throws instead.
+
+**The accepted limitation, stated plainly.** Nothing here can tell whether a student constructed the answer or estimated it by eye: the scorer sees the result, not the method. The parabola always had that property. It is §7.2's limitation in a new place and is fine for a practice tool, not for assessment.
+
+**What the render check caught, for the fourth time this week.** On a diagonal, a *unit* and a *square* differ by √2 — so "extend the bisector 5 units either side" describes a point 3.5 squares out, off the grid and unmarkable. Three prompts said it; a fourth was under-specified ("a point clear of it" does not determine the figure, because although translation is forgiven by the scorer, the point's offset FROM the line is part of the shape). **All four were found by reading the rendered page after every mechanical check was green.** The rule is now mechanical: a construction prompt sizes everything in SQUARES, enforced by `registry.test.ts`, case-insensitively — the first version of that guard was case-sensitive and a mutation writing "FIVE UNITS" walked straight past it.
