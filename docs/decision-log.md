@@ -356,3 +356,15 @@ That leaves `n`, bounded on both sides:
 **Going static to obtain `.web.app` for free would break §5.1.** Three API routes carry the answer keys, and without a server the scoring either disappears or the keys ship to the browser. The marking IS the product, so this is not a trade that can be made.
 
 **What was proposed instead:** Vercel's PRODUCTION alias is the project name — `orthodrill.vercel.app` — which is shorter than `orthodrill.web.app` would have been, costs nothing, and runs the API routes. The long URL that prompted the request is Vercel's deployment-specific alias, which is not the one users would be given. A genuinely custom domain means buying one, which is a §2.1 conversation and has not been had.
+
+## 2026-09-13 — deployment goes to Vercel, and ads are what will eventually force a move
+
+**Decided by the builder:** `.web.app` is unreachable (see the entry above), so the site deploys to Vercel and uses the production alias **`orthodrill.vercel.app`**. A custom domain is deferred, explicitly contingent on whether the ad revenue would justify buying one.
+
+**The finding that outlives this decision, checked rather than assumed.** Vercel's **Hobby plan prohibits advertising outright** — Google AdSense is named — and restricts the plan to non-commercial personal use. Vercel does enforce this; accounts are paused for it. Commercial use requires Pro, which is paid and therefore a §2.1 conversation.
+
+**This does NOT block deploying today**, and the reason is worth stating rather than being lucky about: the canvas design spec §5 already decided that v1 ships its reserved ad slots EMPTY. A site with empty slots is not advertising. So the free tier is legitimate right now, and stays legitimate for exactly as long as nothing is put in those slots.
+
+**But the free deployment and the ad-revenue plan are mutually exclusive on Vercel.** The day an ad unit goes live, Hobby stops being an option, and the choice is Pro at a monthly cost or a different host. **Cloudflare Workers' free tier permits commercial use** and runs Next.js SSR, which makes it the obvious candidate if that day comes — but it is a migration, not a setting, and it should be decided deliberately rather than under an account suspension.
+
+**Recorded here because the trap is a slow one.** Nothing warns you: the slots are already in the layout, reserved and dimensioned, so filling them looks like a content change rather than a hosting decision. Whoever adds the first ad unit needs to move the site first.
