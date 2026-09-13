@@ -612,16 +612,22 @@ const CATALOGUE: Drill[] = [
     id: "perpendicular-bisector-diagonal",
     title: "Perpendicular bisector of a sloping line",
     prompt:
-      "Draw a line 8 units across and 8 units up, sloping at 45°, then "
-      + "construct its perpendicular bisector reaching 5 units either side of "
-      + "it. The method is the same as for a horizontal line — equal arcs from "
-      + "each end — but the answer now runs along the OTHER diagonal. Getting "
-      + "that the wrong way round gives a drawing that looks entirely "
-      + "reasonable and is the mirror image of the right one.",
+      "Draw a line running 8 squares across and 8 squares up, sloping at 45°, "
+      + "then construct its perpendicular bisector, extending FIVE SQUARES "
+      + "along that diagonal on each side of the centre. The method is the "
+      + "same as for a horizontal line — equal arcs from each end — but the "
+      + "answer now runs along the OTHER diagonal. Getting that the wrong way "
+      + "round gives a drawing that looks entirely reasonable and is the "
+      + "mirror image of the right one.",
     topicId: "constructions",
     mode: "figure",
     // 45° is the only sloping direction whose perpendicular is also a lattice
     // direction, which is why this exercise can exist and a 30° one cannot.
+    //
+    // The prompt says SQUARES, not units, and that is not pedantry: on a
+    // diagonal the two differ by a factor of sqrt(2), so "5 units either side"
+    // would describe a point 3.5 squares out — off the grid, and unmarkable.
+    // Caught by reading the rendered page (AGENTS.md §7).
     spec: { kind: "construction", shape: "perp-bisector", x1: 10, y1: 30, x2: 18, y2: 22, reach: 5 },
   },
   {
@@ -630,13 +636,18 @@ const CATALOGUE: Drill[] = [
     prompt:
       "Draw a right angle with arms 10 units long — one going right, one going "
       + "up — then construct its bisector, the line splitting it into two "
-      + "equal 45° angles, also 10 units long. Use arcs to find it rather than "
-      + "measuring the angle.",
+      + "equal 45° angles, running ten squares across and ten squares up from "
+      + "the corner. Use arcs to find it rather than measuring the angle.",
     topicId: "constructions",
     mode: "figure",
     // THE ONLY angle whose bisector is lattice-exact: 45° is a grid direction,
     // 22.5° is not. Measured before this exercise was written — 1 of 179 whole
     // degrees bisects onto the grid, and that one is the right angle.
+    //
+    // The bisector is stated in SQUARES, not units. It runs diagonally, so its
+    // true length is 10*sqrt(2); "10 units long" would have described a point
+    // about 7 squares out, off the grid and unmarkable. Third instance of that
+    // same slip in this one file — on a diagonal, always say squares.
     spec: { kind: "construction", shape: "bisect-right-angle", x: 12, y: 30, arm: 10 },
   },
   {
@@ -673,14 +684,23 @@ const CATALOGUE: Drill[] = [
     id: "parallel-through-point",
     title: "Draw a parallel through a given point",
     prompt:
-      "Draw a line 12 units long sloping up to the right at 45°, then a point "
-      + "clear of it, and construct the line through that point parallel to "
-      + "the first — same length, same slope. Transfer the angle with arcs "
-      + "rather than judging it by eye.",
+      "Draw a line running 12 squares across and 12 squares up, sloping at "
+      + "45°. Mark a point two squares to the right of its lower end and six "
+      + "squares above that end. Construct the line through that point "
+      + "parallel to the first — the same size and the same slope. Transfer "
+      + "the angle with arcs rather than judging it by eye.",
     topicId: "constructions",
     mode: "figure",
     // Slope -1 in screen coordinates is up-and-to-the-right, since screen y
     // increases DOWNWARD. Both +-1 and 0 are lattice-exact; nothing else is.
+    //
+    // The prompt must fix the point's offset FROM THE LINE, and an earlier
+    // draft said only "a point clear of it". Scoring is translation-invariant,
+    // so where the whole figure sits does not matter — but where the point
+    // sits RELATIVE to the line is part of the shape, and a student choosing
+    // their own would draw a different figure and be marked wrong for
+    // following the prompt. Point (10,26) against a lower end of (8,32) is two
+    // right and six up, which is what the prompt now says.
     spec: { kind: "construction", shape: "parallel-through-point", x: 8, y: 32, length: 12, slope: -1, px: 10, py: 26 },
   },
   {
