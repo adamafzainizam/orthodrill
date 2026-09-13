@@ -170,7 +170,7 @@ None of the orthographic eight are golden-set fixtures — they lean on the alre
 
 **START HERE (updated 2026-09-14).**
 
-**State:** four topics, **40 exercises — every topic at ten**, **566 tests**, lint/typecheck/build clean. Everything through PR #26 is merged; the constructions work is PR #27. **§2.9's backfill is finished** — the catalogue went 17 → 40 this week.
+**State:** four topics, **40 exercises — every topic at ten**, **566 tests**, lint/typecheck/build clean. Everything through PR #27 is merged. **§2.9's backfill is finished** — the catalogue went 17 → 40 this week.
 
 **Nothing is deployed yet.** That is the single biggest gap between this repo and a usable site.
 
