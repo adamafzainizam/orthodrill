@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { initBuilder, reduceBuilder, builderCells, type BuilderAction } from "./builder.ts";
+import { initBuilder, reduceBuilder, builderCells } from "./builder.ts";
 import { isoPickList } from "../geometry/isopick.ts";
 import { occupancyFromCells } from "../geometry/cells.ts";
 import { rotatedOccupancy } from "../geometry/rotate3.ts";
@@ -10,12 +10,6 @@ import type { PickFace } from "../geometry/isopick.ts";
 const BASE = { w: 2, d: 3, h: 2 };
 const key = (c: Cell) => c.join(",");
 const has = (cells: readonly Cell[], c: Cell) => cells.some((o) => key(o) === key(c));
-
-const run = (actions: BuilderAction[]) => {
-  let s = initBuilder(BASE);
-  for (const a of actions) s = reduceBuilder(s, a);
-  return s;
-};
 
 /** The face the builder would actually offer, at the CURRENT viewpoint. */
 function faceOn(state: ReturnType<typeof initBuilder>, cell: Cell, dir: PickFace["dir"]): PickFace {

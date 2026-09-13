@@ -113,7 +113,7 @@ test("a figure's notices carry stable unique ids too", () => {
 });
 
 const region = (cells: [number, number, number][], where: string) =>
-  ({ cells, where, views: ["front", "top", "side"] as const });
+  ({ cells, where, views: ["front", "top", "side"] as ("front" | "top" | "side")[] });
 
 test("a perfect build is told so plainly", () => {
   const n = noticesForBuild({ ok: true, perfect: true, matchesAllViews: false, diff: { missing: [], extra: [] } });
