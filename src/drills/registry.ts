@@ -594,9 +594,9 @@ const CATALOGUE: Drill[] = [
     id: "perpendicular-bisector",
     title: "Perpendicular bisector of a line",
     prompt:
-      "Draw a horizontal line 12 units long, then construct its perpendicular "
+      "Draw a horizontal line 12 squares long, then construct its perpendicular "
       + "bisector: the line crossing it at right angles through its exact "
-      + "centre, reaching 6 units either side. Find the centre by construction "
+      + "centre, reaching 6 squares either side. Find the centre by construction "
       + "rather than by counting — swing an arc of the same radius from each "
       + "end, and the bisector runs through where they cross. Draw the arcs "
       + "with the Construction line type; the marker ignores them and grades "
@@ -634,7 +634,7 @@ const CATALOGUE: Drill[] = [
     id: "bisect-right-angle",
     title: "Bisect a right angle",
     prompt:
-      "Draw a right angle with arms 10 units long — one going right, one going "
+      "Draw a right angle with arms 10 squares long — one going right, one going "
       + "up — then construct its bisector, the line splitting it into two "
       + "equal 45° angles, running ten squares across and ten squares up from "
       + "the corner. Use arcs to find it rather than measuring the angle.",
@@ -654,9 +654,9 @@ const CATALOGUE: Drill[] = [
     id: "divide-line-five",
     title: "Divide a line into five equal parts",
     prompt:
-      "Draw a horizontal line 15 units long and divide it into five equal "
+      "Draw a horizontal line 15 squares long and divide it into five equal "
       + "parts, marking each division with a short tick crossing the line 2 "
-      + "units above and below it. The classical method draws a second line at "
+      + "squares above and below it. The classical method draws a second line at "
       + "any convenient angle from one end, steps five equal lengths along it, "
       + "and projects back — use it, with the Construction line type, rather "
       + "than counting squares.",
@@ -670,8 +670,8 @@ const CATALOGUE: Drill[] = [
     id: "perpendicular-from-point",
     title: "Drop a perpendicular from a point to a line",
     prompt:
-      "Draw a horizontal line 20 units long, then a point 14 units above it "
-      + "and eight units in from its left end. Construct the perpendicular "
+      "Draw a horizontal line 20 squares long, then a point 14 squares above "
+      + "it and eight squares in from its left end. Construct the perpendicular "
       + "from that point down to the line — the shortest route from one to the "
       + "other — and draw it as a solid line. Find the foot by construction: "
       + "an arc from the point cutting the line twice, then bisect between "
@@ -707,7 +707,7 @@ const CATALOGUE: Drill[] = [
     id: "square-on-a-side",
     title: "Construct a square on a given side",
     prompt:
-      "Draw a horizontal line 10 units long as the base of a square, then "
+      "Draw a horizontal line 10 squares long as the base of a square, then "
       + "construct the other three sides. Raise the perpendiculars at each end "
       + "by construction rather than counting squares, and close the top. All "
       + "four sides are graded, so the square must actually meet itself.",

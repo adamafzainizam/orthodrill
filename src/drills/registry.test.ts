@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS } from "./registry.ts";
+import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS, SHEET } from "./registry.ts";
 import { getTopic } from "../topics/topics.ts";
 import { generateViews, generateViewsFromOccupancy } from "../lib/geometry/views.ts";
 import { cellsOfSolid, occupancyFromCells } from "../lib/geometry/cells.ts";
@@ -514,4 +514,65 @@ test("a 'build' drill is WELL-POSED: its three views determine its part", () => 
     }
   }
   assert.ok(checked > 0, "no build drills found — this test is inert");
+});
+
+test("a construction prompt sizes everything in SQUARES, never in 'units'", () => {
+  // On a 45-degree line a square and a unit differ by sqrt(2), so "reaching 5
+  // units either side" describes a point about 3.5 squares out — off the grid,
+  // and therefore literally undrawable, since validate.ts rejects a
+  // non-integer coordinate. A student following the prompt exactly would be
+  // marked wrong for it.
+  //
+  // This slipped through THREE TIMES in one authoring pass and was caught each
+  // time only by reading the rendered page, so it is mechanical now. The rule:
+  // if any segment of the key is diagonal, the prompt talks in SQUARES.
+  // The rule is UNIFORM rather than conditional on the key's geometry, and
+  // deliberately so: an earlier version of this test only policed prompts
+  // whose answer contained a diagonal, and immediately hit a prompt where the
+  // ARMS were axis-aligned (units correct) and only the BISECTOR was diagonal.
+  // Teaching the guard to tell which phrase describes which element is far
+  // harder than removing the trap — on a grid, everything is squares.
+  let checked = 0, diagonal = 0;
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "figure" || drill.spec.kind !== "construction") continue;
+    checked++;
+    if (answerKey(drill).some((p) => p.kind === "segment" && p.x1 !== p.x2 && p.y1 !== p.y2)) {
+      diagonal++;
+    }
+    assert.doesNotMatch(
+      drill.prompt, /\bunits?\b/,
+      `${id}'s prompt sizes something in "units". On a diagonal a unit is `
+      + `sqrt(2) out from the squares a student counts, so the point it `
+      + `describes is not on the grid — say squares instead`,
+    );
+    assert.match(drill.prompt, /\bsquares?\b/, `${id}'s prompt never says how many squares`);
+  }
+  assert.ok(checked > 0, "no construction drills found — this test is inert");
+  assert.ok(diagonal > 0, "no construction has a diagonal answer — this test guards nothing");
+});
+
+test("every construction key is integral and fits the sheet", () => {
+  // validate.ts rejects a non-integer coordinate outright, so an off-grid key
+  // would make the correct answer undrawable — the §1.1 lattice check's whole
+  // point, enforced here on the shipped content rather than trusted.
+  let checked = 0;
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "figure" || drill.spec.kind !== "construction") continue;
+    checked++;
+    for (const p of answerKey(drill)) {
+      assert.equal(p.kind, "segment", `${id} emitted a non-segment primitive`);
+      if (p.kind !== "segment") continue;
+      for (const v of [p.x1, p.y1, p.x2, p.y2]) {
+        assert.ok(Number.isInteger(v), `${id} has an off-grid coordinate ${v}`);
+      }
+      for (const [a, b] of [[p.x1, p.x2], [p.y1, p.y2]] as const) {
+        assert.ok(Math.min(a, b) >= 0, `${id} runs off the top or left of the sheet`);
+      }
+      assert.ok(Math.max(p.x1, p.x2) <= SHEET.width, `${id} runs off the right of the sheet`);
+      assert.ok(Math.max(p.y1, p.y2) <= SHEET.height, `${id} runs off the bottom of the sheet`);
+    }
+  }
+  assert.ok(checked > 0, "no construction drills found — this test is inert");
 });
