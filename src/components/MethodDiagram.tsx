@@ -60,7 +60,7 @@ const WIDTH: Record<PrimitiveType, number> = {
 };
 
 export function MethodDiagram({
-  primitives, caption, variant = "paper", grid = false,
+  primitives, caption, variant = "paper", grid = false, scale = SCALE,
 }: {
   primitives: readonly Primitive[];
   caption: string;
@@ -77,6 +77,14 @@ export function MethodDiagram({
    * grid under the verification sheet's orthographic views.
    */
   grid?: boolean;
+  /**
+   * Pixels per model unit. Defaults to the shared `SCALE` so every existing
+   * caller is unchanged. The Type B prompt overrides it: for that drill the
+   * three views ARE the whole question, so rendering them at the same size as
+   * a supporting method diagram puts the information the student must read
+   * second to the block they manipulate.
+   */
+  scale?: number;
 }) {
   if (primitives.length === 0) return null;
 
@@ -88,10 +96,10 @@ export function MethodDiagram({
   }
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const px = (n: number) => (n - minX) * SCALE + PAD;
-  const py = (n: number) => (n - minY) * SCALE + PAD;
-  const w = (maxX - minX) * SCALE + PAD * 2;
-  const h = (maxY - minY) * SCALE + PAD * 2;
+  const px = (n: number) => (n - minX) * scale + PAD;
+  const py = (n: number) => (n - minY) * scale + PAD;
+  const w = (maxX - minX) * scale + PAD * 2;
+  const h = (maxY - minY) * scale + PAD * 2;
 
   const blend = variant === "blend";
   const palette = blend ? BLEND_STROKE : STROKE;
@@ -140,7 +148,7 @@ export function MethodDiagram({
           const dash = DASH[p.type];
           const strokeWidth = WIDTH[p.type];
           if (p.kind === "circle") {
-            return <circle key={i} cx={px(p.cx)} cy={py(p.cy)} r={p.r * SCALE}
+            return <circle key={i} cx={px(p.cx)} cy={py(p.cy)} r={p.r * scale}
               fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dash} />;
           }
           return <line key={i} x1={px(p.x1)} y1={py(p.y1)} x2={px(p.x2)} y2={py(p.y2)}

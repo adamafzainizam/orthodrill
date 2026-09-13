@@ -6,7 +6,8 @@ import { isoEdges } from "@/lib/geometry/isoedges";
 import { isoPickList } from "@/lib/geometry/isopick";
 import { occupancyFromCells } from "@/lib/geometry/cells";
 import { rotatedOccupancy } from "@/lib/geometry/rotate3";
-import { faceAt } from "@/lib/canvas/picking";
+import { clientToViewBox, faceAt } from "@/lib/canvas/picking";
+import { unrotateCell } from "@/lib/geometry/rotate3";
 import { canRedo, canUndo } from "@/lib/canvas/history";
 import { builderCells, initBuilder, reduceBuilder, type BuilderState } from "@/lib/canvas/builder";
 import { noticesForBuild, type Notice } from "@/lib/canvas/messages";
@@ -91,15 +92,16 @@ export function Builder({ drill }: { drill: PublicBuildDrill }) {
     return { program: prog, picks: pk, view: { minX, minY, w: maxX - minX, h: maxY - minY } };
   }, [cells, state.q, drill.base]);
 
+  // Letterboxing is the whole subtlety here, and it is not optional: the SVG
+  // is capped by max-height, so its box and its viewBox have different aspect
+  // ratios and the drawing is scaled uniformly and CENTRED inside empty bands.
+  // `clientToViewBox` is pure and tested; do not reinline a naive
+  // width-ratio version, which reads as correct and silently misses every
+  // click. See picking.ts.
   const clientToModel = useCallback((clientX: number, clientY: number): [number, number] => {
-    const box = svgRef.current?.getBoundingClientRect();
-    if (box === undefined) return [0, 0];
-    // The SVG is max-w-full, so its rendered box can be narrower than its
-    // viewBox. Convert to viewBox units first, or every click lands on the
-    // wrong face on a narrow viewport — the defect Sheet.tsx shipped once.
-    const sx = box.width === 0 ? 1 : view.w / box.width;
-    const sy = box.height === 0 ? 1 : view.h / box.height;
-    return [view.minX + (clientX - box.left) * sx, view.minY + (clientY - box.top) * sy];
+    const r = svgRef.current?.getBoundingClientRect();
+    if (r === undefined) return [view.minX, view.minY];
+    return clientToViewBox(clientX, clientY, r, view) as [number, number];
   }, [view]);
 
   const act = useCallback((clientX: number, clientY: number, remove: boolean) => {
@@ -178,7 +180,10 @@ export function Builder({ drill }: { drill: PublicBuildDrill }) {
           ref={svgRef}
           viewBox={`${view.minX} ${view.minY} ${view.w} ${view.h}`}
           className="max-w-full h-auto w-full"
-          style={{ touchAction: "manipulation" }}
+          // Capped so the block does not dominate a page whose real content is
+          // the three views above it. The student manipulates this; they READ
+          // those.
+          style={{ touchAction: "manipulation", maxHeight: "26rem" }}
           onContextMenu={(e) => { e.preventDefault(); act(e.clientX, e.clientY, false); }}
           onMouseMove={(e) => setHover(faceAt(picks, clientToModel(e.clientX, e.clientY)))}
           onMouseLeave={() => setHover(null)}
@@ -193,8 +198,31 @@ export function Builder({ drill }: { drill: PublicBuildDrill }) {
                 ? <line key={i} x1={p.x1} y1={p.y1} x2={p.x2} y2={p.y2} stroke={INK} strokeWidth={0.06} strokeLinecap="round" />
                 : null,
           )}
+          {/* THE CELL LATTICE, and it is not decoration.
+              isoedges.ts correctly cancels the shared edges between coplanar
+              faces, so a solid block renders as ONE featureless box — which
+              means a student cannot see the 60 cells they are being asked to
+              carve, and a click removes an invisible sixtieth of the part.
+              Found by rendering the page and reading it as a student; no test
+              could have seen it.
+              Drawn from `picks`, so the outlines a student sees ARE the faces
+              a click can land on — they cannot drift apart. */}
+          {picks.map((f, i) => (
+            <polygon
+              key={`g${i}`}
+              points={f.points.map((q) => q.join(",")).join(" ")}
+              fill="none" stroke={INK} strokeOpacity={0.18} strokeWidth={0.02}
+              pointerEvents="none"
+            />
+          ))}
+          {/* A pick face's cell is in ROTATED coordinates; the overlay's cells
+              are in the student's own. Comparing them directly is correct at
+              q=0 and highlights the WRONG blocks at every other viewpoint —
+              the same trap the builder reducer guards against. */}
           {overlay !== null && picks
-            .filter((f) => overlay.extra.includes(f.cell.join(",")))
+            .filter((f) => overlay.extra.includes(
+              unrotateCell(f.cell, state.q, drill.base.w, drill.base.d).join(","),
+            ))
             .map((f, i) => <polygon key={`x${i}`} points={f.points.map((q) => q.join(",")).join(" ")} fill="#d4380d" fillOpacity={0.38} />)}
           {hover !== null && (
             <polygon

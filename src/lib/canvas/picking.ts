@@ -49,3 +49,34 @@ export function faceAt(faces: readonly PickFace[], p: Point2): PickFace | null {
   }
   return null;
 }
+
+export type Box = { left: number; top: number; width: number; height: number };
+export type ViewBox = { minX: number; minY: number; w: number; h: number };
+
+/**
+ * Map a client point into viewBox units, honouring LETTERBOXING.
+ *
+ * WHY THIS IS NOT `(clientX - box.left) * view.w / box.width`. An `<svg>`
+ * defaults to `preserveAspectRatio="xMidYMid meet"`, so when the element's box
+ * and its viewBox have different aspect ratios the drawing is scaled uniformly
+ * and CENTRED, with empty bands on two sides. The naive mapping treats those
+ * bands as part of the drawing and every hit lands in the wrong place.
+ *
+ * Found by driving the real page, not by looking at it: a screenshot of the
+ * builder was pixel-perfect while every click silently did nothing, because a
+ * `max-height` had made the element box wider in aspect than the viewBox. This
+ * is the SECOND time this project has shipped a broken client-to-model mapping
+ * (see Sheet.tsx's `clientToGrid` and the §9 entry for 2026-08-27), which is
+ * why it now lives in a tested pure function instead of inline in a component.
+ */
+export function clientToViewBox(
+  clientX: number, clientY: number, box: Box, view: ViewBox,
+): Point2 {
+  if (box.width === 0 || box.height === 0) return [view.minX, view.minY];
+  const scale = Math.min(box.width / view.w, box.height / view.h);
+  const drawnW = view.w * scale;
+  const drawnH = view.h * scale;
+  const originX = box.left + (box.width - drawnW) / 2;
+  const originY = box.top + (box.height - drawnH) / 2;
+  return [view.minX + (clientX - originX) / scale, view.minY + (clientY - originY) / scale];
+}

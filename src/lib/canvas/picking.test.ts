@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pointInPolygon, faceAt } from "./picking.ts";
+import { pointInPolygon, faceAt, clientToViewBox } from "./picking.ts";
 import { isoPickList } from "../geometry/isopick.ts";
 import { buildOccupancy } from "../geometry/occupancy.ts";
 import { block } from "../geometry/solid.ts";
@@ -65,4 +65,40 @@ test("every face of a real cube is hittable at its own centroid", () => {
     reached++;
   }
   assert.ok(reached > 0, "no faces tested — this test is inert");
+});
+
+const VIEW = { minX: 0, minY: 0, w: 10, h: 10 };
+
+test("clientToViewBox maps a centre click to the viewBox centre when aspects match", () => {
+  const box = { left: 0, top: 0, width: 200, height: 200 };
+  assert.deepEqual(clientToViewBox(100, 100, box, VIEW), [5, 5]);
+});
+
+test("POSITIVE CONTROL: a LETTERBOXED element maps differently from the naive scaling", () => {
+  // The bug this function exists to prevent. A 400x200 box holding a square
+  // viewBox letterboxes: the drawing is 200x200, centred, with 100px bands
+  // left and right. The naive mapping (clientX * view.w / box.width) would put
+  // the left edge of the drawing at 0 and read x=100 as 2.5 — a click landing
+  // a quarter of the way across a part it is nowhere near.
+  const box = { left: 0, top: 0, width: 400, height: 200 };
+  const naive = (100 - box.left) * (VIEW.w / box.width);
+  const actual = clientToViewBox(100, 100, box, VIEW);
+  assert.equal(actual[0], 0, "the left edge of the DRAWING sits at x=100 client");
+  assert.notEqual(actual[0], naive, "letterboxing was ignored — clicks will miss");
+  assert.equal(actual[1], 5, "the vertical axis fills the box and maps to the centre");
+});
+
+test("clientToViewBox honours a non-zero viewBox origin", () => {
+  const box = { left: 0, top: 0, width: 100, height: 100 };
+  const shifted = { minX: -4, minY: 6, w: 10, h: 10 };
+  assert.deepEqual(clientToViewBox(50, 50, box, shifted), [1, 11]);
+});
+
+test("clientToViewBox accounts for the element's page offset", () => {
+  const box = { left: 30, top: 70, width: 100, height: 100 };
+  assert.deepEqual(clientToViewBox(80, 120, box, VIEW), [5, 5]);
+});
+
+test("a zero-sized box returns the viewBox origin rather than dividing by zero", () => {
+  assert.deepEqual(clientToViewBox(10, 10, { left: 0, top: 0, width: 0, height: 0 }, VIEW), [0, 0]);
 });

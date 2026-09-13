@@ -55,6 +55,7 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
                 <MethodDiagram
                   primitives={pub.promptViews}
                   grid
+                  scale={30}
                   caption={`${pub.promptConvention === "first_angle" ? "First" : "Third"} angle projection. Each square is one unit — count them to read the sizes off the views.`}
                 />
               </section>
