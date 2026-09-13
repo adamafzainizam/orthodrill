@@ -27,6 +27,7 @@ import type { Cell } from "../lib/geometry/rotate3.ts";
 import { isometricDimensions, type IsoDim } from "../lib/geometry/isodims.ts";
 import type { IsoPrimitive } from "../lib/geometry/isotypes.ts";
 import { parabolaKey, type ParabolaSpec } from "../lib/geometry/parabola.ts";
+import { constructionKey, type ConstructionSpec } from "../lib/geometry/constructions.ts";
 import type { KeyViews } from "../lib/scoring/assign.ts";
 import type { Primitive } from "../lib/scoring/primitives.ts";
 import type { Convention } from "../lib/scoring/types.ts";
@@ -76,6 +77,7 @@ export type FigureDrill = {
  */
 export type FigureSpec =
   | ({ kind: "parabola" } & ParabolaSpec)
+  | ({ kind: "construction" } & ConstructionSpec)
   | ({ kind: "oblique"; shownAs: ShownAs } & ObliqueSpec);
 
 /**
@@ -589,6 +591,131 @@ const CATALOGUE: Drill[] = [
     solid: subtractBox(block(5, 5, 3), { x: 1, y: 1, z: 2, w: 3, d: 2, h: 1 }, "pocket"),
   },
   {
+    id: "perpendicular-bisector",
+    title: "Perpendicular bisector of a line",
+    prompt:
+      "Draw a horizontal line 12 squares long, then construct its perpendicular "
+      + "bisector: the line crossing it at right angles through its exact "
+      + "centre, reaching 6 squares either side. Find the centre by construction "
+      + "rather than by counting — swing an arc of the same radius from each "
+      + "end, and the bisector runs through where they cross. Draw the arcs "
+      + "with the Construction line type; the marker ignores them and grades "
+      + "the two solid lines.",
+    topicId: "constructions",
+    mode: "figure",
+    // 12 is EVEN, so the midpoint lands on a grid point. An odd span puts it
+    // on a half-unit, which validate.ts rejects — constructions.ts throws
+    // rather than rounding, because rounding marks a correct answer wrong.
+    spec: { kind: "construction", shape: "perp-bisector", x1: 8, y1: 24, x2: 20, y2: 24, reach: 6 },
+  },
+  {
+    id: "perpendicular-bisector-diagonal",
+    title: "Perpendicular bisector of a sloping line",
+    prompt:
+      "Draw a line running 8 squares across and 8 squares up, sloping at 45°, "
+      + "then construct its perpendicular bisector, extending FIVE SQUARES "
+      + "along that diagonal on each side of the centre. The method is the "
+      + "same as for a horizontal line — equal arcs from each end — but the "
+      + "answer now runs along the OTHER diagonal. Getting that the wrong way "
+      + "round gives a drawing that looks entirely reasonable and is the "
+      + "mirror image of the right one.",
+    topicId: "constructions",
+    mode: "figure",
+    // 45° is the only sloping direction whose perpendicular is also a lattice
+    // direction, which is why this exercise can exist and a 30° one cannot.
+    //
+    // The prompt says SQUARES, not units, and that is not pedantry: on a
+    // diagonal the two differ by a factor of sqrt(2), so "5 units either side"
+    // would describe a point 3.5 squares out — off the grid, and unmarkable.
+    // Caught by reading the rendered page (AGENTS.md §7).
+    spec: { kind: "construction", shape: "perp-bisector", x1: 10, y1: 30, x2: 18, y2: 22, reach: 5 },
+  },
+  {
+    id: "bisect-right-angle",
+    title: "Bisect a right angle",
+    prompt:
+      "Draw a right angle with arms 10 squares long — one going right, one going "
+      + "up — then construct its bisector, the line splitting it into two "
+      + "equal 45° angles, running ten squares across and ten squares up from "
+      + "the corner. Use arcs to find it rather than measuring the angle.",
+    topicId: "constructions",
+    mode: "figure",
+    // THE ONLY angle whose bisector is lattice-exact: 45° is a grid direction,
+    // 22.5° is not. Measured before this exercise was written — 1 of 179 whole
+    // degrees bisects onto the grid, and that one is the right angle.
+    //
+    // The bisector is stated in SQUARES, not units. It runs diagonally, so its
+    // true length is 10*sqrt(2); "10 units long" would have described a point
+    // about 7 squares out, off the grid and unmarkable. Third instance of that
+    // same slip in this one file — on a diagonal, always say squares.
+    spec: { kind: "construction", shape: "bisect-right-angle", x: 12, y: 30, arm: 10 },
+  },
+  {
+    id: "divide-line-five",
+    title: "Divide a line into five equal parts",
+    prompt:
+      "Draw a horizontal line 15 squares long and divide it into five equal "
+      + "parts, marking each division with a short tick crossing the line 2 "
+      + "squares above and below it. The classical method draws a second line at "
+      + "any convenient angle from one end, steps five equal lengths along it, "
+      + "and projects back — use it, with the Construction line type, rather "
+      + "than counting squares.",
+    topicId: "constructions",
+    mode: "figure",
+    // 5 divides 15, so every mark is integral. A count that does not divide
+    // the length throws rather than producing marks off the grid.
+    spec: { kind: "construction", shape: "equal-division", x: 8, y: 26, length: 15, parts: 5, tick: 2 },
+  },
+  {
+    id: "perpendicular-from-point",
+    title: "Drop a perpendicular from a point to a line",
+    prompt:
+      "Draw a horizontal line 20 squares long, then a point 14 squares above "
+      + "it and eight squares in from its left end. Construct the perpendicular "
+      + "from that point down to the line — the shortest route from one to the "
+      + "other — and draw it as a solid line. Find the foot by construction: "
+      + "an arc from the point cutting the line twice, then bisect between "
+      + "those two crossings.",
+    topicId: "constructions",
+    mode: "figure",
+    spec: { kind: "construction", shape: "perp-from-point", x: 6, y: 30, length: 20, px: 14, py: 16 },
+  },
+  {
+    id: "parallel-through-point",
+    title: "Draw a parallel through a given point",
+    prompt:
+      "Draw a line running 12 squares across and 12 squares up, sloping at "
+      + "45°. Mark a point two squares to the right of its lower end and six "
+      + "squares above that end. Construct the line through that point "
+      + "parallel to the first — the same size and the same slope. Transfer "
+      + "the angle with arcs rather than judging it by eye.",
+    topicId: "constructions",
+    mode: "figure",
+    // Slope -1 in screen coordinates is up-and-to-the-right, since screen y
+    // increases DOWNWARD. Both +-1 and 0 are lattice-exact; nothing else is.
+    //
+    // The prompt must fix the point's offset FROM THE LINE, and an earlier
+    // draft said only "a point clear of it". Scoring is translation-invariant,
+    // so where the whole figure sits does not matter — but where the point
+    // sits RELATIVE to the line is part of the shape, and a student choosing
+    // their own would draw a different figure and be marked wrong for
+    // following the prompt. Point (10,26) against a lower end of (8,32) is two
+    // right and six up, which is what the prompt now says.
+    spec: { kind: "construction", shape: "parallel-through-point", x: 8, y: 32, length: 12, slope: -1, px: 10, py: 26 },
+  },
+  {
+    id: "square-on-a-side",
+    title: "Construct a square on a given side",
+    prompt:
+      "Draw a horizontal line 10 squares long as the base of a square, then "
+      + "construct the other three sides. Raise the perpendiculars at each end "
+      + "by construction rather than counting squares, and close the top. All "
+      + "four sides are graded, so the square must actually meet itself.",
+    topicId: "constructions",
+    mode: "figure",
+    spec: { kind: "construction", shape: "square-on-side", x: 10, y: 30, side: 10 },
+  },
+  {
     id: "parabola-rectangle-5",
     title: "Parabola by the rectangle method",
     prompt:
@@ -599,7 +726,7 @@ const CATALOGUE: Drill[] = [
       + "with the Construction line type — the marker ignores construction "
       + "lines and grades the curve as straight segments joining each located "
       + "point to the next, not a hand-smoothed sweep.",
-    topicId: "parabola",
+    topicId: "constructions",
     mode: "figure",
     // n=5, apex near the bottom edge, centred horizontally on the 48-wide
     // sheet — the same placement `parabola.test.ts` uses to pin the "fits
@@ -617,7 +744,7 @@ const CATALOGUE: Drill[] = [
       + "with the Construction line type — the marker ignores construction "
       + "lines and grades the curve as straight segments joining each located "
       + "point to the next, not a hand-smoothed sweep.",
-    topicId: "parabola",
+    topicId: "constructions",
     mode: "figure",
     // n=4, easier than the seeded n=5 exercise: fewer points to locate, a
     // shorter and squatter rectangle (8 wide, 16 tall against n=5's 10x25).
@@ -637,7 +764,7 @@ const CATALOGUE: Drill[] = [
       + "with the Construction line type — the marker ignores construction "
       + "lines and grades the curve as straight segments joining each located "
       + "point to the next, not a hand-smoothed sweep.",
-    topicId: "parabola",
+    topicId: "constructions",
     mode: "figure",
     // n=6, harder than the seeded n=5 exercise: more points to locate and a
     // taller rectangle (12 wide, 36 tall) that very nearly fills the
@@ -1052,7 +1179,9 @@ export function answerKey(drill: Drill): KeyViews | Primitive[] | Cell[] {
     const cached = figureKeyCache.get(drill.id);
     if (cached !== undefined) return cached;
     const built = freezeArray(
-      drill.spec.kind === "parabola" ? parabolaKey(drill.spec) : obliqueKey(drill.spec),
+      drill.spec.kind === "parabola" ? parabolaKey(drill.spec)
+        : drill.spec.kind === "construction" ? constructionKey(drill.spec)
+        : obliqueKey(drill.spec),
     );
     figureKeyCache.set(drill.id, built);
     return built;
@@ -1192,7 +1321,7 @@ export const READING_VIEWS_PREVIEW: readonly Primitive[] = Object.freeze(
 export function topicPreview(topicId: string): readonly Primitive[] | null {
   if (topicId === "orthographic") return ORTHOGRAPHIC_PREVIEW;
   if (topicId === "reading-views") return READING_VIEWS_PREVIEW;
-  if (topicId === "parabola") return PARABOLA_METHOD_DIAGRAM;
+  if (topicId === "constructions") return PARABOLA_METHOD_DIAGRAM;
   if (topicId === "oblique") return OBLIQUE_METHOD_DIAGRAM;
   return null;
 }
@@ -1234,5 +1363,32 @@ function buildObliqueMethodDiagram(): Primitive[] {
 
 export const OBLIQUE_METHOD_DIAGRAM: readonly Primitive[] =
   Object.freeze(buildObliqueMethodDiagram());
+
+/**
+ * A worked METHOD DIAGRAM for the straightedge constructions: the
+ * perpendicular bisector of a short line, with the two compass arcs that find
+ * it left in.
+ *
+ * DELIBERATELY AT NUMBERS NO EXERCISE USES — a 6-unit line, where the shipped
+ * bisector exercises use 12 and a 45-degree span of 8. Same rule as the
+ * parabola diagram's n=3 and the oblique diagram's plain block: an
+ * illustration of the METHOD must never be the answer to an INSTANCE.
+ *
+ * The line and the bisector are DERIVED by `constructionKey`, so the diagram
+ * cannot disagree with what the marker expects; only the two arcs are added by
+ * hand, and they are `construction` type, which the scorer strips anyway.
+ */
+function buildConstructionMethodDiagram(): Primitive[] {
+  const derived = constructionKey({
+    shape: "perp-bisector", x1: 0, y1: 10, x2: 6, y2: 10, reach: 5,
+  });
+  const arc = (cx: number): Primitive =>
+    ({ kind: "circle", type: "construction", cx, cy: 10, r: 4 });
+  // Arcs first so the ink of the line and its bisector reads on top of them.
+  return [arc(0), arc(6), ...derived];
+}
+
+export const CONSTRUCTION_METHOD_DIAGRAM: readonly Primitive[] =
+  Object.freeze(buildConstructionMethodDiagram());
 
 export const PARABOLA_METHOD_DIAGRAM: readonly Primitive[] = Object.freeze(buildParabolaMethodDiagram());
