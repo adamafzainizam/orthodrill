@@ -402,6 +402,150 @@ const CATALOGUE: Drill[] = [
     solid: subtractBox(block(6, 4, 3), { x: 0, y: 2, z: 0, w: 2, d: 2, h: 2 }, "notch"),
   },
   {
+    id: "build-stepped-shoulder",
+    title: "Build the stepped shoulder",
+    prompt:
+      "The three views below show one part. Build it: start from the full "
+      + "block the views enclose and remove material until your part matches "
+      + "all three. Every edge of this part can be seen from all three "
+      + "directions, so there are no dashed lines here to interpret — read the "
+      + "outlines and count squares.",
+    convention: "first_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED: generateViews emits no hidden segments for this solid, which
+    // is what makes the prompt's "no dashed lines" claim true. It is the
+    // gentlest of the ten for that reason and is ordered first.
+    solid: subtractBox(
+      subtractBox(block(7, 3, 4), { x: 5, y: 0, z: 2, w: 2, d: 3, h: 2 }, "shoulder"),
+      { x: 3, y: 0, z: 3, w: 2, d: 3, h: 1 }, "upper-step",
+    ),
+  },
+  {
+    id: "build-corner-cube",
+    title: "Build the clipped cube",
+    prompt:
+      "The three views below show one part: a cube with a single rectangular "
+      + "piece taken out of one top corner. Build it by removing material from "
+      + "the full block. Only one of the three views shows that cut as a "
+      + "dashed line — find it before you start cutting.",
+    convention: "third_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED: hidden segments appear in the SIDE view only, so "only one of
+    // the three views shows that cut as a dashed line" is exactly true.
+    solid: subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 3, w: 2, d: 2, h: 1 }, "corner"),
+  },
+  {
+    id: "build-through-slot",
+    title: "Build the slotted bar",
+    prompt:
+      "The three views below show a bar with a slot cut straight across it, "
+      + "from front face to back face. Build it from the full block. Because "
+      + "the slot runs the whole depth, the top view shows it as a plain "
+      + "opening rather than as hidden detail.",
+    convention: "first_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED: the slot spans the full depth (y 0..3 of d=4), so it breaks
+    // the top view's outline; hidden segments appear only in the side view.
+    solid: subtractBox(block(6, 4, 3), { x: 2, y: 0, z: 2, w: 2, d: 4, h: 1 }, "slot"),
+  },
+  {
+    id: "build-half-depth-notch",
+    title: "Build the part with a shallow notch",
+    prompt:
+      "The three views below show one part. The notch in it does NOT run the "
+      + "full depth of the block, and that is the whole difficulty: the top "
+      + "view is where its depth shows, and it shows there as dashed lines "
+      + "rather than as part of the outline. Build the part from the full "
+      + "block, and check the notch against more than one view before cutting.",
+    convention: "third_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED: the notch spans y 0..1 of d=4, so hidden segments appear in
+    // the TOP view and nowhere else — which is what the prompt points at.
+    solid: subtractBox(block(6, 4, 3), { x: 4, y: 0, z: 0, w: 2, d: 2, h: 2 }, "notch"),
+  },
+  {
+    id: "build-back-shelf",
+    title: "Build the part with a shelf at the back",
+    prompt:
+      "The three views below show a block with a shelf cut into its back "
+      + "half. Build it from the full block. Nothing about the shelf breaks "
+      + "the front view's outline, so its depth has to be read from the other "
+      + "two views.",
+    convention: "first_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED: hidden segments appear in the FRONT view, i.e. the shelf is
+    // there but does not cut the front outline — which is the claim above.
+    solid: subtractBox(block(5, 4, 4), { x: 0, y: 2, z: 2, w: 5, d: 2, h: 2 }, "shelf"),
+  },
+  {
+    id: "build-side-rebate",
+    title: "Build the rebated plate",
+    prompt:
+      "The three views below show a plate with a rebate — a step cut along "
+      + "one full edge — taken out of its back. Build it from the full block. "
+      + "Two of the three views carry dashed lines for this feature; read "
+      + "them together rather than trusting either alone.",
+    convention: "third_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED: hidden segments appear in the FRONT and TOP views — exactly
+    // two of the three, as the prompt says.
+    solid: subtractBox(block(5, 5, 3), { x: 0, y: 3, z: 0, w: 5, d: 2, h: 1 }, "rebate"),
+  },
+  {
+    id: "build-tee-slot",
+    title: "Build the tee-slotted bar",
+    prompt:
+      "The three views below show a bar with a T-shaped slot running through "
+      + "it: a narrow opening at the top widening into a channel below. Build "
+      + "it from the full block. Two cuts make this shape, and the wider one "
+      + "removes material the narrow one alone would have left.",
+    convention: "first_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED: hidden segments in TOP and SIDE. Two overlapping subtractions,
+    // which validateSolid permits for boxes (only cylinders may not overlap).
+    solid: subtractBox(
+      subtractBox(block(7, 4, 3), { x: 3, y: 0, z: 2, w: 1, d: 4, h: 1 }, "neck"),
+      { x: 2, y: 0, z: 1, w: 3, d: 4, h: 1 }, "head",
+    ),
+  },
+  {
+    id: "build-blind-pocket",
+    title: "Build the pocketed plate",
+    prompt:
+      "The three views below show a plate with a pocket milled into its top "
+      + "face. The pocket reaches no edge of the plate, so it never breaks the "
+      + "plate's outline: the top view shows it as a rectangle drawn INSIDE "
+      + "that outline, and the other two views show it only as dashed lines. "
+      + "Work out its position and depth from those, then cut it.",
+    convention: "third_angle",
+    topicId: "reading-views",
+    mode: "build",
+    addedOn: "2026-09-13",
+    // VERIFIED BY RENDERING, and the first draft of this prompt was WRONG.
+    // The pocket is interior on x and y (x 1..3 of w=5, y 1..2 of d=5), so it
+    // breaks no silhouette; hidden segments appear in FRONT and SIDE only.
+    // The draft said it "appears only as dashed lines" — but the TOP view
+    // looks down INTO the pocket, so there it is a VISIBLE rectangle. A
+    // student following that sentence would have hunted the top view for
+    // dashed lines that are not there. Checking where hidden lines exist is
+    // not the same as checking what the sentence claims (AGENTS.md §6).
+    solid: subtractBox(block(5, 5, 3), { x: 1, y: 1, z: 2, w: 3, d: 2, h: 1 }, "pocket"),
+  },
+  {
     id: "parabola-rectangle-5",
     title: "Parabola by the rectangle method",
     prompt:
