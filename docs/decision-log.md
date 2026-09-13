@@ -338,3 +338,21 @@ That leaves `n`, bounded on both sides:
 **The finding is in one row, not in the verdict.** `near-mirror-notches` has a visual hull **eight cells larger** than its key — so the silhouettes genuinely do not pin it down, and what disambiguates it is the hidden lines the generator draws. **Type B is well-posed because our views show hidden lines.** A convention that omitted them would make these exercises ambiguous, and that is now a load-bearing reason for a drawing rule that had only been a convention before.
 
 **What the probes do NOT establish**, stated so nobody reads more into them: they are bounded — one cell exhaustively, two cells for one part. A distant multi-cell competitor is not excluded, and no cheap probe excludes one in general. So the scorer handles the residual honestly at runtime instead: **if a student's cells differ from the key but all three generated views are identical, the verdict says so** rather than marking them wrong. It costs one comparison, and it is the difference between a marker and a liar.
+
+## 2026-09-13 — student testing is deferred, and `.web.app` is not reachable for this app
+
+**Student testing is DEFERRED by the builder's call**, stated 2026-09-13: build as much as possible, deploy, and hold user testing until as late as possible. He tests functionality, design, UI/UX and quality-of-life himself, and the record supports that — the clustering bug that made three views read as one, the missing mitre line, and the grid drawn invisibly at half a pixel were all found by him driving the real app, not by any test.
+
+**What deferring it does NOT cover, stated once so it is not quietly lost.** Spec §10's criterion is a student who has never seen the app completing a drill cold. Its purpose is not UI quality; it is whether someone who does not already know what the app expects can COMPREHEND the drill. Self-testing cannot reach that by construction, however skilled the tester, because the knowledge is the thing being controlled for. The criterion therefore stays OPEN rather than met — it is not being declared satisfied, it is being scheduled later.
+
+**`.web.app` was requested and cannot be had.** Checked rather than recalled, because deployment platforms change:
+
+| Path | Domain | Works for this app? |
+|---|---|---|
+| Firebase Hosting, Spark (free) | `.web.app` | **No** — static only |
+| Firebase App Hosting | `...us-central1.hosted.app` | Requires **Blaze** (billing account); and it is not `.web.app` anyway |
+| Firebase Hosting frameworks integration | `.web.app` | **Closed permanently to new participation** — Firebase's docs redirect to App Hosting |
+
+**Going static to obtain `.web.app` for free would break §5.1.** Three API routes carry the answer keys, and without a server the scoring either disappears or the keys ship to the browser. The marking IS the product, so this is not a trade that can be made.
+
+**What was proposed instead:** Vercel's PRODUCTION alias is the project name — `orthodrill.vercel.app` — which is shorter than `orthodrill.web.app` would have been, costs nothing, and runs the API routes. The long URL that prompted the request is Vercel's deployment-specific alias, which is not the one users would be given. A genuinely custom domain means buying one, which is a §2.1 conversation and has not been had.

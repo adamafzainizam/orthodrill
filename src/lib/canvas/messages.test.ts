@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { noticesFor } from "./messages.ts";
+import { noticesFor , noticesForBuild } from "./messages.ts";
 import type { FigureScoreResult, ScoreResult } from "../scoring/score.ts";
 
 const emptyDiff = { correct: [], missing: [], extra: [], wrongType: [], anchor: { dx: 0, dy: 0 } };
@@ -110,4 +110,69 @@ test("a figure never mentions placement or a convention", () => {
 test("a figure's notices carry stable unique ids too", () => {
   const n = noticesFor(figureResult({ missing: [line], extra: [line] }));
   assert.equal(new Set(n.map((x) => x.id)).size, n.length);
+});
+
+const region = (cells: [number, number, number][], where: string) =>
+  ({ cells, where, views: ["front", "top", "side"] as ("front" | "top" | "side")[] });
+
+test("a perfect build is told so plainly", () => {
+  const n = noticesForBuild({ ok: true, perfect: true, matchesAllViews: false, diff: { missing: [], extra: [] } });
+  assert.equal(n.length, 1);
+  assert.equal(n[0].tone, "good");
+});
+
+test("a view-consistent build is NOT told it is simply wrong", () => {
+  // The honest outcome. Three views do not always describe one unique solid,
+  // so a student can build something the drawing really does describe.
+  const n = noticesForBuild({
+    ok: true, perfect: false, matchesAllViews: true,
+    diff: { missing: [], extra: [] },
+  });
+  assert.equal(n.length, 1);
+  assert.equal(n[0].tone, "warn", "a correct reading must not be marked 'bad'");
+  assert.match(n[0].text, /matches all three views/);
+});
+
+test("a missing region is named by where it sits, and counted in blocks", () => {
+  const n = noticesForBuild({
+    ok: true, perfect: false, matchesAllViews: false,
+    diff: { missing: [region([[0, 0, 0]], "at the bottom front left")], extra: [] },
+  });
+  assert.equal(n.length, 1);
+  assert.match(n[0].text, /at the bottom front left/);
+  assert.match(n[0].text, /one block/, "a single cell must not read as '1 blocks'");
+});
+
+test("plural blocks read as plural", () => {
+  const n = noticesForBuild({
+    ok: true, perfect: false, matchesAllViews: false,
+    diff: { missing: [], extra: [region([[0, 0, 0], [1, 0, 0]], "at the right")] },
+  });
+  assert.match(n[0].text, /2 blocks remain at the right/);
+});
+
+test("no notice ever names a view, because naming all three every time teaches nothing", () => {
+  // AGENTS.md §6: every change to an occupancy changes all three views, so the
+  // per-region `views` list is correct and uninformative. If this test ever
+  // needs relaxing, it is because a partial case was found — say so there too.
+  const n = noticesForBuild({
+    ok: true, perfect: false, matchesAllViews: false,
+    diff: {
+      missing: [region([[0, 0, 0]], "at the top")],
+      extra: [region([[2, 2, 2]], "at the back right")],
+    },
+  });
+  for (const notice of n) {
+    assert.doesNotMatch(notice.text, /\bfront view\b|\btop view\b|\bside view\b/,
+      `notice named a view: "${notice.text}"`);
+  }
+});
+
+test("a nearly-empty build gets a sentence that is actually about that", () => {
+  const n = noticesForBuild({
+    ok: true, perfect: false, matchesAllViews: false,
+    diff: { missing: [region([[0, 0, 0]], "across most of the part")], extra: [] },
+  });
+  assert.match(n[0].text, /across most of the part/);
+  assert.doesNotMatch(n[0].text, /one block/, "a 43-cell hole must not be described as a block count");
 });

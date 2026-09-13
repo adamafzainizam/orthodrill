@@ -24,8 +24,22 @@ const SRC = fileURLToPath(new URL("../", import.meta.url));
  * server directory as key-bearing is what closes the transitive hole — a client
  * file importing `server/score.ts` is caught without the checker having to
  * resolve the import graph.
+ *
+ * `geometry/isoedges` LEFT this list on 2026-09-13, for the Type B builder,
+ * which must draw the student's in-progress solid in the browser. It is pure
+ * projection over an `Occupancy` and imports only `occupancy`, `isoproject`
+ * and `isotypes` — it holds no key and can derive none.
+ *
+ * THE RELAXATION IS DELIBERATELY NARROWER THAN THE SPEC ASKED FOR. The parent
+ * spec's §7.1 also named `isometric.ts`, and that would have been a real leak:
+ * `isometric.ts` imports `validateSolid` from `geometry/views`, the
+ * key-DERIVING module, and because this checker reads DIRECT imports only it
+ * would never have noticed `views.ts` being pulled into the browser bundle.
+ * The builder does not need it — it renders a CELL SET through `isoEdges`, not
+ * a `Solid` through `isometricView` — so `isometric.ts` stays reachable from
+ * server code alone. Do not add it here to make an import error go away.
  */
-const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/isoedges|geometry\/parabola|scoring\/score|scoring\/solid|scoring\/assign)/;
+const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/parabola|scoring\/score|scoring\/solid|scoring\/assign)/;
 
 /**
  * Directories permitted to reach for them. Never a client component.
@@ -88,6 +102,28 @@ test("the checker catches a server-side leak outside any allowed directory", () 
     null,
     "a non-client file outside every allowed directory must not pass",
   );
+});
+
+test("POSITIVE CONTROL for the 2026-09-13 relaxation: geometry/views is STILL banned", () => {
+  // isoedges left the ban list so the builder can draw client-side. This is the
+  // check that the relaxation took only what it was supposed to: a client file
+  // reaching `geometry/views` — and therefore `generateViews`, which turns a
+  // solid into the orthographic answer — must still be refused. A relaxation
+  // without a control beside it is how a guard quietly stops guarding.
+  const offending = `"use client";\nimport { generateViews } from "../lib/geometry/views.ts";\n`;
+  assert.notEqual(
+    violation("components/Builder.tsx", offending),
+    null,
+    "a client component may now reach the key-deriving views generator",
+  );
+});
+
+test("the relaxation really did happen: a client component MAY import isoedges", () => {
+  // The other half of the control. If this fails, the ban list was never
+  // narrowed and the builder cannot render — a green suite that silently
+  // blocks the feature is as bad as one that silently permits a leak.
+  const legitimate = `"use client";\nimport { isoEdges } from "../lib/geometry/isoedges.ts";\n`;
+  assert.equal(violation("components/Builder.tsx", legitimate), null);
 });
 
 test("a route handler importing the registry is allowed", () => {

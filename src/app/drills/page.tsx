@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { getDrill, listPlayableDrillIds } from "@/drills/registry";
+import { getDrill, listDrillIds } from "@/drills/registry";
 
 export default function DrillsPage() {
-  const drills = listPlayableDrillIds().map((id) => getDrill(id)!);
+  const drills = listDrillIds().map((id) => getDrill(id)!);
 
   return (
     <main className="p-6 max-w-3xl mx-auto flex flex-col gap-4">

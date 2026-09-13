@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Builder } from "@/components/Builder";
 import { AppHeader } from "@/components/AppHeader";
 import { Editor } from "@/components/Editor";
 import { Pictorial } from "@/components/Pictorial";
@@ -12,13 +13,62 @@ export default async function DrillPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const drill = getDrill(id);
   if (drill === null) notFound();
-  // A "build" drill is registered, served by the API and guarded by
-  // registry.test.ts, but its BUILDER component is wave 2 — this page draws on
-  // a sheet, and a build exercise has no sheet to draw on. 404 rather than
-  // render an editor for an exercise it cannot express. Nothing links here in
-  // wave 1 (see registry.listPlayableDrillIds); this is the direct-URL case.
-  // REMOVE with that filter when the builder ships.
-  if (drill.mode === "build") notFound();
+  // A "build" drill has no sheet to draw on: the student carves a solid rather
+  // than drawing primitives, so it gets the Builder and an early return rather
+  // than the Editor below. Narrowed on `mode`, never cast — AGENTS.md §6 is
+  // explicit that a type complaint on this seam is the guard.
+  if (drill.mode === "build") {
+    const pub = publicHalf(drill);
+    return (
+      <>
+        <AppHeader
+          back={`/topics/${drill.topicId}`}
+          trail={[
+            { label: "Topics", href: "/topics" },
+            { label: pub.topic.title, href: `/topics/${drill.topicId}` },
+            { label: pub.title },
+          ]}
+        />
+        <main className="p-6 max-w-[1600px] mx-auto">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+            <div className="flex-1 min-w-0 flex flex-col gap-4">
+              <section
+                className="rounded-[var(--radius-lg)] border p-5"
+                style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)" }}
+              >
+                <h1 className="t-title">{pub.title}</h1>
+                <p className="t-body mt-2 max-w-[68ch]" style={{ color: "var(--text-secondary)" }}>
+                  {pub.prompt}
+                </p>
+              </section>
+              <section
+                className="rounded-[var(--radius-lg)] border p-5"
+                style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)" }}
+              >
+                <h2 className="t-label mb-3" style={{ color: "var(--text-tertiary)" }}>
+                  The part, in three views
+                </h2>
+                {/* `grid` is NOT decoration: the prompt tells the student to
+                    count squares to read the sizes, and a caption saying that
+                    over a figure with no grid is the exact defect oblique
+                    wave 2 shipped (AGENTS.md §9, 2026-09-02). */}
+                <MethodDiagram
+                  primitives={pub.promptViews}
+                  grid
+                  scale={30}
+                  caption={`${pub.promptConvention === "first_angle" ? "First" : "Third"} angle projection. Each square is one unit — count them to read the sizes off the views.`}
+                />
+              </section>
+              <Builder drill={{ id: pub.id, title: pub.title, prompt: pub.prompt, mode: "build", base: pub.base }} />
+            </div>
+            <div className="w-full lg:w-[21rem] lg:shrink-0 flex flex-col gap-4">
+              <Sidebar topic={pub.topic} />
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   // Only the public half crosses into the client component. The solid — which
   // IS the answer key, since generateViews turns it into the views — stays here.
