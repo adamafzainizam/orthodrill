@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS, SHEET } from "./registry.ts";
+import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS, SHEET, getUpdateRibbon } from "./registry.ts";
 import { getTopic } from "../topics/topics.ts";
 import { generateViews, generateViewsFromOccupancy } from "../lib/geometry/views.ts";
 import { cellsOfSolid, occupancyFromCells } from "../lib/geometry/cells.ts";
@@ -607,4 +607,20 @@ test("no drill's addedOn is dated in the future", () => {
       `${id}'s addedOn (${drill.addedOn}) is in the future`,
     );
   }
+});
+
+test("getUpdateRibbon's date is the maximum addedOn across the real registry", () => {
+  const dates = listDrillIds().map((id) => getDrill(id)!.addedOn);
+  const maxDate = dates.reduce((max, d) => (d > max ? d : max), dates[0]);
+  assert.equal(getUpdateRibbon()!.date, maxDate);
+});
+
+test("getUpdateRibbon's count matches the number of drills at that date", () => {
+  const ribbon = getUpdateRibbon()!;
+  const atThatDate = listDrillIds().filter((id) => getDrill(id)!.addedOn === ribbon.date);
+  assert.equal(ribbon.count, atThatDate.length);
+});
+
+test("getUpdateRibbon's href always points somewhere under /topics", () => {
+  assert.match(getUpdateRibbon()!.href, /^\/topics(\/[a-z-]+)?$/);
 });

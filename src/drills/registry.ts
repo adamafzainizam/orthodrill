@@ -32,6 +32,7 @@ import type { KeyViews } from "../lib/scoring/assign.ts";
 import type { Primitive } from "../lib/scoring/primitives.ts";
 import type { Convention } from "../lib/scoring/types.ts";
 import { getTopic, type Hint, type TopicId } from "../topics/topics.ts";
+import { latestBatch } from "../lib/ribbon.ts";
 
 /**
  * An orthographic drill: draw front/top/side from an isometric prompt. The
@@ -1351,6 +1352,26 @@ const READING_VIEWS_PREVIEW_SOLID = subtractBox(
 export const READING_VIEWS_PREVIEW: readonly Primitive[] = Object.freeze(
   viewsFigure(READING_VIEWS_PREVIEW_SOLID, "first_angle"),
 );
+
+/**
+ * The newest batch of drills, for the update ribbon (AGENTS.md §2.10).
+ * `date`, `count` and `href` reveal nothing about any answer key, so this is
+ * as safe to call from a server component as `topicPreview` already is.
+ *
+ * Deliberately does NOT check freshness — `/` and `/topics` are statically
+ * prerendered, so a check made here would be evaluated at BUILD time and
+ * frozen into the static HTML. `UpdateRibbon` (the client component) decides
+ * freshness itself, against the viewer's own clock. See design spec §3.1.
+ */
+export function getUpdateRibbon(): { date: string; count: number; href: string } | null {
+  const batch = latestBatch(listDrillIds().map((id) => getDrill(id)!));
+  if (batch === null) return null;
+  return {
+    date: batch.date,
+    count: batch.count,
+    href: batch.topicId === null ? "/topics" : `/topics/${batch.topicId}`,
+  };
+}
 
 export function topicPreview(topicId: string): readonly Primitive[] | null {
   if (topicId === "orthographic") return ORTHOGRAPHIC_PREVIEW;
