@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
+import { UpdateRibbon } from "@/components/UpdateRibbon";
 import { getTopic } from "@/topics/topics";
-import { getDrill, listDrillIds } from "@/drills/registry";
+import { getDrill, getUpdateRibbon, listDrillIds } from "@/drills/registry";
 
 export default async function TopicPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,10 +13,12 @@ export default async function TopicPage({ params }: { params: Promise<{ id: stri
   const exercises = listDrillIds()
     .map((drillId) => getDrill(drillId)!)
     .filter((d) => d.topicId === topic.id);
+  const ribbon = getUpdateRibbon();
 
   return (
     <>
       <AppHeader back="/topics" trail={[{ label: topic.title }]} />
+      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} href={ribbon.href} />}
       <main className="p-6 max-w-3xl mx-auto flex flex-col gap-6">
       <div>
         <h1 className="t-display">{topic.title}</h1>
