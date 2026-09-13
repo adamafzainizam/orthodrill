@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import { DriftingFigures } from "@/components/DriftingFigures";
+import { UpdateRibbon } from "@/components/UpdateRibbon";
 import { TOPIC_IDS, getTopic } from "@/topics/topics";
-import { topicPreview } from "@/drills/registry";
+import { getUpdateRibbon, topicPreview } from "@/drills/registry";
 
 /**
  * A short landing — deliberately not a marketing page.
@@ -20,6 +21,7 @@ import { topicPreview } from "@/drills/registry";
  * what the tool covers.
  */
 export default function Home() {
+  const ribbon = getUpdateRibbon();
   // Resolved HERE, not inside the component: `drills/registry` holds the
   // answer keys, so only server code under app/ may reach it.
   const withPreview = TOPIC_IDS
@@ -35,6 +37,7 @@ export default function Home() {
           the sentence beside them. */}
       <DriftingFigures figures={figures} />
       <AppHeader />
+      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} href={ribbon.href} />}
       {/* Centred in what is left below the header, so the page does not
           trail off into a void beneath the hero. */}
       <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-[1100px] flex-col justify-center gap-10 px-6 py-12">

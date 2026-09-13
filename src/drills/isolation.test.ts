@@ -39,7 +39,7 @@ const SRC = fileURLToPath(new URL("../", import.meta.url));
  * a `Solid` through `isometricView` — so `isometric.ts` stays reachable from
  * server code alone. Do not add it here to make an import error go away.
  */
-const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/parabola|scoring\/score|scoring\/solid|scoring\/assign)/;
+const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/parabola|geometry\/constructions|geometry\/oblique|scoring\/score|scoring\/solid|scoring\/assign)/;
 
 /**
  * Directories permitted to reach for them. Never a client component.
@@ -146,6 +146,27 @@ test("the checker catches a client component importing the parabola generator di
     violation("components/Sidebar.tsx", offending),
     null,
     "a client component importing the parabola generator must be caught",
+  );
+});
+
+test("the checker catches a client component importing the construction generator directly", () => {
+  // constructionKey(spec) derives a figure's answer key with one call, the
+  // same shape as parabolaKey and generateViews above — SERVER_ONLY named
+  // parabola but not this one, which shipped the same week (AGENTS.md §6).
+  const offending = `"use client";\nimport { constructionKey } from "../lib/geometry/constructions.ts";\n`;
+  assert.notEqual(
+    violation("components/Sidebar.tsx", offending),
+    null,
+    "a client component importing the construction generator must be caught",
+  );
+});
+
+test("the checker catches a client component importing the oblique generator directly", () => {
+  const offending = `"use client";\nimport { obliqueKey } from "../lib/geometry/oblique.ts";\n`;
+  assert.notEqual(
+    violation("components/Sidebar.tsx", offending),
+    null,
+    "a client component importing the oblique generator must be caught",
   );
 });
 

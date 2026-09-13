@@ -3,8 +3,9 @@ import { AppHeader } from "@/components/AppHeader";
 import { Backlight } from "@/components/Backlight";
 import { DriftingFigures } from "@/components/DriftingFigures";
 import { MethodDiagram } from "@/components/MethodDiagram";
+import { UpdateRibbon } from "@/components/UpdateRibbon";
 import { TOPIC_IDS, getTopic } from "@/topics/topics";
-import { getDrill, listDrillIds, topicPreview } from "@/drills/registry";
+import { getDrill, getUpdateRibbon, listDrillIds, topicPreview } from "@/drills/registry";
 
 /**
  * The topic chooser, as SECTIONS rather than a list of text cards.
@@ -15,6 +16,7 @@ import { getDrill, listDrillIds, topicPreview } from "@/drills/registry";
  * what the topic looks like without solving anything a student will be asked.
  */
 export default function TopicsPage() {
+  const ribbon = getUpdateRibbon();
   const topics = TOPIC_IDS.map((id) => getTopic(id)!);
   // Resolved here rather than inside the component, for the same reason the
   // front page does it: registry is server-only.
@@ -32,6 +34,7 @@ export default function TopicsPage() {
           front page, because the cards already carry their own. */}
       <DriftingFigures figures={driftFigures} count={4} />
       <AppHeader back="/" />
+      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} href={ribbon.href} />}
       <main className="mx-auto flex max-w-[1100px] flex-col gap-8 px-6 py-10">
         <div>
           <h1 className="t-display">Choose a topic</h1>

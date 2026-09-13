@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS, SHEET } from "./registry.ts";
+import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS, SHEET, getUpdateRibbon } from "./registry.ts";
 import { getTopic } from "../topics/topics.ts";
 import { generateViews, generateViewsFromOccupancy } from "../lib/geometry/views.ts";
 import { cellsOfSolid, occupancyFromCells } from "../lib/geometry/cells.ts";
@@ -579,4 +579,48 @@ test("every construction key is integral and fits the sheet", () => {
     }
   }
   assert.ok(checked > 0, "no construction drills found — this test is inert");
+});
+
+test("every drill has an addedOn date, shaped like an ISO date", () => {
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    assert.match(
+      drill.addedOn, /^\d{4}-\d{2}-\d{2}$/,
+      `${id}'s addedOn is missing or not shaped like YYYY-MM-DD`,
+    );
+  }
+});
+
+test("no drill's addedOn is dated in the future", () => {
+  // One day of slack against the test machine's clock, so a drill dated
+  // TODAY cannot fail on a machine whose timezone has not rolled over yet.
+  // String comparison is safe and deliberate here: two YYYY-MM-DD strings
+  // compare lexicographically in the same order as the dates themselves, so
+  // there is no Date parsing and no timezone conversion to get wrong.
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const cutoff = tomorrow.toISOString().slice(0, 10);
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    assert.ok(
+      drill.addedOn <= cutoff,
+      `${id}'s addedOn (${drill.addedOn}) is in the future`,
+    );
+  }
+});
+
+test("getUpdateRibbon's date is the maximum addedOn across the real registry", () => {
+  const dates = listDrillIds().map((id) => getDrill(id)!.addedOn);
+  const maxDate = dates.reduce((max, d) => (d > max ? d : max), dates[0]);
+  assert.equal(getUpdateRibbon()!.date, maxDate);
+});
+
+test("getUpdateRibbon's count matches the number of drills at that date", () => {
+  const ribbon = getUpdateRibbon()!;
+  const atThatDate = listDrillIds().filter((id) => getDrill(id)!.addedOn === ribbon.date);
+  assert.equal(ribbon.count, atThatDate.length);
+});
+
+test("getUpdateRibbon's href always points somewhere under /topics", () => {
+  assert.match(getUpdateRibbon()!.href, /^\/topics(\/[a-z-]+)?$/);
 });
