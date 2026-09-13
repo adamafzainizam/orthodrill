@@ -680,49 +680,6 @@ function publicTopic(drill: Drill): PublicTopic {
  * construction to draw and roughly where on the sheet to put it — is carried
  * in `prompt`, authored as prose, not as machine-readable numbers.
  */
-/**
- * The drills the CURRENT UI can actually put in front of a student.
- *
- * WAVE 1 OF TYPE B REGISTERS `build` DRILLS WITHOUT A BUILDER TO DRAW THEM.
- * They must be in the registry — the API serves them, and `registry.test.ts`'s
- * box-only, well-posedness and views-leak guards all read them — but listing
- * them in a menu would hand a student a link to a page that cannot render.
- * So the registry keeps every drill and the student-facing listings ask this.
- *
- * DELETE THIS FUNCTION when the builder component ships, and put
- * `listDrillIds` back in the three pages that call it. It is deliberately a
- * named concept rather than an inline `.filter(d => d.mode !== "build")`
- * repeated in each of them, so there is exactly one place to undo.
- */
-export function listPlayableDrillIds(): string[] {
-  return listDrillIds().filter((id) => getDrill(id)!.mode !== "build");
-}
-
-/**
- * Topic ids with at least one drill the current UI can render.
- *
- * Same wave-1 reason as `listPlayableDrillIds`, and it goes away with it: the
- * reading-views topic is registered and guarded before its builder exists, and
- * a topic card advertising a topic with nothing behind it is a promise the app
- * cannot keep. Hidden until it has something to open.
- */
-export function playableTopicIds(): string[] {
-  const seen = new Set<string>();
-  for (const id of listPlayableDrillIds()) seen.add(getDrill(id)!.topicId);
-  return [...seen];
-}
-
-/**
- * Overloaded so that NARROWING A DRILL NARROWS ITS PUBLIC HALF. A page that has
- * established `drill.mode !== "build"` gets a public half without the build
- * branch, and can read `isometric` without a cast.
- *
- * This is deliberately overloads and not a cast at the call site. AGENTS.md §6
- * records that TypeScript is the LAST protection on this seam — `Drill` has no
- * `grid`, so handing one where a `PublicDrill` is expected is a compile error,
- * and `as PublicDrill` would delete that guard. An overload keeps the checking;
- * a cast removes it.
- */
 export function publicHalf(drill: ViewsDrill | FigureDrill): Exclude<PublicDrill, { mode: "build" }>;
 export function publicHalf(drill: BuildDrill): Extract<PublicDrill, { mode: "build" }>;
 export function publicHalf(drill: Drill): PublicDrill;
