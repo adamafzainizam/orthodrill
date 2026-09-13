@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS } from "./registry.ts";
 import { getTopic } from "../topics/topics.ts";
-import { generateViews } from "../lib/geometry/views.ts";
+import { generateViews, generateViewsFromOccupancy } from "../lib/geometry/views.ts";
+import { cellsOfSolid, occupancyFromCells } from "../lib/geometry/cells.ts";
+import type { Cell } from "../lib/geometry/rotate3.ts";
 import { block, type Solid } from "../lib/geometry/solid.ts";
 import { DEPTH_FACTOR } from "../lib/geometry/oblique.ts";
 import { boundingBox, type Primitive } from "../lib/scoring/primitives.ts";
@@ -406,10 +408,17 @@ test("a views-prompted drill NEVER shows the answer to a Type A exercise", () =>
   let checked = 0;
   for (const id of listDrillIds()) {
     const drill = getDrill(id)!;
-    if (drill.mode !== "figure" || drill.spec.kind !== "oblique") continue;
-    if (drill.spec.shownAs.kind !== "views") continue;
+    // Every drill whose PROMPT is the three views of a solid, whatever its
+    // mode. Type B shows them by definition; oblique wave 2 shows them by
+    // choice. Both publish that solid's Type A answer key.
+    const shownSolid =
+      drill.mode === "build" ? drill.solid
+      : drill.mode === "figure" && drill.spec.kind === "oblique" && drill.spec.shownAs.kind === "views"
+        ? drill.spec.solid
+      : null;
+    if (shownSolid === null) continue;
     checked++;
-    const shown = JSON.stringify(generateViews(drill.spec.solid));
+    const shown = JSON.stringify(generateViews(shownSolid));
     const clash = askedFor.get(shown);
     assert.equal(
       clash, undefined,
@@ -436,4 +445,73 @@ test("a views-prompted drill publishes its views and NOT its solid", () => {
     assert.equal("spec" in pub, false, `${id} leaked its spec`);
     assert.equal("solid" in pub, false, `${id} leaked its solid`);
   }
+});
+
+test("a 'build' drill's solid is BOX-ONLY", () => {
+  // Not a style rule. `buildOccupancy` drops cylinder ops, so a bored solid's
+  // key would silently omit the bore while the prompt shows a circle plainly,
+  // and the student would be marked wrong for the feature they could read
+  // most easily. Engine spec §4.
+  let checked = 0;
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "build") continue;
+    checked++;
+    for (const op of drill.solid.ops) {
+      assert.notEqual(
+        op.kind, "cylinder",
+        `${id} has a cylinder op — a build drill's key cannot represent a bore`,
+      );
+    }
+  }
+  assert.ok(checked > 0, "no build drills found — this test is inert");
+});
+
+test("a 'build' drill is WELL-POSED: its three views determine its part", () => {
+  // The premise the whole topic rests on. If a student can build something
+  // genuinely consistent with all three given views and we mark it wrong, the
+  // app teaches a falsehood — worse than a wrong key, because the student's
+  // reasoning was correct. Engine spec §2.
+  //
+  // This is NOT belt-and-braces: exhaustive enumeration of a 2x2x2 grid found
+  // two buckets of genuinely different parts sharing all three views, so
+  // ambiguity is real and has to be excluded per part.
+  let checked = 0;
+  for (const id of listDrillIds()) {
+    const drill = getDrill(id)!;
+    if (drill.mode !== "build") continue;
+    checked++;
+    const { w, d, h } = drill.solid.base;
+    const cells = cellsOfSolid(drill.solid);
+    const target = JSON.stringify(generateViews(drill.solid));
+
+    // Probe 1: the visual hull is the maximal cell set consistent with the
+    // three silhouettes. If it differs from the key AND generates the same
+    // views, a student could legitimately build it instead.
+    const silF = new Set<string>(), silT = new Set<string>(), silS = new Set<string>();
+    for (const [x, y, z] of cells) {
+      silF.add(`${x},${z}`); silT.add(`${x},${y}`); silS.add(`${y},${z}`);
+    }
+    const hull: Cell[] = [];
+    for (let k = 0; k < h; k++) for (let j = 0; j < d; j++) for (let i = 0; i < w; i++)
+      if (silF.has(`${i},${k}`) && silT.has(`${i},${j}`) && silS.has(`${j},${k}`)) hull.push([i, j, k]);
+    if (hull.length !== cells.length) {
+      assert.notEqual(
+        JSON.stringify(generateViewsFromOccupancy(occupancyFromCells(hull, w, d, h))), target,
+        `${id}: its visual hull is a DIFFERENT part with the SAME three views — the exercise is ambiguous`,
+      );
+    }
+
+    // Probe 2: exhaustive single-cell removal. If any one cell can go with all
+    // three views unchanged, ambiguity is proven by an example a student could
+    // plausibly build.
+    for (const c of cells) {
+      const without = cells.filter((o) => !(o[0] === c[0] && o[1] === c[1] && o[2] === c[2]));
+      assert.notEqual(
+        JSON.stringify(generateViewsFromOccupancy(occupancyFromCells(without, w, d, h))), target,
+        `${id}: removing cell ${c.join(",")} leaves all three views unchanged — the exercise is ambiguous`,
+      );
+    }
+  }
+  assert.ok(checked > 0, "no build drills found — this test is inert");
 });

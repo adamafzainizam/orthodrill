@@ -25,7 +25,7 @@ const SRC = fileURLToPath(new URL("../", import.meta.url));
  * file importing `server/score.ts` is caught without the checker having to
  * resolve the import graph.
  */
-const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/isoedges|geometry\/parabola|scoring\/score|scoring\/assign)/;
+const SERVER_ONLY = /from\s+["'][^"']*(drills\/registry|server\/|geometry\/solid|geometry\/views|geometry\/isoedges|geometry\/parabola|scoring\/score|scoring\/solid|scoring\/assign)/;
 
 /**
  * Directories permitted to reach for them. Never a client component.

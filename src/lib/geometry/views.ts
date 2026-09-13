@@ -217,7 +217,7 @@ function dedupeByPosition(ps: Primitive[]): Primitive[] {
   return [...best.values()];
 }
 
-function buildView(s: Solid, occ: Occupancy, spec: ViewSpec): Primitive[] {
+function buildView(ops: Solid["ops"], occ: Occupancy, spec: ViewSpec): Primitive[] {
   const lattice = mergeEdges(extractEdges(occ, spec));
 
   const out: Primitive[] = lattice.map((l) => ({
@@ -227,7 +227,7 @@ function buildView(s: Solid, occ: Occupancy, spec: ViewSpec): Primitive[] {
     x2: spec.suSign * l.u2, y2: spec.svSign * l.v2,
   }));
 
-  for (const op of s.ops) {
+  for (const op of ops) {
     if (op.kind !== "cylinder") continue;
     for (const p of borePrimitives(op, occ, spec)) {
       out.push(p.kind === "circle"
@@ -247,12 +247,38 @@ function buildView(s: Solid, occ: Occupancy, spec: ViewSpec): Primitive[] {
   return deduped.map((p) => translate(p, -box.minX, -box.minY));
 }
 
+function composeViews(ops: Solid["ops"], occ: Occupancy): KeyViews {
+  const views = {} as Record<ViewName, Primitive[]>;
+  for (const name of ["front", "top", "side"] as ViewName[]) {
+    views[name] = buildView(ops, occ, VIEW_SPECS[name]);
+  }
+  return { front: views.front, top: views.top, side: views.side };
+}
+
 export function generateViews(s: Solid): KeyViews {
   validateSolid(s);
   const occ = buildOccupancy(s); // rasterised once, shared by all three views
-  const views = {} as Record<ViewName, Primitive[]>;
-  for (const name of ["front", "top", "side"] as ViewName[]) {
-    views[name] = buildView(s, occ, VIEW_SPECS[name]);
-  }
-  return { front: views.front, top: views.top, side: views.side };
+  return composeViews(s.ops, occ);
+}
+
+/**
+ * The three views of an arbitrary occupancy — a cell set that may not be a
+ * well-formed `Solid` at all.
+ *
+ * WHY THIS EXISTS. The Type B scorer must generate the views of a STUDENT'S
+ * in-progress build to answer two questions honestly: which view a mistake
+ * actually shows up in, and whether a build that differs from the key
+ * nonetheless matches all three views (reverse-drill engine spec §5.2, §5.3).
+ * A student's build is frequently not expressible as a base block minus ordered
+ * subtractions, so it cannot go through `generateViews`.
+ *
+ * NO CYLINDERS, and none are possible: an occupancy has no ops. That is sound
+ * only because Type B is box-only — see that spec's §4 for why that is forced
+ * rather than chosen.
+ *
+ * `validateSolid` is deliberately NOT called: there is no solid to validate,
+ * and the caller has already bounded the cell set through `validate.ts`.
+ */
+export function generateViewsFromOccupancy(occ: Occupancy): KeyViews {
+  return composeViews([], occ);
 }

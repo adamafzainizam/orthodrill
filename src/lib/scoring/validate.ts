@@ -17,6 +17,7 @@
  * PURE. No I/O.
  */
 import type { Primitive, PrimitiveType } from "./primitives.ts";
+import type { Cell } from "../geometry/rotate3.ts";
 
 /**
  * Caps. Generous against any real drawing — the golden parts run to a few
@@ -36,7 +37,9 @@ export type ValidationFailure =
   | "NOT_ON_GRID"
   | "OUT_OF_BOUNDS"
   | "DEGENERATE"
-  | "BAD_RADIUS";
+  | "BAD_RADIUS"
+  | "TOO_MANY_CELLS"
+  | "DUPLICATE_CELL";
 
 export type ValidationResult =
   | { ok: true; primitives: Primitive[] }
@@ -106,4 +109,55 @@ export function validateAttempt(input: unknown): ValidationResult {
     primitives.push(r.primitive);
   }
   return { ok: true, primitives };
+}
+
+/**
+ * Caps for a cell submission. The largest base block in the catalogue is
+ * 9x6x6 = 324 cells, so 4000 is generous against any real build while keeping
+ * the worst case cheap. A single axis is bounded well below anything that
+ * would make `occupancyFromCells` allocate meaningfully.
+ */
+export const MAX_CELLS = 4000;
+export const MAX_CELL_COORD = 64;
+
+export type CellValidationResult =
+  | { ok: true; cells: Cell[] }
+  | { ok: false; reason: ValidationFailure };
+
+/** A cell index is a grid position: a non-negative integer inside the cap. */
+function badCellCoord(n: unknown): ValidationFailure | null {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "NOT_A_NUMBER";
+  if (!Number.isInteger(n)) return "NOT_ON_GRID";
+  if (n < 0 || n > MAX_CELL_COORD) return "OUT_OF_BOUNDS";
+  return null;
+}
+
+/**
+ * Validate the occupied-cell set of a Type B attempt.
+ *
+ * Same trust-boundary discipline as `validateAttempt`: hostile until proven
+ * otherwise, all-or-nothing, and every cell REBUILT rather than passed
+ * through, so no extra property can ride along into the scorer or back out in
+ * a response.
+ */
+export function validateCells(input: unknown): CellValidationResult {
+  if (!Array.isArray(input)) return { ok: false, reason: "NOT_AN_ARRAY" };
+  // Before the per-cell loop, for the reason MAX_PRIMITIVES is checked early.
+  if (input.length > MAX_CELLS) return { ok: false, reason: "TOO_MANY_CELLS" };
+
+  const cells: Cell[] = [];
+  const seen = new Set<string>();
+  for (const raw of input) {
+    if (!Array.isArray(raw) || raw.length !== 3) return { ok: false, reason: "BAD_SHAPE" };
+    for (const v of raw) {
+      const bad = badCellCoord(v);
+      if (bad !== null) return { ok: false, reason: bad };
+    }
+    const cell: Cell = [raw[0] as number, raw[1] as number, raw[2] as number];
+    const k = `${cell[0]},${cell[1]},${cell[2]}`;
+    if (seen.has(k)) return { ok: false, reason: "DUPLICATE_CELL" };
+    seen.add(k);
+    cells.push(cell);
+  }
+  return { ok: true, cells };
 }

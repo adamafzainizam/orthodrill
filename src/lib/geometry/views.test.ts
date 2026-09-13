@@ -1,8 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateViews, validateSolid } from "./views.ts";
+import { generateViews, generateViewsFromOccupancy, validateSolid } from "./views.ts";
 import { block, subtractBox, subtractCylinder } from "./solid.ts";
+import { buildOccupancy } from "./occupancy.ts";
+import { cellsOfSolid, occupancyFromCells } from "./cells.ts";
 import { boundingBox, positionKey, type Primitive } from "../scoring/primitives.ts";
+import type { Cell } from "./rotate3.ts";
 
 test("a plain block gives three rectangular outlines", () => {
   const v = generateViews(block(6, 4, 2));
@@ -195,4 +198,24 @@ test("a hole exactly tangent to a face is still accepted", () => {
 test("a solid with no remaining material is rejected", () => {
   const bad = subtractBox(block(4, 4, 4), { x: 0, y: 0, z: 0, w: 4, d: 4, h: 4 });
   assert.throws(() => validateSolid(bad), /material/i);
+});
+
+test("generateViewsFromOccupancy agrees with generateViews on a box-only solid", () => {
+  // The refactor's whole contract: the occupancy path and the solid path are
+  // the same path. If these ever diverge, the Type B scorer is judging a
+  // different drawing from the one Type A grades.
+  const s = subtractBox(block(6, 4, 4), { x: 4, y: 0, z: 2, w: 2, d: 4, h: 2 }, "step");
+  assert.deepEqual(generateViewsFromOccupancy(buildOccupancy(s)), generateViews(s));
+});
+
+test("generateViewsFromOccupancy handles a cell set no Solid could express", () => {
+  // A floating cell above a block. `validateSolid` would refuse this and
+  // subtractBox cannot build it, which is precisely why the occupancy entry
+  // point has to exist — a student's in-progress build is often not a
+  // well-formed Solid.
+  const cells: Cell[] = [...cellsOfSolid(block(2, 2, 1)), [0, 0, 2]];
+  const views = generateViewsFromOccupancy(occupancyFromCells(cells, 2, 2, 3));
+  assert.ok(views.front.length > 0, "a front view should have been produced");
+  assert.ok(views.top.length > 0, "a top view should have been produced");
+  assert.ok(views.side.length > 0, "a side view should have been produced");
 });

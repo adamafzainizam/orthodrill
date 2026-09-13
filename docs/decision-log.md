@@ -282,3 +282,59 @@ A drawing tool that silently deforms the student's work, in an app that then mar
 **The security rule wave 2 created, and it is §5.1 in new clothes.** The three views of a solid ARE the answer key for a Type A orthographic exercise on that solid. So a drill that SHOWS those views publishes the answer to any drill that ASKS for them. Nothing about it looks like a leak — the prompt is a picture, the answer is a set of primitives, and they are the same object. A test enforces that no solid is used both ways, comparing **generated views rather than solid fields**, because two solids described differently can produce identical views and it is the views that leak. **This will apply to Type B by definition**, since Type B shows three views as its entire prompt.
 
 **What the render check earned this time.** Reading the pages as a student caught five defects no test saw: three prompts that contradicted the key (including the exact `√2` "full size" wording the lattice check had flagged in advance), a views prompt with no dimensions or grid that made its exercise literally unanswerable, and then a grid that was invisible because it was drawn in a border token at half a pixel. Two of the five are now mechanically checked. The other three are the reason `scripts/screenshot.ts` exists.
+
+## 2026-09-06 — every topic carries at least ten exercises, and the parabola cannot
+
+**The policy, stated by the builder 2026-09-06 and now AGENTS.md §2.9:** every topic carries **at least 10 exercises**, and as many beyond that as the topic can support. This supersedes the original spec's 8-12 range, which was written when there was one topic and was about having enough of ONE topic to practise on.
+
+**Measured immediately, per §2.4, and one topic cannot comply.** The parabola's entire design space is `{n, originX, originY}`, and two of those three do not produce distinct exercises: `compareView` normalises both sides to their bounding-box origin and `scoreFigure` diffs through it, so **two parabola drills differing only in apex position have byte-identical answer keys**. Translating a figure is not a new exercise; it is the same exercise relabelled.
+
+That leaves `n`, bounded on both sides:
+
+| Bound | Why |
+|---|---|
+| `n ≤ 6` | the rectangle is `n²` tall against a 40-tall sheet; `n = 7` needs 49 |
+| `n ≠ 3` | reserved for the method diagram, which §7 requires be drawn at different numbers from any exercise |
+| `n ≥ 2` | `n = 1` is degenerate — three points |
+
+**Distinct meaningful parabola exercises: `n ∈ {2, 4, 5, 6}`. Four. Three already ship.** The ceiling is one more, not seven. No amount of authoring effort moves it; this is the scoring model's translation-invariance, which is load-bearing everywhere else and is not being touched.
+
+**Decision: broaden the topic rather than bend the policy or the scorer.** The topic becomes geometric constructions and is filled with the other Tier 1 lattice-exact constructions §1.1 already names as unbuilt — perpendicular bisector, equal divisions, and similar — alongside the parabola. That reaches ten with genuinely different skills instead of the same construction ten times over, which is what the policy is actually for.
+
+**Each added construction runs its own lattice check first** (§1.1's standing rule). Bisecting a 90° angle gives 45° and is exact; bisecting 45° gives 22.5° and is not. The rule is cheap and it is the difference between a topic that ships in a day and weeks spent discovering the model cannot express its answer.
+
+**Backfill this policy creates, measured against the registry rather than the docs:** orthographic 8 → +2, oblique 6 → +4, parabola/constructions 3 → +7, and Type B 0 → 10.
+
+## 2026-09-06 — update notes ship with the exercises, and the ribbon obeys the drill-page rule
+
+**Asked for by the builder 2026-09-06:** new exercises are released with update notes — dated, version-numbered where useful — announced in a ribbon at the top of the site. Now AGENTS.md §2.10.
+
+**The ribbon does not appear on drill pages.** This is not a new rule; it is the canvas design spec's §5 applied to a new thing. That section bars ads from drill pages on the grounds that "a drill page is where the student is working and learning; nothing competes for attention there" — and a ribbon announcing new content competes for attention in exactly that way. Menu and landing pages only.
+
+**Releases are keyed by DATE, not semver.** Every spec, decision-log entry and session-log row in this repository is already keyed by date, and the releases are overwhelmingly content additions, where a major/minor judgement is noise rather than information. A student reads "new this week", not "v0.4.0".
+
+**The ribbon's counts are DERIVED, never written.** Each drill carries an `addedOn` date and the ribbon computes what is new from the registry. A hand-written "5 new exercises" that says five when three shipped is the parabola-hint failure class exactly — authored prose sitting next to content, that nothing verifies and every test passes around. The authored part shrinks to a headline, which cannot be arithmetically wrong.
+
+**Noted while checking:** §2.5 has claimed "tagged releases" since the beginning and `git tag` returns nothing across 23 merged PRs. The practice lapsed unnoticed, like the PR step before it. Date-keyed releases give it something concrete to attach to.
+
+## 2026-09-06 — Type B rotates the solid instead of the camera
+
+**A recorded deviation from an approved spec.** `2026-08-26-canvas-and-reverse-drill-design.md` §4.2 generalises `project()` to four bases and calls it "the riskiest piece of this design". It is right about the risk: `isoproject.ts`'s own docblock warns that a wrong sign there produces a picture that is "perfectly self-consistent and perfectly MIRRORED" — the failure class the golden set exists to catch. Four bases is four independent chances at it, in float code, checked by eye.
+
+**Instead: spin the part, leave the camera.** All four top corners are `(±1, ±1, +1)`, which differ from the current `(+1, −1, +1)` by a quarter turn about z — and those are exactly the four rotations the lattice permits, the same stop set the rotate tool ships. `Occupancy` is already an interface rather than data, so a viewpoint is a wrapper: swap `w`/`d` on odd turns, remap indices in `isSolid`. `isoproject.ts` is not edited at all, and `isoedges.ts` cannot tell the difference, so the paint order, the nearest-face crease ownership and the fill-seal contract all keep working untouched.
+
+**Why this is the safer of the two, in one line:** the verification becomes a round-trip identity over every cell and every turn, plus a composition check, plus a positive control — all machine-checkable — instead of four hand-derived coordinate sets checked by looking at them.
+
+**The cost, stated rather than buried:** a quarter turn moves a cylinder's axis, so a four-viewpoint viewer of a BORED solid would need its ops rotated too. Type B is box-only, so it costs nothing here, and the boundary goes in the module docblock.
+
+## 2026-09-06 — three views determine the part, and it is the hidden lines that do it
+
+**The question that could have killed Type B.** Three orthographic views do not, in general, determine a unique solid. If a student builds something genuinely consistent with all three given views and the app marks it wrong, the app confidently teaches a falsehood — worse than a wrong key, because the student's reasoning was correct.
+
+**Measured before designing, on the nine box-only solids already in the catalogue.** Two probes, both decisive in the direction that matters: the **visual hull** (the maximal cell set consistent with the three silhouettes) and **exhaustive single-cell removal**.
+
+**0 of 9 provably ambiguous.** An exhaustive TWO-cell removal probe on the likeliest candidate tried 14028 pairs in 1.4 s and found none either.
+
+**The finding is in one row, not in the verdict.** `near-mirror-notches` has a visual hull **eight cells larger** than its key — so the silhouettes genuinely do not pin it down, and what disambiguates it is the hidden lines the generator draws. **Type B is well-posed because our views show hidden lines.** A convention that omitted them would make these exercises ambiguous, and that is now a load-bearing reason for a drawing rule that had only been a convention before.
+
+**What the probes do NOT establish**, stated so nobody reads more into them: they are bounded — one cell exhaustively, two cells for one part. A distant multi-cell competitor is not excluded, and no cheap probe excludes one in general. So the scorer handles the residual honestly at runtime instead: **if a student's cells differ from the key but all three generated views are identical, the verdict says so** rather than marking them wrong. It costs one comparison, and it is the difference between a marker and a liar.
