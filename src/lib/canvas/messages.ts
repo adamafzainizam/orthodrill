@@ -12,6 +12,7 @@
  * build, so this does not put the scorer in the client bundle.
  */
 import type { FigureScoreResult, ScoreResult } from "../scoring/score.ts";
+import type { SolidScoreResult } from "../scoring/solid.ts";
 import type { ViewDiff, ViewName } from "../scoring/types.ts";
 
 export type Notice = { id: string; tone: "good" | "warn" | "bad"; text: string };
@@ -108,4 +109,59 @@ function noticesForViews(result: ScoreResult): Notice[] {
  */
 export function noticesFor(result: ScoreResult | FigureScoreResult): Notice[] {
   return "diff" in result ? noticesForFigure(result) : noticesForViews(result);
+}
+
+/**
+ * Sentences for a Type B build.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT SAY. Each region carries a `views` list, and
+ * it is correct — but AGENTS.md §6 records the measurement that EVERY change
+ * to an occupancy changes all three views, so that list always reads
+ * "front, top and side". A sentence naming all three every time would look
+ * like information and carry none, which is the authored-prose failure this
+ * project keeps finding in new places. If a region is ever found that changes
+ * some views but not all, this is the place to start saying so.
+ *
+ * THE VIEW-CONSISTENT CASE IS NOT A FAILURE MESSAGE. Three orthographic views
+ * do not always determine a part (measured: two buckets of genuinely different
+ * parts share all three views on a 2x2x2 grid), so a student can build
+ * something the drawing really does describe. Telling them they are simply
+ * wrong would be the app teaching a falsehood.
+ */
+export function noticesForBuild(result: SolidScoreResult): Notice[] {
+  if (result.perfect) {
+    return [{ id: "perfect", tone: "good", text: "Your part matches the drawing exactly." }];
+  }
+
+  if (result.matchesAllViews) {
+    return [{
+      id: "view-consistent",
+      tone: "warn",
+      text:
+        "Your part matches all three views, but it is not the part these views "
+        + "were drawn from. Three views do not always describe one unique solid.",
+    }];
+  }
+
+  const blocks = (n: number) => (n === 1 ? "One block" : `${n} blocks`);
+  const out: Notice[] = [];
+  result.diff.missing.forEach((r, i) => {
+    out.push({
+      id: `missing-${i}`,
+      tone: "bad",
+      text: r.where === "across most of the part"
+        ? "Material is missing across most of the part — compare your build with all three views before cutting further."
+        : `Material is missing ${r.where}: ${blocks(r.cells.length).toLowerCase()} of the part should be there.`,
+    });
+  });
+  result.diff.extra.forEach((r, i) => {
+    out.push({
+      id: `extra-${i}`,
+      tone: "bad",
+      text: r.where === "across most of the part"
+        ? "Most of the block is still uncut — the views describe a smaller part than this."
+        : `${blocks(r.cells.length)} ${r.cells.length === 1 ? "remains" : "remain"} ${r.where} that the views say should be cut away.`,
+    });
+  });
+  return out;
 }

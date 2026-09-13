@@ -9,6 +9,8 @@
  */
 import type { Primitive } from "../scoring/primitives.ts";
 import type { FigureScoreResult, ScoreResult } from "../scoring/score.ts";
+import type { SolidScoreResult } from "../scoring/solid.ts";
+import type { Cell } from "../geometry/rotate3.ts";
 
 export type SubmitKind = "views" | "figure";
 
@@ -31,6 +33,32 @@ export async function submitAttempt(
       body: JSON.stringify({ drillId, kind, primitives: scoreable }),
     });
     return (await response.json()) as ScoreResult | FigureScoreResult | SubmitFailure;
+  } catch {
+    return { ok: false, reason: "NETWORK" };
+  }
+}
+
+/**
+ * Submit a Type B build: the cells the student's part OCCUPIES.
+ *
+ * Occupied, not removed, so two students who carve the same part in a
+ * different order submit the same thing (reverse-drill spec §6). The
+ * submission's `kind` is "solid" while the drill's `mode` is "build" — the
+ * drill says what the exercise asks for, the submission says what shape
+ * arrived, and `server/score.ts` maps between them in one place.
+ */
+export async function submitBuild(
+  drillId: string,
+  cells: readonly Cell[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<SolidScoreResult | SubmitFailure> {
+  try {
+    const response = await fetchImpl("/api/score", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ drillId, kind: "solid", cells }),
+    });
+    return (await response.json()) as SolidScoreResult | SubmitFailure;
   } catch {
     return { ok: false, reason: "NETWORK" };
   }

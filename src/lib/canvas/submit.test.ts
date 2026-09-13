@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { submitAttempt } from "./submit.ts";
+import { submitAttempt, submitBuild } from "./submit.ts";
 
 const ok = (body: unknown) => async () =>
   new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
@@ -73,4 +73,24 @@ test("a network failure surfaces as a reason rather than throwing", async () => 
   const result = await submitAttempt("step-block", "views", [], broken);
   assert.equal(result.ok, false);
   assert.equal((result as { reason: string }).reason, "NETWORK");
+});
+
+test("submitBuild posts the occupied cells under kind 'solid'", async () => {
+  let seen: unknown = null;
+  const fake: typeof fetch = async (_url, init) => {
+    seen = JSON.parse(String((init as RequestInit).body));
+    return { json: async () => ({ ok: true, perfect: true }) } as Response;
+  };
+  await submitBuild("build-corner-step", [[0, 0, 0], [1, 0, 0]], fake);
+  assert.deepEqual(seen, {
+    drillId: "build-corner-step",
+    kind: "solid",
+    cells: [[0, 0, 0], [1, 0, 0]],
+  });
+});
+
+test("submitBuild returns a failure rather than throwing when the network dies", async () => {
+  const dead: typeof fetch = async () => { throw new Error("offline"); };
+  const r = await submitBuild("x", [[0, 0, 0]], dead);
+  assert.deepEqual(r, { ok: false, reason: "NETWORK" });
 });
