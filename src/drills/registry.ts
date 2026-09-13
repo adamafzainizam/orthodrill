@@ -402,6 +402,49 @@ const CATALOGUE: Drill[] = [
     solid: subtractBox(block(6, 4, 3), { x: 0, y: 2, z: 0, w: 2, d: 2, h: 2 }, "notch"),
   },
   {
+    id: "window-through-plate",
+    title: "Plate with a rectangular window",
+    prompt:
+      "A plate with a rectangular window cut straight through it, from front "
+      + "face to back face. Draw the front, top and right-side views. The "
+      + "window is not round, so it carries no centre lines — but it does have "
+      + "edges that cannot be seen from every direction, and an edge you "
+      + "cannot see is drawn dashed rather than left out.",
+    convention: "first_angle",
+    topicId: "orthographic",
+    mode: "views",
+    // VERIFIED: hidden segments appear in the TOP and SIDE views; the front
+    // view shows the window as a plain opening, because that is the direction
+    // it is cut along. The prompt deliberately does NOT say "two of the three
+    // views" any more: §7 bars walking a student through their own problem,
+    // and the count is most of the answer. The dimensioned pictorial shows
+    // enough to work it out.
+    solid: subtractBox(block(7, 4, 5), { x: 2, y: 0, z: 1, w: 3, d: 4, h: 2 }, "window"),
+  },
+  {
+    id: "pocketed-plate",
+    title: "Plate with a milled pocket",
+    prompt:
+      "A plate with a rectangular pocket milled part-way into its top face. "
+      + "The pocket reaches no edge of the plate, so it breaks none of the "
+      + "plate's outlines — every view is the same plain rectangle until you "
+      + "add the pocket to it. Draw the front, top and right-side views, and "
+      + "work out for yourself which of them can see into the pocket and "
+      + "which can only show it dashed.",
+    convention: "third_angle",
+    topicId: "orthographic",
+    mode: "views",
+    // VERIFIED: hidden segments in FRONT and SIDE only; the pocket is interior
+    // on x and y so it breaks no silhouette, and the top view shows it as a
+    // visible rectangle. The prompt states the part and the one non-obvious
+    // FACT (it reaches no edge), then stops — enumerating which view shows
+    // what would hand over the answer, which §7 forbids. This is the Type A
+    // direction of what `build-blind-pocket` drills in reverse, on a
+    // DIFFERENT solid: sharing one would publish that exercise's answer
+    // (AGENTS.md §6).
+    solid: subtractBox(block(7, 5, 4), { x: 2, y: 1, z: 3, w: 3, d: 3, h: 1 }, "pocket"),
+  },
+  {
     id: "build-stepped-shoulder",
     title: "Build the stepped shoulder",
     prompt:
@@ -712,6 +755,113 @@ const CATALOGUE: Drill[] = [
       shownAs: { kind: "views", convention: "first_angle" },
       originX: 12, originY: 30,
       solid: subtractBox(block(7, 6, 4), { x: 0, y: 0, z: 2, w: 3, d: 6, h: 2 }, "rebate"),
+    },
+  },
+  {
+    id: "oblique-from-views-general-first",
+    title: "From three views to general oblique",
+    prompt:
+      "You are given the three orthographic views of a part, in FIRST ANGLE. "
+      + "Read them, then draw the part in GENERAL oblique, which reduces the "
+      + "depth to two thirds — six units deep is four diagonals back. "
+      + "The front view tells you the shape of the front face, which is drawn "
+      + "true shape; the top view tells you the depth. "
+      + "The depth goes back at 45° up and to the right — one step right and "
+      + "one step up per diagonal. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only "
+      + "what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    // GENERAL had no views-prompted exercise at all before this pair: all
+    // three types were prompted by a pictorial, but only cavalier and cabinet
+    // were prompted by views. A solid NO other exercise uses.
+    spec: {
+      kind: "oblique", type: "general",
+      shownAs: { kind: "views", convention: "first_angle" },
+      originX: 2, originY: 36,
+      solid: subtractBox(block(8, 6, 5), { x: 0, y: 0, z: 3, w: 3, d: 6, h: 2 }, "rebate"),
+    },
+  },
+  {
+    id: "oblique-from-views-general-third",
+    title: "From three views to general oblique (third angle)",
+    prompt:
+      "You are given the three orthographic views of a part, in THIRD ANGLE. "
+      + "Read them, then draw the part in GENERAL oblique, which reduces the "
+      + "depth to two thirds — six units deep is four diagonals back. "
+      + "This part has a step cut at BOTH ends, and the two are NOT the same "
+      + "size; read each one off the views rather than assuming symmetry. "
+      + "The depth goes back at 45° up and to the right — one step right and "
+      + "one step up per diagonal. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only "
+      + "what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    spec: {
+      kind: "oblique", type: "general",
+      shownAs: { kind: "views", convention: "third_angle" },
+      originX: 2, originY: 36,
+      // The two steps are DELIBERATELY different: 3 wide by 2 high on the
+      // left, 2 wide by 1 high on the right. An earlier version made them
+      // identical while the prompt claimed they were not — the part passed the
+      // asymmetry guard anyway, because that rule only asks for asymmetry on
+      // ONE axis and this part is asymmetric in z. Caught by rendering the
+      // page and reading the front view, which was plainly symmetric.
+      solid: subtractBox(
+        subtractBox(block(9, 6, 5), { x: 0, y: 0, z: 3, w: 3, d: 6, h: 2 }, "left-step"),
+        { x: 7, y: 0, z: 4, w: 2, d: 6, h: 1 }, "right-step",
+      ),
+    },
+  },
+  {
+    id: "oblique-from-views-cavalier-third",
+    title: "From three views to cavalier oblique (third angle)",
+    prompt:
+      "You are given the three orthographic views of a part, in THIRD ANGLE. "
+      + "Read them, then draw the part in CAVALIER oblique, which does not "
+      + "reduce the depth at all — four units deep is four diagonals back. "
+      + "The front view tells you the shape of the front face, which is drawn "
+      + "true shape; the top view tells you the depth. "
+      + "The depth goes back at 45° up and to the right — one step right and "
+      + "one step up per diagonal. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only "
+      + "what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    // Cavalier was views-prompted only in FIRST angle; this completes the pair.
+    spec: {
+      kind: "oblique", type: "cavalier",
+      shownAs: { kind: "views", convention: "third_angle" },
+      originX: 2, originY: 36,
+      solid: subtractBox(block(8, 4, 5), { x: 6, y: 0, z: 0, w: 2, d: 4, h: 3 }, "notch"),
+    },
+  },
+  {
+    id: "oblique-from-views-cabinet-first",
+    title: "From three views to cabinet oblique (first angle)",
+    prompt:
+      "You are given the three orthographic views of a part, in FIRST ANGLE. "
+      + "Read them, then draw the part in CABINET oblique, which halves the "
+      + "depth — four units deep is two diagonals back. "
+      + "The front view tells you the shape of the front face, which is drawn "
+      + "true shape; the top view tells you the depth. "
+      + "The depth goes back at 45° up and to the right — one step right and "
+      + "one step up per diagonal. "
+      + "This is a pictorial, so leave hidden edges out entirely: draw only "
+      + "what you could see. "
+      + "Place the drawing anywhere with room around it.",
+    topicId: "oblique",
+    mode: "figure",
+    // Cabinet was views-prompted only in THIRD angle; this completes the pair,
+    // so every type is now drilled from views in both conventions.
+    spec: {
+      kind: "oblique", type: "cabinet",
+      shownAs: { kind: "views", convention: "first_angle" },
+      originX: 2, originY: 36,
+      solid: subtractBox(block(9, 4, 6), { x: 0, y: 0, z: 4, w: 4, d: 4, h: 2 }, "step"),
     },
   },
   {
