@@ -7,21 +7,60 @@
  * only (AGENTS.md §6).
  */
 
+export type TopicCount<Id extends string> = { topicId: Id; count: number };
+
 export type Batch<Id extends string> = {
   date: string;
   count: number;
-  /** The one topic every entry in the batch shares, or null if it spans more than one. */
-  topicId: Id | null;
+  /**
+   * One entry per topic touched on that date, sorted by count descending and
+   * ties broken by topicId. Ordering by id rather than by any canonical topic
+   * order is deliberate: a canonical order would mean importing the topic
+   * list, and this module imports nothing (see the docblock above).
+   */
+  byTopic: TopicCount<Id>[];
 };
 
 /**
- * Groups entries by their maximum addedOn date. Returns null for an empty
- * registry — never happens today, but this function should not assume its
- * caller.
+ * Every release date in the catalogue, NEWEST FIRST, with a per-topic
+ * breakdown of each. Feeds both the ribbon (which takes the first entry) and
+ * the /updates page (which lists them all).
+ */
+export function allBatches<Id extends string>(
+  entries: readonly { addedOn: string; topicId: Id }[],
+): Batch<Id>[] {
+  const byDate = new Map<string, Map<Id, number>>();
+  for (const entry of entries) {
+    let topics = byDate.get(entry.addedOn);
+    if (topics === undefined) {
+      topics = new Map<Id, number>();
+      byDate.set(entry.addedOn, topics);
+    }
+    topics.set(entry.topicId, (topics.get(entry.topicId) ?? 0) + 1);
+  }
+
+  return [...byDate.entries()]
+    // Descending: ISO dates compare lexicographically in date order.
+    .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
+    .map(([date, topics]) => {
+      const byTopic = [...topics.entries()]
+        .map(([topicId, count]) => ({ topicId, count }))
+        .sort((a, b) => b.count - a.count || (a.topicId < b.topicId ? -1 : a.topicId > b.topicId ? 1 : 0));
+      return { date, count: byTopic.reduce((n, t) => n + t.count, 0), byTopic };
+    });
+}
+
+/**
+ * The newest batch only, with the one topic it shares or null if it spans
+ * several.
+ *
+ * TEMPORARY: superseded by `allBatches` above, and deleted once
+ * `getUpdateRibbon` stops calling it. Its return type is written inline
+ * rather than reusing `Batch`, which now means something else.
  */
 export function latestBatch<Id extends string>(
   entries: readonly { addedOn: string; topicId: Id }[],
-): Batch<Id> | null {
+): { date: string; count: number; topicId: Id | null } | null {
   if (entries.length === 0) return null;
   const date = entries.reduce((max, e) => (e.addedOn > max ? e.addedOn : max), entries[0].addedOn);
   const batch = entries.filter((e) => e.addedOn === date);

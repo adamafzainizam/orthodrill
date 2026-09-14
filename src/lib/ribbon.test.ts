@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { latestBatch, isFresh } from "./ribbon.ts";
+import { latestBatch, allBatches, isFresh } from "./ribbon.ts";
 
 test("latestBatch returns null for an empty registry", () => {
   assert.equal(latestBatch([]), null);
@@ -66,4 +66,78 @@ test("isFresh treats exactly windowDays as stale, one day short as fresh", () =>
   const oneDayShort = new Date(2026, 9, 13); // 29 days after
   assert.equal(isFresh(date, exactlyAtWindow, 30), false);
   assert.equal(isFresh(date, oneDayShort, 30), true);
+});
+
+test("allBatches returns an empty array for an empty registry", () => {
+  assert.deepEqual(allBatches([]), []);
+});
+
+test("a single date with a single topic is one batch", () => {
+  const batches = allBatches([
+    { addedOn: "2026-09-06", topicId: "reading-views" },
+    { addedOn: "2026-09-06", topicId: "reading-views" },
+  ]);
+  assert.deepEqual(batches, [
+    { date: "2026-09-06", count: 2, byTopic: [{ topicId: "reading-views", count: 2 }] },
+  ]);
+});
+
+test("batches come back newest first, each date counted independently", () => {
+  const batches = allBatches([
+    { addedOn: "2026-08-26", topicId: "orthographic" },
+    { addedOn: "2026-09-14", topicId: "oblique" },
+    { addedOn: "2026-08-26", topicId: "orthographic" },
+  ]);
+  assert.deepEqual(batches.map((b) => b.date), ["2026-09-14", "2026-08-26"]);
+  assert.deepEqual(batches.map((b) => b.count), [1, 2]);
+});
+
+test("a date spanning topics breaks down per topic, largest first", () => {
+  const entries = [
+    ...Array.from({ length: 7 }, () => ({ addedOn: "2026-09-14", topicId: "constructions" })),
+    ...Array.from({ length: 4 }, () => ({ addedOn: "2026-09-14", topicId: "oblique" })),
+    ...Array.from({ length: 2 }, () => ({ addedOn: "2026-09-14", topicId: "orthographic" })),
+  ];
+  const [batch] = allBatches(entries);
+  assert.equal(batch.count, 13);
+  assert.deepEqual(batch.byTopic, [
+    { topicId: "constructions", count: 7 },
+    { topicId: "oblique", count: 4 },
+    { topicId: "orthographic", count: 2 },
+  ]);
+});
+
+test("topics tied on count are ordered by id, so the sort is deterministic", () => {
+  // Both topics have exactly 2, and "oblique" is inserted first. A sort with
+  // only the count key is stable, so it would leave oblique first and this
+  // assertion would fail — which is the point: without the second key the
+  // page's order would depend on whatever order the registry happens to list
+  // drills in.
+  const batch = allBatches([
+    { addedOn: "2026-09-14", topicId: "oblique" },
+    { addedOn: "2026-09-14", topicId: "constructions" },
+    { addedOn: "2026-09-14", topicId: "oblique" },
+    { addedOn: "2026-09-14", topicId: "constructions" },
+  ])[0];
+  assert.deepEqual(batch.byTopic.map((t) => t.topicId), ["constructions", "oblique"]);
+});
+
+test("every batch's byTopic counts sum to that batch's own count", () => {
+  // The invariant that catches misfiling. A grand-total check cannot: moving
+  // a drill from one date to another, or from one topic to another within a
+  // date, leaves the grand total untouched.
+  const batches = allBatches([
+    { addedOn: "2026-09-14", topicId: "oblique" },
+    { addedOn: "2026-09-14", topicId: "constructions" },
+    { addedOn: "2026-09-13", topicId: "reading-views" },
+    { addedOn: "2026-08-26", topicId: "orthographic" },
+    { addedOn: "2026-08-26", topicId: "orthographic" },
+  ]);
+  assert.equal(batches.length, 3);
+  for (const b of batches) {
+    assert.equal(
+      b.byTopic.reduce((n, t) => n + t.count, 0), b.count,
+      `${b.date}'s breakdown does not sum to its own count`,
+    );
+  }
 });
