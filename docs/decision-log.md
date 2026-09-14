@@ -408,7 +408,7 @@ That leaves `n`, bounded on both sides:
 
 **Found along the way, fixed in its own commit:** `isolation.test.ts`'s `SERVER_ONLY` list named `geometry/parabola` but not `geometry/constructions` or `geometry/oblique`, despite all three deriving answer keys identically. Latent rather than live — nothing outside `registry.ts` imports any of them today — but real: the guard would have caught the parabola case and waved through either of the other two. See AGENTS.md §6.
 
-**Left open, recorded rather than silently dropped:** §2.10 also asks for written update notes alongside the ribbon, and §2.5 has claimed tagged releases since before this session. Neither shipped here. See AGENTS.md §4 item 2.
+**Left open, recorded rather than silently dropped:** §2.10 also asks for written update notes alongside the ribbon, and §2.5 has claimed tagged releases since before this session. Neither shipped here. See §4's update-notes-and-tags item — both shipped on 2026-09-14 in the entry below, and that item has since been removed from §4.
 
 ## 2026-09-14 — the strong model plans and reviews, the fast model implements (§2.11)
 
