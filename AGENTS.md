@@ -94,8 +94,20 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
    # ... atomic commits ...
    npm test && npm run lint && npm run typecheck && npm run build
    git push -u origin feat/thing       # push the BRANCH, never main
-   GITHUB_TOKEN= gh pr create --fill   # the empty assignment is required; see §6
-   GITHUB_TOKEN= gh pr merge --merge --delete-branch
+
+   # Name the account explicitly. The older `GITHUB_TOKEN= gh ...` form
+   # stopped working once a second keyring account appeared — see §6.
+   GH=$(gh auth token --user adamafzainizam)
+   GH_TOKEN=$GH gh pr create --fill
+   GH_TOKEN=$GH gh pr merge --merge --delete-branch
+
+   # Tag the release. Date-keyed like everything else here, with a sequence
+   # because more than one PR can land on the same day.
+   git checkout main && git pull
+   DATE=$(date +%Y-%m-%d)              # the date you TAG, not the merge date
+   N=$(( $(git tag -l "$DATE-*" | wc -l) + 1 ))
+   git tag -a "$DATE-$N" -m "<PR title>" "$(git rev-parse HEAD)"
+   git push origin "$DATE-$N"
    ```
 
    **Never push straight to `main`.** Once a branch's commits are ancestors of `main`, no PR can be opened for them — the diff is empty — and the work is unreviewable as a unit forever.
