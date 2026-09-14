@@ -197,6 +197,24 @@ None of the orthographic eight are golden-set fixtures — they lean on the alre
 
 **Nothing is deployed yet.** That is the single biggest gap between this repo and a usable site.
 
+### WORK IN FLIGHT — read this before picking anything below
+
+**Branch `feat/paper-themes` exists, is three commits in, and is NOT pushed.** It carries the §4 reference fix, an approved design spec, and a finished implementation plan. **No production code has been written yet** — the next step is executing the plan, not designing anything.
+
+| | |
+|---|---|
+| Spec | `docs/superpowers/specs/2026-09-14-paper-themes-design.md` |
+| Plan | `docs/superpowers/plans/2026-09-14-paper-themes.md` — 8 tasks |
+| Baseline | 585 tests; the plan tracks 591 → 592 and states a count per task |
+
+**If you are the implementing session (§2.11 — this is Sonnet's half):** read the spec, then execute the plan with `superpowers:executing-plans`. The plan is deliberately self-contained — exact paths, the exact current code each edit anchors on, every colour as a literal, and a full commit message per task. **Use those commit messages verbatim and append nothing** — §2.7 forbids the AI attribution the harness reminder will tell you to add, and §6 records that it was added to 11 consecutive commits before anyone noticed.
+
+Two things in the plan are judgement calls it deliberately does not settle, because neither can be decided from source:
+- whether the new header links are quiet enough to sit on a drill page under §2.10 (Task 6) — decide from a render, and the fallback is named
+- the 3 papers × 4 exercise types render matrix (Task 7), which is **the only check that can catch a broken sheet**: a wrong fill renders as a plausible drawing with edges missing, and no test sees it
+
+**If you are the reviewing session (Opus's half):** the work to review is the diff on this branch against `main`, the render captures from Task 7, and whether the docs in Task 8 claim anything the implementation did not actually do.
+
 ### Next, in order of value
 
 **1. DEPLOY. Decided, blocked on one human step.** Vercel, production alias `orthodrill.vercel.app` (`.web.app` is unreachable — `docs/decision-log.md`, 2026-09-13).
@@ -209,9 +227,9 @@ npx vercel --prod     # from the repo root; Next needs no config
 - `orthodrill.vercel.app` may already be taken; Vercel aliases are global and this cannot be checked without auth.
 - **THE TRAP: Vercel's Hobby plan PROHIBITS ads outright** — AdSense is named — and pauses accounts for it. The site is compliant today only because the canvas spec §5 ships the reserved slots EMPTY. **Whoever fills the first slot must move the site first**, because filling a slot already in the layout looks like a content change and is really a hosting decision. Cloudflare Workers' free tier permits commercial use and runs Next SSR.
 
-**2. A settings page, with canvas paper themes.** Requested 2026-08-27, still the oldest unbuilt request. White / warm / dark-inverted, per viewer in `localStorage`.
+**2. A settings page, with canvas paper themes.** Requested 2026-08-27, still the oldest unbuilt request. White / warm / dark-inverted, per viewer in `localStorage`. **SPECCED AND PLANNED — see "Work in flight" above before reading further here.**
 
-- **THE TRAP, AND IT IS REAL.** `Pictorial.tsx` AND now `Builder.tsx` both hard-code `#ffffff` for ground and face fills, and that equality IS the hidden-line mechanism (§6). Both must read the paper token and track it exactly; one hex digit out shows as hidden edges reappearing or the drawing going solid-white.
+- **THE TRAP, AND IT IS REAL** — but the approved design *removes* it rather than running it, so do not act on this paragraph alone. `Pictorial.tsx` AND `Builder.tsx` each hard-code `#ffffff` for ground and face fills, and that equality IS the hidden-line mechanism (§6); one hex digit out shows as hidden edges reappearing or the drawing going solid-white. What the spec found: that colour is currently **three independent literals** (both components plus `--paper`) agreeing by luck, with nothing enforcing them. Routing ground and fills through one token collapses them to one source, so the failure stops being expressible. See the spec's §3.
 - Verify by rendering all three papers on an orthographic, a construction, an oblique AND a build exercise. Only a screenshot catches this class.
 
 **3. Tier 2 scoring** — tangents, ellipses, oblique through-holes, isometric DRAWING, and now the regular hexagon (§1.1). All blocked on tolerance-based comparison, which does not exist and should not be added casually.
