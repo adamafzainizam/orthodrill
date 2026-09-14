@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { PAPERS, PAPER_KEY, parsePaper } from "./paper.ts";
 
 test("there are exactly three papers, white first", () => {
@@ -35,4 +37,26 @@ test("the storage key is namespaced, like the ribbon's", () => {
   // Same origin as the ribbon's dismissal key, so a bare "paper" could
   // collide with anything else that ever stores under this origin.
   assert.ok(PAPER_KEY.startsWith("orthodrill:"), `${PAPER_KEY} is not namespaced`);
+});
+
+test("the inline theme script's key is imported from this module, not a hand-duplicated literal", () => {
+  // The executed script text (what runs in the browser) is a plain string
+  // that cannot itself `import` — but the TSX generating that string can, and
+  // does: it interpolates the imported PAPER_KEY rather than hard-coding the
+  // value a second time. That makes drift impossible by construction instead
+  // of merely unlikely. Checked mechanically anyway: if a future edit swaps
+  // the interpolation for a hard-coded literal, nothing errors at first — the
+  // script would silently keep working off a copy of the key that could
+  // later go stale, and this is what would catch that regression.
+  const layout = readFileSync(
+    fileURLToPath(new URL("../app/layout.tsx", import.meta.url)), "utf8",
+  );
+  assert.ok(
+    layout.includes('import { PAPER_KEY } from "@/lib/paper"'),
+    "layout.tsx no longer imports PAPER_KEY from src/lib/paper.ts",
+  );
+  assert.ok(
+    layout.includes("${PAPER_KEY}"),
+    "layout.tsx imports PAPER_KEY but the inline script does not interpolate it — check for a hard-coded literal instead",
+  );
 });
