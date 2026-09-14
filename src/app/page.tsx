@@ -37,7 +37,7 @@ export default function Home() {
           the sentence beside them. */}
       <DriftingFigures figures={figures} />
       <AppHeader />
-      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} href={ribbon.href} />}
+      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} />}
       {/* Centred in what is left below the header, so the page does not
           trail off into a void beneath the hero. */}
       <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-[1100px] flex-col justify-center gap-10 px-6 py-12">

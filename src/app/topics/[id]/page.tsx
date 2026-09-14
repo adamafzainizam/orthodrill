@@ -18,7 +18,7 @@ export default async function TopicPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <AppHeader back="/topics" trail={[{ label: topic.title }]} />
-      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} href={ribbon.href} />}
+      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} />}
       <main className="p-6 max-w-3xl mx-auto flex flex-col gap-6">
       <div>
         <h1 className="t-display">{topic.title}</h1>

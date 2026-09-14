@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS, SHEET, getUpdateRibbon } from "./registry.ts";
-import { getTopic } from "../topics/topics.ts";
+import { getDrill, listDrillIds, publicHalf, answerKey, DRILL_IDS, SHEET, getUpdateRibbon, getUpdateNotes } from "./registry.ts";
+import { getTopic, TOPIC_IDS } from "../topics/topics.ts";
 import { generateViews, generateViewsFromOccupancy } from "../lib/geometry/views.ts";
 import { cellsOfSolid, occupancyFromCells } from "../lib/geometry/cells.ts";
 import type { Cell } from "../lib/geometry/rotate3.ts";
@@ -621,6 +621,41 @@ test("getUpdateRibbon's count matches the number of drills at that date", () => 
   assert.equal(ribbon.count, atThatDate.length);
 });
 
-test("getUpdateRibbon's href always points somewhere under /topics", () => {
-  assert.match(getUpdateRibbon()!.href, /^\/topics(\/[a-z-]+)?$/);
+test("getUpdateNotes accounts for every drill exactly once", () => {
+  const total = getUpdateNotes().reduce((n, b) => n + b.count, 0);
+  assert.equal(total, listDrillIds().length);
+});
+
+test("getUpdateNotes' dates run newest-first, with no date appearing twice", () => {
+  const dates = getUpdateNotes().map((b) => b.date);
+  for (let i = 1; i < dates.length; i++) {
+    assert.ok(
+      dates[i - 1] > dates[i],
+      `${dates[i - 1]} should come strictly after ${dates[i]}`,
+    );
+  }
+});
+
+test("every batch's breakdown sums to its own count, on the real catalogue", () => {
+  for (const batch of getUpdateNotes()) {
+    assert.equal(
+      batch.byTopic.reduce((n, t) => n + t.count, 0), batch.count,
+      `${batch.date}'s breakdown does not sum to its own count`,
+    );
+  }
+});
+
+test("every topic named in the notes is a real topic with a non-empty title", () => {
+  // NOT `title === getTopic(topicId)!.title`. getUpdateNotes computes the
+  // title with that exact expression, so asserting it would recompute the
+  // subject and pass against any join, right or wrong — AGENTS.md §6's
+  // tautological-assertion failure, the one the generator's bounding-box
+  // test shipped with. What is checkable without recomputing: the id is one
+  // the catalogue knows, and the title is not empty.
+  for (const batch of getUpdateNotes()) {
+    for (const topic of batch.byTopic) {
+      assert.ok(TOPIC_IDS.includes(topic.topicId), `${topic.topicId} is not a known topic`);
+      assert.ok(topic.title.length > 0, `${topic.topicId} has an empty title`);
+    }
+  }
 });

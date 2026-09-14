@@ -32,7 +32,7 @@ import type { KeyViews } from "../lib/scoring/assign.ts";
 import type { Primitive } from "../lib/scoring/primitives.ts";
 import type { Convention } from "../lib/scoring/types.ts";
 import { getTopic, type Hint, type TopicId } from "../topics/topics.ts";
-import { latestBatch } from "../lib/ribbon.ts";
+import { allBatches } from "../lib/ribbon.ts";
 
 /**
  * An orthographic drill: draw front/top/side from an isometric prompt. The
@@ -1354,23 +1354,44 @@ export const READING_VIEWS_PREVIEW: readonly Primitive[] = Object.freeze(
 );
 
 /**
+ * One entry per release date, newest first, for the /updates page
+ * (AGENTS.md §2.10). Nothing here is secret — dates, counts and topic titles
+ * reveal nothing about any answer key — so this is as safe to call from a
+ * server component as `topicPreview` already is.
+ *
+ * The topicId -> title join happens HERE rather than in `lib/ribbon.ts`,
+ * which imports nothing by design so that a client component can import it
+ * directly. Same shape of join `publicTopic()` does below.
+ */
+export type UpdateNote = {
+  date: string;
+  count: number;
+  byTopic: { topicId: TopicId; title: string; count: number }[];
+};
+
+export function getUpdateNotes(): UpdateNote[] {
+  return allBatches(listDrillIds().map((id) => getDrill(id)!))
+    .map((batch) => ({
+      ...batch,
+      byTopic: batch.byTopic.map((t) => ({ ...t, title: getTopic(t.topicId)!.title })),
+    }));
+}
+
+/**
  * The newest batch of drills, for the update ribbon (AGENTS.md §2.10).
- * `date`, `count` and `href` reveal nothing about any answer key, so this is
- * as safe to call from a server component as `topicPreview` already is.
+ * `date` and `count` reveal nothing about any answer key, so this is as safe
+ * to call from a server component as `topicPreview` already is. No `href`
+ * any more — the ribbon always links to `/updates`, so the destination
+ * stopped being data.
  *
  * Deliberately does NOT check freshness — `/` and `/topics` are statically
  * prerendered, so a check made here would be evaluated at BUILD time and
  * frozen into the static HTML. `UpdateRibbon` (the client component) decides
  * freshness itself, against the viewer's own clock. See design spec §3.1.
  */
-export function getUpdateRibbon(): { date: string; count: number; href: string } | null {
-  const batch = latestBatch(listDrillIds().map((id) => getDrill(id)!));
-  if (batch === null) return null;
-  return {
-    date: batch.date,
-    count: batch.count,
-    href: batch.topicId === null ? "/topics" : `/topics/${batch.topicId}`,
-  };
+export function getUpdateRibbon(): { date: string; count: number } | null {
+  const [newest] = allBatches(listDrillIds().map((id) => getDrill(id)!));
+  return newest === undefined ? null : { date: newest.date, count: newest.count };
 }
 
 export function topicPreview(topicId: string): readonly Primitive[] | null {
