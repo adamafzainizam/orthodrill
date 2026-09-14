@@ -24,9 +24,15 @@ import type { IsoDim } from "@/lib/geometry/isodims";
  * side of its own dimension line a label reads from depends on which way
  * that dimension was pushed out, and isodims.ts is the one place that knows.
  */
-const PAPER = "#ffffff";
-const INK = "#111";
-const DIM_INK = "#1a5fb4";
+/**
+ * All three resolve through CSS custom properties so the pictorial follows the
+ * chosen paper. PAPER in particular is BOTH this figure's background and the
+ * fill of every face — one source, so the overdraw that hides back edges
+ * cannot break by the two drifting apart (AGENTS.md §6, design spec §3).
+ */
+const PAPER = "var(--paper)";
+const INK = "var(--ink)";
+const DIM_INK = "var(--dim-ink)";
 /** Font size of a dimension figure, in px. Must match the <text> below. */
 const LABEL_SIZE = 11;
 
