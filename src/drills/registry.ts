@@ -32,7 +32,7 @@ import type { KeyViews } from "../lib/scoring/assign.ts";
 import type { Primitive } from "../lib/scoring/primitives.ts";
 import type { Convention } from "../lib/scoring/types.ts";
 import { getTopic, type Hint, type TopicId } from "../topics/topics.ts";
-import { latestBatch } from "../lib/ribbon.ts";
+import { allBatches, latestBatch } from "../lib/ribbon.ts";
 
 /**
  * An orthographic drill: draw front/top/side from an isometric prompt. The
@@ -1352,6 +1352,30 @@ const READING_VIEWS_PREVIEW_SOLID = subtractBox(
 export const READING_VIEWS_PREVIEW: readonly Primitive[] = Object.freeze(
   viewsFigure(READING_VIEWS_PREVIEW_SOLID, "first_angle"),
 );
+
+/**
+ * One entry per release date, newest first, for the /updates page
+ * (AGENTS.md §2.10). Nothing here is secret — dates, counts and topic titles
+ * reveal nothing about any answer key — so this is as safe to call from a
+ * server component as `topicPreview` already is.
+ *
+ * The topicId -> title join happens HERE rather than in `lib/ribbon.ts`,
+ * which imports nothing by design so that a client component can import it
+ * directly. Same shape of join `publicTopic()` does below.
+ */
+export type UpdateNote = {
+  date: string;
+  count: number;
+  byTopic: { topicId: TopicId; title: string; count: number }[];
+};
+
+export function getUpdateNotes(): UpdateNote[] {
+  return allBatches(listDrillIds().map((id) => getDrill(id)!))
+    .map((batch) => ({
+      ...batch,
+      byTopic: batch.byTopic.map((t) => ({ ...t, title: getTopic(t.topicId)!.title })),
+    }));
+}
 
 /**
  * The newest batch of drills, for the update ribbon (AGENTS.md §2.10).
