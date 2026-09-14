@@ -50,25 +50,6 @@ export function allBatches<Id extends string>(
     });
 }
 
-/**
- * The newest batch only, with the one topic it shares or null if it spans
- * several.
- *
- * TEMPORARY: superseded by `allBatches` above, and deleted once
- * `getUpdateRibbon` stops calling it. Its return type is written inline
- * rather than reusing `Batch`, which now means something else.
- */
-export function latestBatch<Id extends string>(
-  entries: readonly { addedOn: string; topicId: Id }[],
-): { date: string; count: number; topicId: Id | null } | null {
-  if (entries.length === 0) return null;
-  const date = entries.reduce((max, e) => (e.addedOn > max ? e.addedOn : max), entries[0].addedOn);
-  const batch = entries.filter((e) => e.addedOn === date);
-  const topicIds = new Set(batch.map((e) => e.topicId));
-  const topicId = topicIds.size === 1 ? batch[0].topicId : null;
-  return { date, count: batch.length, topicId };
-}
-
 /** How many days a batch stays announced before the ribbon stops showing it. */
 const DEFAULT_WINDOW_DAYS = 30;
 

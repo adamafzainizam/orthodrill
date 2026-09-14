@@ -20,7 +20,7 @@ function formatDate(iso: string): string {
  * each page that wants it — never baked into AppHeader — so a future header
  * refactor cannot accidentally carry it onto a drill page. See design spec §5.
  */
-export function UpdateRibbon({ date, count, href }: { date: string; count: number; href: string }) {
+export function UpdateRibbon({ date, count }: { date: string; count: number }) {
   // Hidden until the effect below confirms the batch is fresh AND
   // undismissed, so SSR output and first client paint agree on "nothing" —
   // no flash-then-hide.
@@ -49,7 +49,9 @@ export function UpdateRibbon({ date, count, href }: { date: string; count: numbe
       className="flex items-center justify-between gap-3 border-b px-6 py-2"
       style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)" }}
     >
-      <Link href={href} className="t-small no-underline hover:underline" style={{ color: "var(--text-primary)" }}>
+      {/* Always /updates: the destination is no longer per-batch data, it is
+          a constant this component owns. */}
+      <Link href="/updates" className="t-small no-underline hover:underline" style={{ color: "var(--text-primary)" }}>
         {count} new exercise{count === 1 ? "" : "s"} added {formatDate(date)}
       </Link>
       <button

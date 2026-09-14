@@ -34,7 +34,7 @@ export default function TopicsPage() {
           front page, because the cards already carry their own. */}
       <DriftingFigures figures={driftFigures} count={4} />
       <AppHeader back="/" />
-      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} href={ribbon.href} />}
+      {ribbon !== null && <UpdateRibbon date={ribbon.date} count={ribbon.count} />}
       <main className="mx-auto flex max-w-[1100px] flex-col gap-8 px-6 py-10">
         <div>
           <h1 className="t-display">Choose a topic</h1>

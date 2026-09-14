@@ -621,10 +621,6 @@ test("getUpdateRibbon's count matches the number of drills at that date", () => 
   assert.equal(ribbon.count, atThatDate.length);
 });
 
-test("getUpdateRibbon's href always points somewhere under /topics", () => {
-  assert.match(getUpdateRibbon()!.href, /^\/topics(\/[a-z-]+)?$/);
-});
-
 test("getUpdateNotes accounts for every drill exactly once", () => {
   const total = getUpdateNotes().reduce((n, b) => n + b.count, 0);
   assert.equal(total, listDrillIds().length);
