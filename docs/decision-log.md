@@ -409,3 +409,18 @@ That leaves `n`, bounded on both sides:
 **Found along the way, fixed in its own commit:** `isolation.test.ts`'s `SERVER_ONLY` list named `geometry/parabola` but not `geometry/constructions` or `geometry/oblique`, despite all three deriving answer keys identically. Latent rather than live — nothing outside `registry.ts` imports any of them today — but real: the guard would have caught the parabola case and waved through either of the other two. See AGENTS.md §6.
 
 **Left open, recorded rather than silently dropped:** §2.10 also asks for written update notes alongside the ribbon, and §2.5 has claimed tagged releases since before this session. Neither shipped here. See AGENTS.md §4 item 2.
+
+## 2026-09-14 — the strong model plans and reviews, the fast model implements (§2.11)
+
+**Decided by the builder**, after a review pass earned its place twice in one sitting.
+
+**What the split is.** Brainstorming, spec review and plan writing happen on Opus. The plan is then executed on Sonnet, with the builder switching models at the handoff. Judgement-heavy work up front; mechanical execution after.
+
+**What prompted it, stated plainly because the failures are the argument.** An Opus pass over a Sonnet-written spec found two things, neither of which any mechanical check could have caught:
+
+1. **A design that contradicted its own justification.** The `/updates` page was introduced as the answer for "a reader who arrived later than the 30-day window" and then scoped to that same 30 days. Since nothing links to it but the ribbon, and the ribbon only renders while a batch is fresh, the page would have been **unreachable exactly when it was empty and empty exactly when it was unreachable** — invisible in the steady state, with §2.10's update notes unsatisfied. Fixing it *removed* code: with no freshness window the page needs no clock, so it needs no client component at all.
+2. **A tautological test**, written minutes earlier, asserting a title equalled the same `getTopic` call that produced it — §6's recorded failure class, the one the generator's bounding-box test originally shipped with.
+
+**The cost this imposes on planning, which is the real content of the decision.** An executing session starts cold and stops on red. So a plan has to carry exact paths, the exact current code each edit anchors on, exact commit messages, and a per-task expected test count — and its tasks must be ordered so the tree compiles and the suite passes at every boundary. **Review findings go INTO the plan**, as positive controls and named assertions, not into the conversation that produced them: chat does not survive the handoff, and this file and the plans are what do.
+
+**The honest limitation.** This is a division of labour, not a guarantee. The review that caught the two failures above was itself run by a model, on a spec it had not written — the value came from the fresh pass and the adversarial reading, not from the model name. A review that rubber-stamps is worth nothing regardless of which model performs it.

@@ -115,6 +115,11 @@ Not negotiable without an explicit decision recorded in `docs/decision-log.md`.
    **The ribbon never appears on a drill page.** This is the canvas spec's §5 applied to a new thing rather than a new rule: ads are barred from drill pages because "a drill page is where the student is working and learning; nothing competes for attention there", and a ribbon announcing new content competes for attention in exactly that way. Menu and landing pages only.
 
    **The ribbon's counts are DERIVED from the registry, never authored.** Each drill carries an `addedOn` date. A hand-written "5 new exercises" that says five when three shipped is the parabola-hint failure class exactly (§6): authored prose beside content, verified by nothing, with every test passing around it.
+11. **The strong model plans and reviews; the fast model implements.** Stated by the builder 2026-09-14. Brainstorming, spec review and plan writing happen on Opus; the resulting plan is executed on Sonnet, with the builder switching models at the handoff.
+
+   **The split exists because of what review actually caught.** On the day it was set, an Opus pass over a Sonnet-written spec found a page whose design contradicted its own justification — it was scoped to 30 days while being introduced as the answer for readers arriving *after* 30 days, which would have left it unreachable exactly when it was empty — and, separately, a freshly written test that asserted a value equalled the same call that produced it. Both were caught before any code, and neither would have failed a single mechanical check. See `docs/decision-log.md`.
+
+   **What this demands of a plan, and it is the whole point:** the implementing session starts cold. A plan must carry exact paths, the exact current code each edit anchors on, exact commit messages, and an expected test count per task — and its tasks must be ordered so the tree compiles and the suite is green at every boundary, because an executing session stops on red rather than re-planning around it. **Review findings belong IN the plan**, not in the conversation that produced it; anything left in chat is lost at the handoff.
 
 ---
 
