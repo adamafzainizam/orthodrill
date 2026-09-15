@@ -456,3 +456,25 @@ That leaves `n`, bounded on both sides:
 **One seam accepted and guarded:** the storage key is written twice, in `paper.ts` and in the script string that cannot import it. Drift there fails silently — the script would read a key nobody writes, every visitor would get white, and the settings page would appear to save and do nothing — so a test reads `layout.tsx` off disk and asserts the two agree.
 
 **One correction made during implementation, worth recording as its own small case of the review discipline above.** The plan's own test for that last guarantee checked the raw source for the storage key's *literal value* (`readFileSync(layout.tsx).includes(PAPER_KEY)`), but the plan's own implementation generates the script by interpolating the *imported* `PAPER_KEY` rather than duplicating the literal — so the source contains the identifier, never the value, and the test failed against the implementation on the first run. The implementation was kept as the stronger design (agreement by construction, not by remembering to keep two literals in sync) and the test was rewritten to check for the import and the interpolation instead. A plan is not infallible for having been reviewed once; a test that fails on first run still needs a diagnosis, not a workaround.
+
+## 2026-09-15 — the product is renamed draftdrill
+
+**Why.** `orthodrill` named the first topic. There are four now, and three of them are not orthographic projection — AGENTS.md §1 has said since 2026-08-27 that the product outgrew that name, and the README carried "working name — placeholder, expected to change" from the first commit. `draftdrill` keeps the half that is still true (it is a drill) and swaps the half that is not (drafting, not orthographic specifically).
+
+**Why now, and not after launch.** Two things are cheap to change today and expensive tomorrow. The `.vercel.app` alias is global and is fixed by the first deploy — which was paused at the project-name prompt so this could land first. And every `localStorage` key carries the product name as a prefix (`draftdrill:paper`, `draftdrill:ribbon-dismissed`); renamed after launch, every student's paper choice would silently reset to white and every dismissed ribbon would come back. Nothing is deployed, so nobody has a stored value to lose.
+
+**The name was checked before any code changed** (§2.4):
+
+| Check | Result |
+|---|---|
+| `draftdrill.vercel.app` | `DEPLOYMENT_NOT_FOUND` — no deployment. A project NAME can still be reserved without one; the CLI's name prompt is the final word |
+| GitHub, any account | no repository by that name |
+| `draftdrill.com` / `.app` / `.io` | no DNS records |
+| Web search | no technical drawing product by that name |
+
+**One near-collision, accepted knowingly.** *Draft Drills* (`draftdrills.com`, plural) is a practice tool for ARTISTS — it builds reference-image sets from Pinterest boards. It marks nothing and is not technical drawing, so it is not a competitor; but it is "drawing practice" one letter away, so search results will be shared with it for good. A separate *Draft & Drill* is a home builder and irrelevant. None of this is a trademark search, and it does not claim to be.
+
+**Deliberately NOT renamed:**
+- **The GitHub repository** stays `adamafzainizam/orthodrill`. GitHub would redirect, but nothing a student sees shows it, and AGENTS.md's `gh api` commands name it — renaming is a separate, optional change.
+- **The local folder** stays `~/Documents/orthodrill`. Claude Code stores per-project memory under a path derived from the folder, so moving it silently disconnects that memory.
+- **Every dated spec, plan and log entry** keeps the name it was written under. They are a record of what happened; rewriting the name in them would make that record wrong.

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "orthodrill — technical drawing practice",
+  title: "draftdrill — technical drawing practice",
   description:
     "Draw orthographic views, oblique projections and geometric constructions on a snapping grid, and get told exactly what is wrong.",
 };

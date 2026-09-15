@@ -36,7 +36,7 @@ test("parsing is case-SENSITIVE, matching what the writer stores", () => {
 test("the storage key is namespaced, like the ribbon's", () => {
   // Same origin as the ribbon's dismissal key, so a bare "paper" could
   // collide with anything else that ever stores under this origin.
-  assert.ok(PAPER_KEY.startsWith("orthodrill:"), `${PAPER_KEY} is not namespaced`);
+  assert.ok(PAPER_KEY.startsWith("draftdrill:"), `${PAPER_KEY} is not namespaced`);
 });
 
 test("the inline theme script's key is imported from this module, not a hand-duplicated literal", () => {
