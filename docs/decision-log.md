@@ -478,3 +478,15 @@ That leaves `n`, bounded on both sides:
 - **The GitHub repository** stays `adamafzainizam/orthodrill`. GitHub would redirect, but nothing a student sees shows it, and AGENTS.md's `gh api` commands name it — renaming is a separate, optional change.
 - **The local folder** stays `~/Documents/orthodrill`. Claude Code stores per-project memory under a path derived from the folder, so moving it silently disconnects that memory.
 - **Every dated spec, plan and log entry** keeps the name it was written under. They are a record of what happened; rewriting the name in them would make that record wrong.
+
+## 2026-09-15 — deployed, by hand, without auto-deploy yet
+
+**Live at https://draftdrill.vercel.app**, on Vercel's Hobby plan as decided 2026-09-13.
+
+**Checked on the live site, not on the CLI's word.** Every page returns 200 and an unknown one 404; the public drill API returns only the public half (`id, title, prompt, mode, convention, grid, isometric, dimensions, topic` — no solid, §5.1); malformed JSON to `/api/score` is refused; and rendering the live pages over CDP showed both scoring routes answering from the serverless function — a drawn attempt came back "read as 1 view, not three", a build attempt "16 blocks remain at the right". The paper preference applied from its new `draftdrill:` key.
+
+**Auto-deploy is not connected, and that is recorded rather than blocking.** The CLI's Git-connection step failed because Vercel's GitHub app has no access to this private repository. So merging a PR does not update the site; `npx vercel --prod` from an up-to-date `main` does. Granting the app access is a browser step for the builder. Until then the risk is a merged change that never reaches the site — quiet, not harmful.
+
+**One consequence of serverless, already known and now real.** The scoring route's rate limiter lives in module memory, so on Vercel each warm instance keeps its own count and a cold start resets it. `ratelimit.ts` already states this limit; it is acceptable under §5.1's accepted limitation for a practice tool. It is NOT acceptable for a graded mode, which would need a shared store first.
+
+**The Hobby plan's ad prohibition moved to AGENTS.md §2.1**, since the §4 item that carried it closed.
