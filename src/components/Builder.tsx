@@ -47,9 +47,14 @@ export type PublicBuildDrill = {
   base: { w: number; d: number; h: number };
 };
 
-/** Must equal the ground the faces are painted on, exactly — see §6. */
-const PAPER = "#ffffff";
-const INK = "#111";
+/**
+ * Must equal the ground the faces are painted on, exactly — see §6. It does,
+ * by construction: this same constant is the container's background and every
+ * face's fill, and both now resolve from one custom property, so the chosen
+ * paper moves them together.
+ */
+const PAPER = "var(--paper)";
+const INK = "var(--ink)";
 const PAD = 1.2;
 
 type Overlay = { missing: string[]; extra: string[] };

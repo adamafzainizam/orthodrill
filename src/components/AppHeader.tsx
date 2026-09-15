@@ -66,6 +66,30 @@ export function AppHeader({ trail = [], back }: { trail?: Crumb[]; back?: string
             )}
           </span>
         ))}
+
+        {/*
+          Secondary nav, pushed right. AppHeader renders on DRILL pages too,
+          where §2.10 bars chrome that competes for attention — the same rule
+          that keeps ads and the update ribbon off them. So these are
+          deliberately quiet: tertiary text, no accent, no badge, no fill.
+          If they ever stop reading as quiet, they move to menu pages only.
+        */}
+        <span className="ml-auto flex items-center gap-1">
+          <Link
+            href="/updates"
+            className="pressable t-small rounded-[var(--radius-sm)] px-2 py-1 no-underline"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            Updates
+          </Link>
+          <Link
+            href="/settings"
+            className="pressable t-small rounded-[var(--radius-sm)] px-2 py-1 no-underline"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            Settings
+          </Link>
+        </span>
       </nav>
     </header>
   );

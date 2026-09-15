@@ -4,13 +4,25 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* The drawing surface. Fixed in both themes: a technical drawing is black
-     ink on white paper, and pinning the paper means the ink never has to flip. */
+  /* The drawing surface. These are the WHITE paper, which is the default and
+     what a student sees unless they choose otherwise in /settings — including
+     in dark chrome, which deliberately does not drag the sheet with it.
+     The other papers redefine this whole group below; see the [data-paper]
+     blocks and the design spec 2026-09-14-paper-themes.
+
+     Every mark here is measured against --paper, not chosen by eye: the warm
+     and dark papers reproduce the contrast RATIOS this group produces, so the
+     hierarchy (ink loud, grid nearly invisible, construction between) survives
+     the change of paper. Re-derive if you change one. */
   --paper: #ffffff;
   --grid: #e6eae3;
   --ink: #15191a;
   --centre: #b0261c;
   --construction: #9aa39a;
+  /* Dimension figures and their witness lines, on the isometric prompt. A
+     real ink colour distinct from the object's own stroke, never the paper
+     colour — see Pictorial.tsx's docblock for why that distinction matters. */
+  --dim-ink: #1a5fb4;
   /* Quadrant dividers: a visual aid for laying the sheet out, so they must
      read as guides -- quieter than the student's ink, but clearer than the
      grid itself, or the quadrant they mark would be invisible. Not redefined
@@ -94,6 +106,44 @@
   --dur-press: 90ms;
   --dur-fade: 140ms;
   --ease-press: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/*
+ * THE OTHER PAPERS. Selected by `data-paper` on <html>, which the inline
+ * script in layout.tsx sets before first paint from localStorage.
+ *
+ * White sets no attribute: `:root` above is the white sheet, so there is one
+ * definition of it rather than two that could drift apart.
+ *
+ * These override the drawing surface ONLY. Chrome — page background, cards,
+ * text, borders — stays on prefers-color-scheme, because the paper is a
+ * separate axis from the room's lighting.
+ *
+ * DELIBERATELY NOT `:root[data-paper=…]`. A plain attribute selector lets any
+ * element re-scope the paper for its own subtree, which is what makes the
+ * settings page's swatches honest: each one carries its own data-paper and
+ * fills with var(--paper), so it renders through the exact block that
+ * choosing it would apply, instead of a second copy of the colour that could
+ * drift. Root-scoping these would silently leave every swatch white.
+ */
+[data-paper="warm"] {
+  --paper: #f6efdf;
+  --grid: #e3dac4;
+  --ink: #1b1813;
+  --centre: #a8271b;
+  --construction: #9c958a;
+  --quadrant: #cfc5ad;
+  --dim-ink: #1a5aa8;
+}
+
+[data-paper="dark"] {
+  --paper: #14181c;
+  --grid: #232a30;
+  --ink: #e9ecef;
+  --centre: #ff6b5e;
+  --construction: #535b65;
+  --quadrant: #323b44;
+  --dim-ink: #669ae9;
 }
 
 @theme inline {
