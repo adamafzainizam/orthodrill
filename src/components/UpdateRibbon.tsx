@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { isFresh } from "@/lib/ribbon";
 
-const RIBBON_KEY = "orthodrill:ribbon-dismissed";
+const RIBBON_KEY = "draftdrill:ribbon-dismissed";
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",

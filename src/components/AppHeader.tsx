@@ -43,7 +43,7 @@ export function AppHeader({ trail = [], back }: { trail?: Crumb[]; back?: string
         )}
 
         <Link href="/topics" className="pressable t-title no-underline" style={{ color: "var(--text-primary)" }}>
-          orthodrill
+          draftdrill
         </Link>
 
         {trail.map((crumb) => (

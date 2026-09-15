@@ -17,7 +17,7 @@ export type Paper = "white" | "warm" | "dark";
 export const PAPERS: readonly Paper[] = ["white", "warm", "dark"];
 
 /** Namespaced like the ribbon's dismissal key — one origin, several features. */
-export const PAPER_KEY = "orthodrill:paper";
+export const PAPER_KEY = "draftdrill:paper";
 
 /**
  * The stored preference, or white for anything this build does not recognise.

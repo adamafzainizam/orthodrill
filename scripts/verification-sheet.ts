@@ -275,7 +275,7 @@ function legendSwatch(dash: string, colour: string): string {
 
 function prelude(): string {
   return `<header>
-  <p class="eyebrow">Orthodrill · generator golden set</p>
+  <p class="eyebrow">Draftdrill · generator golden set</p>
   <h1>Golden set review</h1>
   <p class="lede">Four parts produced by the projection generator, each shown as a pictorial
   beside the three views it generated. All four were reviewed and passed on 26 August 2026,
@@ -340,7 +340,7 @@ function main(): void {
 </article>`;
   }).join("\n");
 
-  const head = `<title>Orthodrill Golden Set</title>
+  const head = `<title>Draftdrill Golden Set</title>
 ${FONTS}
 ${STYLE}`;
   const body = `<div class="sheet">

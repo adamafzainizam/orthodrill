@@ -1,6 +1,6 @@
-# orthodrill
+# draftdrill
 
-> **Working name** — placeholder, expected to change.
+> Formerly **orthodrill**, renamed 2026-09-15 once the tool had outgrown orthographic projection. The repository keeps the old name.
 
 **Practise technical drawing and get marked.** You draw on a snapping grid; it knows the answer, and tells you exactly what you got wrong.
 
